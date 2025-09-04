@@ -19,9 +19,11 @@ km003c-protocol-research/
 │   ├── logs/                  # Text logs and raw captures
 │   ├── sqlite/                # Database exports from proprietary software
 │   └── *.rules                # udev rules for device access
-└── py-analysis/               # Python analysis tools
-    ├── usbpdpy_examples.ipynb # Jupyter notebook with examples
-    └── README.md              # Analysis tools documentation
+├── analysis/                   # Python analysis tools
+│   ├── notebooks/             # Jupyter notebooks
+│   └── scripts/               # Analysis scripts
+├── pyproject.toml             # Python project configuration
+└── uv.lock                    # Dependency lock file
 ```
 
 ## 🛠️ Implementation
@@ -55,17 +57,21 @@ For the production Rust implementation based on this research, see:
 
 ## 📈 Analysis Tools
 
-### Python Analysis (`py-analysis/`)
-- **Jupyter notebooks** for interactive analysis
+### Python Analysis Environment
+- **Jupyter notebooks** for interactive analysis (`analysis/notebooks/`)
 - **usbpdpy package** for fast USB PD message parsing
 - **pandas/matplotlib** for data visualization
-- **PCAPNG processing** tools
+- **PCAPNG processing** tools and scripts
 
 ### Usage
 ```bash
-cd py-analysis
+# Setup environment
+uv sync --index-strategy unsafe-best-match
 source .venv/bin/activate
-jupyter notebook usbpdpy_examples.ipynb
+uv pip install --index-url https://test.pypi.org/simple/ usbpdpy
+
+# Run analysis
+jupyter notebook analysis/notebooks/usbpdpy_examples.ipynb
 ```
 
 ## 🎯 Research Status
