@@ -79,6 +79,13 @@ struct UsbPacketRecord {
     // USB Transfer flags (detailed USB metadata)
     transfer_flags: Option<String>,
     copy_of_transfer_flags: Option<String>,
+    // Additional USB identifiers and timing
+    urb_id: String,
+    usb_src: String,
+    usb_dst: String,
+    usb_addr: String,
+    urb_ts_sec: u64,
+    urb_ts_usec: u32,
     added_datetime: String,
 }
 
@@ -368,6 +375,14 @@ fn process_packet(packet: RtSharkPacket, session_id: &str, verbose: bool) -> Res
     // Extract USB transfer flags
     let transfer_flags = usb_layer.metadata("usb.transfer_flags").map(|t| t.value().to_string());
     let copy_of_transfer_flags = usb_layer.metadata("usb.copy_of_transfer_flags").map(|c| c.value().to_string());
+    
+    // Extract additional USB identifiers and timing
+    let urb_id = usb_layer.metadata("usb.urb_id").map(|u| u.value().to_string()).unwrap_or_else(|| "Unknown".to_string());
+    let usb_src = usb_layer.metadata("usb.src").map(|s| s.value().to_string()).unwrap_or_else(|| "Unknown".to_string());
+    let usb_dst = usb_layer.metadata("usb.dst").map(|d| d.value().to_string()).unwrap_or_else(|| "Unknown".to_string());
+    let usb_addr = usb_layer.metadata("usb.addr").map(|a| a.value().to_string()).unwrap_or_else(|| "Unknown".to_string());
+    let urb_ts_sec = usb_layer.metadata("usb.urb_ts_sec").and_then(|t| t.value().parse().ok()).unwrap_or(0);
+    let urb_ts_usec = usb_layer.metadata("usb.urb_ts_usec").and_then(|t| t.value().parse().ok()).unwrap_or(0);
 
     if verbose {
         println!(
@@ -411,6 +426,12 @@ fn process_packet(packet: RtSharkPacket, session_id: &str, verbose: bool) -> Res
         language_id,
         transfer_flags,
         copy_of_transfer_flags,
+        urb_id,
+        usb_src,
+        usb_dst,
+        usb_addr,
+        urb_ts_sec,
+        urb_ts_usec,
         added_datetime: chrono::Utc::now().to_rfc3339(),
     };
 
@@ -452,6 +473,12 @@ fn create_dataframe(records: Vec<UsbPacketRecord>) -> Result<DataFrame> {
     let language_ids: Vec<Option<u32>> = records.iter().map(|r| r.language_id).collect();
     let transfer_flags_vec: Vec<Option<String>> = records.iter().map(|r| r.transfer_flags.clone()).collect();
     let copy_of_transfer_flags_vec: Vec<Option<String>> = records.iter().map(|r| r.copy_of_transfer_flags.clone()).collect();
+    let urb_ids: Vec<String> = records.iter().map(|r| r.urb_id.clone()).collect();
+    let usb_srcs: Vec<String> = records.iter().map(|r| r.usb_src.clone()).collect();
+    let usb_dsts: Vec<String> = records.iter().map(|r| r.usb_dst.clone()).collect();
+    let usb_addrs: Vec<String> = records.iter().map(|r| r.usb_addr.clone()).collect();
+    let urb_ts_secs: Vec<u64> = records.iter().map(|r| r.urb_ts_sec).collect();
+    let urb_ts_usecs: Vec<u32> = records.iter().map(|r| r.urb_ts_usec).collect();
     let added_datetimes: Vec<String> = records.iter().map(|r| r.added_datetime.clone()).collect();
 
     let df = df! [
@@ -489,6 +516,12 @@ fn create_dataframe(records: Vec<UsbPacketRecord>) -> Result<DataFrame> {
         "language_id" => language_ids,
         "transfer_flags" => transfer_flags_vec,
         "copy_of_transfer_flags" => copy_of_transfer_flags_vec,
+        "urb_id" => urb_ids,
+        "usb_src" => usb_srcs,
+        "usb_dst" => usb_dsts,
+        "usb_addr" => usb_addrs,
+        "urb_ts_sec" => urb_ts_secs,
+        "urb_ts_usec" => urb_ts_usecs,
         "added_datetime" => added_datetimes,
     ]?;
 

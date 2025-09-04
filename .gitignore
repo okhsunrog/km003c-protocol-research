@@ -28,8 +28,10 @@ env/
 .ipynb_checkpoints
 
 # Analysis outputs
-*.parquet
 *.sqlite
+
+# Allow parquet files (primary data format for USB captures)
+# *.parquet
 
 # IDE
 .vscode/
