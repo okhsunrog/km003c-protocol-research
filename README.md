@@ -66,9 +66,9 @@ For the production Rust implementation based on this research, see:
 ### Usage
 ```bash
 # Setup environment
-uv sync --index-strategy unsafe-best-match
+uv venv
 source .venv/bin/activate
-uv pip install --index-url https://test.pypi.org/simple/ usbpdpy
+uv pip sync
 
 # Run analysis
 jupyter notebook analysis/notebooks/usbpdpy_examples.ipynb
