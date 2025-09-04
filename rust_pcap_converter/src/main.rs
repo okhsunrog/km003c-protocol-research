@@ -66,6 +66,19 @@ struct UsbPacketRecord {
     frame_length: u32,
     frame_protocols: String,
     source_file: String,
+    // USB Control packet fields (for setup packets)
+    bmrequest_type: Option<String>,
+    brequest: Option<String>,
+    brequest_name: Option<String>,
+    wvalue: Option<u32>,
+    windex: Option<u32>,
+    wlength: Option<u32>,
+    descriptor_type: Option<String>,
+    descriptor_index: Option<u32>,
+    language_id: Option<u32>,
+    // USB Transfer flags (detailed USB metadata)
+    transfer_flags: Option<String>,
+    copy_of_transfer_flags: Option<String>,
     added_datetime: String,
 }
 
@@ -341,6 +354,21 @@ fn process_packet(packet: RtSharkPacket, session_id: &str, verbose: bool) -> Res
             .map_err(|e| format!("Failed to decode hex payload '{}': {}", clean_hex, e))?
     };
 
+    // Extract USB Control packet fields (only present in control transfers)
+    let bmrequest_type = usb_layer.metadata("usb.bmRequestType").map(|b| b.value().to_string());
+    let brequest = usb_layer.metadata("usb.setup.bRequest").map(|b| b.value().to_string());
+    let brequest_name = usb_layer.metadata("usb.setup.bRequest.name").map(|b| b.value().to_string());
+    let wvalue = usb_layer.metadata("usb.setup.wValue").and_then(|w| w.value().parse().ok());
+    let windex = usb_layer.metadata("usb.setup.wIndex").and_then(|w| w.value().parse().ok());
+    let wlength = usb_layer.metadata("usb.setup.wLength").and_then(|w| w.value().parse().ok());
+    let descriptor_type = usb_layer.metadata("usb.bDescriptorType").map(|d| d.value().to_string());
+    let descriptor_index = usb_layer.metadata("usb.setup.wValue.descriptor_index").and_then(|d| d.value().parse().ok());
+    let language_id = usb_layer.metadata("usb.setup.wValue.language_id").and_then(|l| l.value().parse().ok());
+    
+    // Extract USB transfer flags
+    let transfer_flags = usb_layer.metadata("usb.transfer_flags").map(|t| t.value().to_string());
+    let copy_of_transfer_flags = usb_layer.metadata("usb.copy_of_transfer_flags").map(|c| c.value().to_string());
+
     if verbose {
         println!(
             "Frame {}: {} bytes {} @ {:.6}s [{}:{}]",
@@ -372,6 +400,17 @@ fn process_packet(packet: RtSharkPacket, session_id: &str, verbose: bool) -> Res
         frame_length,
         frame_protocols,
         source_file: session_id.to_string(), // Use session_id as source file identifier
+        bmrequest_type,
+        brequest,
+        brequest_name,
+        wvalue,
+        windex,
+        wlength,
+        descriptor_type,
+        descriptor_index,
+        language_id,
+        transfer_flags,
+        copy_of_transfer_flags,
         added_datetime: chrono::Utc::now().to_rfc3339(),
     };
 
@@ -402,6 +441,17 @@ fn create_dataframe(records: Vec<UsbPacketRecord>) -> Result<DataFrame> {
     let frame_lengths: Vec<u32> = records.iter().map(|r| r.frame_length).collect();
     let frame_protocols: Vec<String> = records.iter().map(|r| r.frame_protocols.clone()).collect();
     let source_files: Vec<String> = records.iter().map(|r| r.source_file.clone()).collect();
+    let bmrequest_types: Vec<Option<String>> = records.iter().map(|r| r.bmrequest_type.clone()).collect();
+    let brequests: Vec<Option<String>> = records.iter().map(|r| r.brequest.clone()).collect();
+    let brequest_names: Vec<Option<String>> = records.iter().map(|r| r.brequest_name.clone()).collect();
+    let wvalues: Vec<Option<u32>> = records.iter().map(|r| r.wvalue).collect();
+    let windexes: Vec<Option<u32>> = records.iter().map(|r| r.windex).collect();
+    let wlengths: Vec<Option<u32>> = records.iter().map(|r| r.wlength).collect();
+    let descriptor_types: Vec<Option<String>> = records.iter().map(|r| r.descriptor_type.clone()).collect();
+    let descriptor_indexes: Vec<Option<u32>> = records.iter().map(|r| r.descriptor_index).collect();
+    let language_ids: Vec<Option<u32>> = records.iter().map(|r| r.language_id).collect();
+    let transfer_flags_vec: Vec<Option<String>> = records.iter().map(|r| r.transfer_flags.clone()).collect();
+    let copy_of_transfer_flags_vec: Vec<Option<String>> = records.iter().map(|r| r.copy_of_transfer_flags.clone()).collect();
     let added_datetimes: Vec<String> = records.iter().map(|r| r.added_datetime.clone()).collect();
 
     let df = df! [
@@ -428,6 +478,17 @@ fn create_dataframe(records: Vec<UsbPacketRecord>) -> Result<DataFrame> {
         "frame_length" => frame_lengths,
         "frame_protocols" => frame_protocols,
         "source_file" => source_files,
+        "bmrequest_type" => bmrequest_types,
+        "brequest" => brequests,
+        "brequest_name" => brequest_names,
+        "wvalue" => wvalues,
+        "windex" => windexes,
+        "wlength" => wlengths,
+        "descriptor_type" => descriptor_types,
+        "descriptor_index" => descriptor_indexes,
+        "language_id" => language_ids,
+        "transfer_flags" => transfer_flags_vec,
+        "copy_of_transfer_flags" => copy_of_transfer_flags_vec,
         "added_datetime" => added_datetimes,
     ]?;
 
