@@ -1,122 +1,121 @@
 # KM003C Protocol Research
 
-Reverse engineering documentation and analysis of the **ChargerLAB POWER-Z KM003C** USB-C power analyzer protocol.
+Reverse engineering the **ChargerLAB POWER-Z KM003C** USB-C power analyzer protocol through comprehensive packet capture analysis.
 
-## 🔍 Research Overview
+## 🎯 Project Purpose
 
-This repository contains the complete reverse engineering process, findings, and analysis tools for understanding the KM003C communication protocol.
+Understand the KM003C USB communication patterns to enable protocol documentation and implementation for research and development purposes.
 
-## 📁 Repository Structure
+## 🏗️ Architecture
 
-```
-km003c-protocol-research/
-├── docs/                       # Protocol documentation
-│   ├── protocol.md            # Complete protocol specification
-│   ├── analysis.md            # Detailed analysis findings
-│   └── KM002C&3C API Description.*  # Original documentation
-├── captures/                   # Raw data and captures
-│   ├── wireshark/             # PCAPNG files from USB traffic
-│   ├── logs/                  # Text logs and raw captures
-│   ├── sqlite/                # Database exports from proprietary software
-│   └── *.rules                # udev rules for device access
-├── analysis/                   # Python analysis tools
-│   ├── notebooks/             # Jupyter notebooks
-│   └── scripts/               # Analysis scripts
-├── pyproject.toml             # Python project configuration
-└── uv.lock                    # Dependency lock file
-```
+### Data Pipeline
+The project uses a **Rust-based converter** that transforms pcap files into structured Parquet datasets for analysis.
 
-## 🛠️ Implementation
+**Key Component**: `rust_pcap_converter/`
+- Extracts 41 comprehensive USB protocol fields from pcapng files
+- Handles multiple devices and sessions with auto-detection from filenames
+- Provides complete USB communication visibility (control + data + status packets)
 
-For the production Rust implementation based on this research, see:
-**[km003c-rs](https://github.com/okhsunrog/km003c-rs)**
+### Master Dataset
+**File**: `usb_master_dataset.parquet` (506KB)
+- **11,514 USB packets** across 4 devices (addresses 6, 9, 13, 16)
+- **7 capture sessions** with full source tracking
+- **41 fields per packet** including payload data, control packet parsing, URB tracking
 
-## 📊 Key Findings
+### Analysis Tools
+**Notebooks**:
+- `usb_protocol_analysis.ipynb` - Interactive analysis of master dataset
+- `usbpdpy_examples.ipynb` - USB Power Delivery message parsing
 
-### Protocol Details
-- **USB Device**: VID 0x5FC9, PID 0x0063
-- **Communication**: USB HID with bulk transfer endpoints
-- **Protocol**: Custom binary protocol with control and data packets
-- **Data Types**: ADC measurements and USB PD message capture
+**Scripts**:
+- `helpers.py` - Core analysis functions for USB protocol research
+- `analyze_parquet_with_payload.py` - Command-line analysis tool
+- `parse_messages.py` - USB PD message parsing utility
 
-### Packet Types Identified
-- `GetData` (0x0C) - Request data from device
-- `PutData` (0x41) - Device response with data
-- `Accept` (0x05) - Command acknowledgment
+## 🔧 Usage
 
-### Data Formats
-- **ADC Data**: 32-byte structure with voltage, current, temperature
-- **PD Data**: Event stream with connection events, status, and wrapped PD messages
-
-## 🔬 Reverse Engineering Tools Used
-
-- **Wireshark + usbmon**: USB traffic capture and analysis
-- **Ghidra**: Proprietary software reverse engineering
-- **Python + usbpdpy**: Protocol analysis and message parsing
-- **TShark**: Automated packet processing
-
-## 📈 Analysis Tools
-
-### Python Analysis Environment
-- **Jupyter notebooks** for interactive analysis (`analysis/notebooks/`)
-- **usbpdpy package** for fast USB PD message parsing
-- **pandas/matplotlib** for data visualization
-- **PCAPNG processing** tools and scripts
-
-### Usage
+### Converting PCAP Files
 ```bash
-# Setup environment
-uv venv
-source .venv/bin/activate
-uv pip sync
+# Auto-detects device address and session from filename
+./rust_pcap_converter/target/debug/pcap_to_parquet --input capture.13.pcapng
 
-# Run analysis
-jupyter notebook analysis/notebooks/usbpdpy_examples.ipynb
+# Append to existing dataset
+./rust_pcap_converter/target/debug/pcap_to_parquet --input new_capture.16.pcapng --output usb_master_dataset.parquet --append
 ```
 
-## 🎯 Research Status
+### Analysis Workflow
+```python
+# Load and analyze
+from helpers import load_master_dataset, get_session_stats
+df = load_master_dataset('usb_master_dataset.parquet')
+stats = get_session_stats(df)
 
-### ✅ Completed
-- Basic protocol structure reverse engineered
-- ADC data format documented
-- USB PD message wrapper format identified
-- Python analysis tools created
-- Core packet types mapped
+# Filter for specific analysis
+device_13 = df.filter(pl.col('device_address') == 13)
+payload_data = df.filter(pl.col('payload_hex') != '')
+control_packets = df.filter(pl.col('transfer_type') == '0x02')
+```
 
-### 🔄 In Progress
-- Advanced command investigation
-- Extended header format analysis
-- Additional packet type identification
+### Setup Environment
+```bash
+# Install dependencies
+uv sync
 
-### ❓ Unknown
-- Device configuration commands
-- Firmware update protocol
-- Some proprietary packet types (0x10, 0x11)
+# Start analysis
+cd analysis/notebooks
+jupyter notebook usb_protocol_analysis.ipynb
+```
 
-## 📚 Documentation
+## 🔍 Key Technical Insights
 
-- **[Protocol Specification](docs/protocol.md)** - Complete technical documentation
-- **[Analysis Notes](docs/analysis.md)** - Detailed reverse engineering findings
+### USB Protocol Structure
+- **URB IDs**: Unique identifiers for tracking USB transactions (Submit/Complete pairs)
+- **Transfer Types**: 0x02 (control), 0x03 (interrupt) - different purposes and data patterns
+- **Control Packets**: USB setup requests with parsed bmRequestType, bRequest, wLength fields
+- **Payload Data**: Raw hex data extracted via rtshark (not accessible through pyshark)
 
-## 🤝 Contributing
+### Data Extraction Approach
+- **Complete capture strategy** - Capture ALL USB communication by default, filter in analysis
+- **Transaction-level analysis** - Use URB IDs to match Submit/Complete pairs for timing analysis
+- **Multi-device datasets** - Combine captures from different devices for comparative analysis
 
-Contributions to the research are welcome! Areas where help is needed:
+### Why Rust + tshark
+- **pyshark limitation**: Cannot extract field containing actual USB payload
+- **Performance**: Direct tshark integration provides complete USB protocol access
+- **Data completeness**: Extracts all 41 available USB fields vs limited Python alternatives
 
-- Additional PCAPNG captures from different scenarios
-- Analysis of unknown packet types
-- Documentation improvements
-- New analysis tools and techniques
+## 📊 Dataset Overview
 
-## 📄 License
+**Current Data**: 11,514 USB packets across 4 devices
+- **Device 6**: 2,230 packets (ADC measurements, high data rate)
+- **Device 9**: 6,930 packets (Power Delivery analysis)
+- **Device 13**: 2,056 packets (Complete protocol communication)
+- **Device 16**: 298 packets (Device operations)
 
-This research is shared under MIT License for educational and research purposes.
+**Analysis Capabilities**:
+- Transaction pairing using URB IDs
+- Control packet parsing with USB setup requests
+- Payload pattern recognition and timing analysis
+- Multi-session comparative analysis
 
-## 🙏 Acknowledgments
+## 🎯 Research Applications
 
-- **usbpd crate authors** for the excellent USB PD parsing library
-- **Wireshark community** for powerful analysis tools
-- **ChargerLAB** for creating innovative USB-C analysis hardware
+1. **Transaction timing** - Submit/Complete latency analysis
+2. **Payload pattern recognition** - Protocol command/response structure
+3. **Multi-device comparison** - Different device behavior analysis
+4. **Control flow understanding** - USB enumeration and setup sequences
+
+## 🚀 Quick Start
+
+1. **Load the dataset**: `df = load_master_dataset('usb_master_dataset.parquet')`
+2. **Explore sessions**: `stats = get_session_stats(df)`
+3. **Analyze patterns**: Use URB IDs for transaction pairing
+4. **Deep dive**: Focus on payload data for protocol reverse engineering
+
+## 🔗 Related Projects
+
+**Production Implementation**: [km003c-rs](https://github.com/okhsunrog/km003c-rs) - Rust library for KM003C device communication
 
 ---
 
-**For the production Rust implementation, visit: [km003c-rs](https://github.com/okhsunrog/km003c-rs)**
+The infrastructure is production-ready for advanced USB protocol reverse engineering research.
