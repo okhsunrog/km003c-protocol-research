@@ -1,5 +1,6 @@
 use clap::Parser;
 use polars::prelude::*;
+use polars_utils::plpath::PlPath;
 use rtshark::{Packet as RtSharkPacket, RTSharkBuilder};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -237,7 +238,7 @@ fn main() -> Result<()> {
     // Handle file merging/appending
     let final_df = if args.append && args.output.exists() {
         println!("Loading existing data from {:?}", args.output);
-        let existing_df = LazyFrame::scan_parquet(&args.output, ScanArgsParquet::default())?
+        let existing_df = LazyFrame::scan_parquet(PlPath::new(args.output.to_str().unwrap()), ScanArgsParquet::default())?
             .collect()?;
         
         // Check for duplicate session_id

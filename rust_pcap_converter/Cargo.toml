@@ -5,7 +5,8 @@ edition = "2021"
 
 [dependencies]
 rtshark = "3.2"
-polars = { version = "0.50", features = ["lazy", "parquet", "temporal", "strings"] }
+polars = { version = "0.50", default-features = false, features = ["lazy", "parquet", "temporal"] }
+polars-utils = "0.50"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 clap = { version = "4.0", features = ["derive"] }
