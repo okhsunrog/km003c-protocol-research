@@ -12,3 +12,9 @@ dependencies = [
     "usbpdpy>=0.1.0",
     "polars",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.2",
+    "pytest-asyncio>=0.23.7",
+]
