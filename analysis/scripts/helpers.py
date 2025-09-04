@@ -246,3 +246,59 @@ def hex_to_ascii(hex_string: str) -> str:
         return ''.join(chr(b) if 32 <= b <= 126 else '.' for b in data)
     except ValueError:
         return '<invalid hex>'
+
+# -- Rust-backed Parser Integration --
+from km003c_lib import parse_packet, AdcData
+
+def add_parsed_adc_data(df: pl.DataFrame) -> pl.DataFrame:
+    """
+    Applies the Rust-based parser to a DataFrame, returning a new DataFrame
+    with a 'packet_type' column and columns for the parsed ADC data.
+    """
+
+    def parse_hex_payload(payload_hex: str) -> Optional[dict]:
+        """Wrapper to handle hex decoding and call the Rust parser."""
+        NULL_ADC_DICT = {
+            'vbus_v': None, 'ibus_a': None, 'power_w': None, 'vbus_avg_v': None,
+            'ibus_avg_a': None, 'temp_c': None, 'vdp_v': None, 'vdm_v': None,
+            'vdp_avg_v': None, 'vdm_avg_v': None, 'cc1_v': None, 'cc2_v': None,
+        }
+        if not payload_hex:
+            return NULL_ADC_DICT
+        try:
+            payload_bytes = bytes.fromhex(payload_hex)
+            adc_data = parse_packet(payload_bytes)
+            if adc_data:
+                return {
+                    'vbus_v': adc_data.vbus_v, 'ibus_a': adc_data.ibus_a,
+                    'power_w': adc_data.power_w, 'vbus_avg_v': adc_data.vbus_avg_v,
+                    'ibus_avg_a': adc_data.ibus_avg_a, 'temp_c': adc_data.temp_c,
+                    'vdp_v': adc_data.vdp_v, 'vdm_v': adc_data.vdm_v,
+                    'vdp_avg_v': adc_data.vdp_avg_v, 'vdm_avg_v': adc_data.vdm_avg_v,
+                    'cc1_v': adc_data.cc1_v, 'cc2_v': adc_data.cc2_v,
+                }
+            return NULL_ADC_DICT
+        except (ValueError, TypeError):
+            return NULL_ADC_DICT
+
+    adc_struct_type = pl.Struct([
+        pl.Field('vbus_v', pl.Float64), pl.Field('ibus_a', pl.Float64),
+        pl.Field('power_w', pl.Float64), pl.Field('vbus_avg_v', pl.Float64),
+        pl.Field('ibus_avg_a', pl.Float64), pl.Field('temp_c', pl.Float64),
+        pl.Field('vdp_v', pl.Float64), pl.Field('vdm_v', pl.Float64),
+        pl.Field('vdp_avg_v', pl.Float64), pl.Field('vdm_avg_v', pl.Float64),
+        pl.Field('cc1_v', pl.Float64), pl.Field('cc2_v', pl.Float64),
+    ])
+
+    parsed_series = df["payload_hex"].map_elements(
+        parse_hex_payload,
+        return_dtype=adc_struct_type
+    )
+
+    return df.with_columns(
+        pl.when(parsed_series.is_not_null())
+          .then(pl.lit("ADC_DATA"))
+          .otherwise(pl.lit("OTHER"))
+          .alias("packet_type"),
+        parsed_series.alias("adc_data")
+    ).unnest("adc_data")
