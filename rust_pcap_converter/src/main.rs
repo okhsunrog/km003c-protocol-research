@@ -89,6 +89,7 @@ struct UsbPacketRecord {
     // Frame-level metadata
     frame_length: u32,
     frame_protocols: String,
+    source_file: String,
     added_datetime: String,
 }
 
@@ -427,6 +428,7 @@ fn process_packet(packet: RtSharkPacket, session_id: &str, verbose: bool) -> Res
         start_frame,
         frame_length,
         frame_protocols,
+        source_file: session_id.to_string(), // Use session_id as source file identifier
         added_datetime: chrono::Utc::now().to_rfc3339(),
     };
 
@@ -456,6 +458,7 @@ fn create_dataframe(records: Vec<UsbPacketRecord>) -> Result<DataFrame> {
     let start_frames: Vec<u32> = records.iter().map(|r| r.start_frame).collect();
     let frame_lengths: Vec<u32> = records.iter().map(|r| r.frame_length).collect();
     let frame_protocols: Vec<String> = records.iter().map(|r| r.frame_protocols.clone()).collect();
+    let source_files: Vec<String> = records.iter().map(|r| r.source_file.clone()).collect();
     let added_datetimes: Vec<String> = records.iter().map(|r| r.added_datetime.clone()).collect();
 
     let df = df! [
@@ -481,6 +484,7 @@ fn create_dataframe(records: Vec<UsbPacketRecord>) -> Result<DataFrame> {
         "start_frame" => start_frames,
         "frame_length" => frame_lengths,
         "frame_protocols" => frame_protocols,
+        "source_file" => source_files,
         "added_datetime" => added_datetimes,
     ]?;
 
