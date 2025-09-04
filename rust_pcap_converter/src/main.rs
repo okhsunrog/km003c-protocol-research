@@ -26,37 +26,13 @@ struct Cli {
     #[arg(long)]
     session_id: Option<String>,
 
-    /// Transfer type filter (0x01=bulk, 0x02=control, 0x03=interrupt, 0x00=isochronous)
-    #[arg(long, default_value = "0x03")]
-    transfer_type: String,
-
-    /// Direction filter (h2d, d2h, or both)
-    #[arg(long, default_value = "both")]
-    direction: String,
-
-    /// Endpoint filter (e.g., 0x01, 0x81)
-    #[arg(long)]
-    endpoint: Option<String>,
-
-    /// Minimum payload size filter
-    #[arg(long, default_value = "0")]
-    min_payload: u32,
-
-    /// Maximum payload size filter
-    #[arg(long)]
-    max_payload: Option<u32>,
-
-    /// Start time filter (seconds from capture start)
-    #[arg(long)]
-    start_time: Option<f64>,
-
-    /// End time filter (seconds from capture start)
-    #[arg(long)]
-    end_time: Option<f64>,
-
     /// Append to existing parquet file instead of overwriting
     #[arg(long)]
     append: bool,
+
+    /// Only capture packets with payload data (exclude control/setup packets)
+    #[arg(long)]
+    payload_only: bool,
 
     /// Verbose output
     #[arg(short, long)]
@@ -138,42 +114,20 @@ fn main() -> Result<()> {
     println!("Output file: {:?}", args.output);
     println!("Device address: {}", device_address);
     println!("Session ID: {}", session_id);
-    println!("Transfer type filter: {}", args.transfer_type);
-    println!("Direction filter: {}", args.direction);
-    if let Some(ep) = &args.endpoint {
-        println!("Endpoint filter: {}", ep);
+    if args.payload_only {
+        println!("Mode: payload-only (excluding control/setup packets)");
+    } else {
+        println!("Mode: complete capture (all USB packets to device)");
     }
-    println!("Payload size filter: {} - {} bytes", args.min_payload, 
-             args.max_payload.map_or("unlimited".to_string(), |m| m.to_string()));
 
-    // Build tshark filter with all options
-    let mut filter_parts = vec!["usb.capdata".to_string()];
+    // Build tshark filter with minimal essential filtering
+    let mut filter_parts = vec![
+        format!("usb.device_address == {}", device_address)
+    ];
     
-    // Device address filter
-    filter_parts.push(format!("usb.device_address == {}", device_address));
-    
-    // Transfer type filter
-    filter_parts.push(format!("usb.transfer_type == {}", args.transfer_type));
-    
-    // Direction filter
-    match args.direction.as_str() {
-        "h2d" => filter_parts.push("usb.endpoint_address.direction == 0".to_string()),
-        "d2h" => filter_parts.push("usb.endpoint_address.direction == 1".to_string()),
-        "both" => {}, // No additional filter
-        _ => return Err("Direction must be 'h2d', 'd2h', or 'both'".into()),
-    }
-    
-    // Endpoint filter
-    if let Some(endpoint) = &args.endpoint {
-        filter_parts.push(format!("usb.endpoint_address == {}", endpoint));
-    }
-    
-    // Payload size filters
-    if args.min_payload > 0 {
-        filter_parts.push(format!("usb.data_len >= {}", args.min_payload));
-    }
-    if let Some(max_payload) = args.max_payload {
-        filter_parts.push(format!("usb.data_len <= {}", max_payload));
+    // Add capdata filter only if payload-only mode is requested
+    if args.payload_only {
+        filter_parts.push("usb.capdata".to_string());
     }
     
     let display_filter = filter_parts.join(" && ");
@@ -201,24 +155,7 @@ fn main() -> Result<()> {
         }
 
         if let Ok(record) = process_packet(packet, &session_id, args.verbose) {
-            // Apply time filters
-            let mut include_packet = true;
-            
-            if let Some(start_time) = args.start_time {
-                if record.timestamp < start_time {
-                    include_packet = false;
-                }
-            }
-            
-            if let Some(end_time) = args.end_time {
-                if record.timestamp > end_time {
-                    include_packet = false;
-                }
-            }
-            
-            if include_packet {
-                records.push(record);
-            }
+            records.push(record);
         }
     }
 
@@ -388,15 +325,21 @@ fn process_packet(packet: RtSharkPacket, session_id: &str, verbose: bool) -> Res
         .and_then(|s| s.value().parse().ok())
         .unwrap_or(0);
 
-    // Extract hex payload
-    let payload_hex = usb_layer.metadata("usb.capdata").ok_or("Missing usb.capdata")?.value();
+    // Extract hex payload (might be empty for control packets)
+    let payload_hex = usb_layer.metadata("usb.capdata")
+        .map(|p| p.value().to_string())
+        .unwrap_or_else(|| String::new());
 
     // Clean up hex string (remove colons)
     let clean_hex = payload_hex.replace(':', "");
 
-    // Convert hex to bytes
-    let payload_bytes = hex::decode(&clean_hex)
-        .map_err(|e| format!("Failed to decode hex payload: {}", e))?;
+    // Convert hex to bytes (handle empty payloads)
+    let payload_bytes = if clean_hex.is_empty() {
+        Vec::new()
+    } else {
+        hex::decode(&clean_hex)
+            .map_err(|e| format!("Failed to decode hex payload '{}': {}", clean_hex, e))?
+    };
 
     if verbose {
         println!(
