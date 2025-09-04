@@ -209,10 +209,25 @@ fn main() -> Result<()> {
             .collect();
         
         if existing_sessions.contains(&session_id) {
-            return Err(format!(
-                "Session ID '{}' already exists in {:?}. Use a different session ID or remove --append",
-                session_id, args.output
-            ).into());
+            println!("⚠️  Session ID '{}' already exists in {:?}. Skipping to prevent duplicates.", session_id, args.output);
+            println!("✅ No new data added. Dataset remains unchanged.");
+            return Ok(());
+        }
+        
+        // Additional check: detect potential duplicate data by URB IDs
+        // (in case same file processed with different session ID)
+        if new_df.height() > 0 && existing_df.height() > 0 {
+            // Get sample URB IDs from both datasets
+            let new_urb_ids: Vec<String> = new_df.column("urb_id")?.str()?.into_no_null_iter().take(5).map(|s| s.to_string()).collect();
+            let existing_urb_ids: Vec<String> = existing_df.column("urb_id")?.str()?.into_no_null_iter().take(100).map(|s| s.to_string()).collect();
+            
+            // Check if any new URB IDs already exist
+            let duplicates = new_urb_ids.iter().filter(|&id| existing_urb_ids.contains(id)).count();
+            if duplicates >= 2 {
+                println!("⚠️  Detected potential duplicate data (same URB IDs). Skipping to prevent duplicates.");
+                println!("✅ No new data added. Dataset remains unchanged.");
+                return Ok(());
+            }
         }
         
         // Combine datasets using vstack
@@ -236,8 +251,11 @@ fn main() -> Result<()> {
 
     println!("Successfully saved {} records to {:?}", final_df.height(), args.output);
 
-    // Print some statistics
-    print_statistics(&final_df)?;
+    // Print some statistics (with error handling)
+    if let Err(e) = print_statistics(&final_df) {
+        println!("⚠️  Statistics display error (data is fine): {}", e);
+        println!("✅ Dataset saved successfully with {} records", final_df.height());
+    }
 
     Ok(())
 }
