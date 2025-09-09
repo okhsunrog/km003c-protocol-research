@@ -112,7 +112,7 @@ struct ExtendedHeader {
 ## USB Bulk Transfer Protocol
 
 ### Transfer Characteristics
-- **Transfer Type**: 0x03 (USB Interrupt transfers)
+- **Transfer Type**: 0x03 (**Bulk transfers**, used in an interrupt-like polling manner)
 - **Direction Balance**: ~50% Host→Device, ~50% Device→Host
 - **Payload Distribution**: 49.7% of packets contain payload data
 
@@ -130,6 +130,8 @@ struct ExtendedHeader {
 - **Large data blocks**: Up to 968 bytes (device-specific)
 
 ### Zero-Length Packet Protocol
+
+This is a sophisticated use of a standard USB feature. As noted in the USB 2.0 specification, a bulk transfer can be legitimately terminated by a **zero-length packet (ZLP)**. The KM003C leverages this mechanism to create a rich, metadata-based control channel on top of the standard bulk transfer protocol.
 
 #### Metadata-Based Control Channel
 
@@ -179,16 +181,25 @@ Device → Host: Empty Complete (Status=-2, Flag=0x000, Data=\0)
 "Operation failed or cancelled"
 ```
 
-### URB Transaction Analysis
+### URB Transaction Analysis & URB ID Reuse
 
-#### Session-Specific Analysis Example (`orig_adc_record.6`)
-- **420 total packets** in this session (210 Submit + 210 Complete)
-- **62 unique URB IDs** for this specific session
-- **Transaction complexity**:
-  - Simple pairs (Submit→Complete): 19 URBs (31%)
-  - Multi-packet streaming: 43 URBs (69%)
+#### Defining a Transaction
+A logical transaction is a single `Submit` -> `Complete` pair of packets. The `orig_adc_record.6` session contains **210 logical transactions**.
 
-**Note**: URB patterns vary significantly between sessions. Always filter by `source_file` for meaningful analysis.
+#### URB ID (Memory Address) Reuse
+The `urb_id` field seen in software captures (like `usbmon`) is the **memory address of the USB Request Block (URB) in the host kernel**. Crucially, these addresses are **frequently reused** by the operating system for new, unrelated transactions once a previous one is complete.
+
+This reuse creates the illusion of single, long-running URBs that contain many packets. In reality, the protocol consists of many short, distinct transactions that just happen to be allocated the same memory address over time.
+
+- **Incorrect Model:** A few long-running, concurrent URBs.
+- **Correct Model:** Many rapid, sequential `S`->`C` transactions where the `urb_id` is often recycled.
+
+**Analysis of `orig_adc_record.6`:**
+- **62 unique memory addresses (`urb_id`s) were used.**
+- **43 of these addresses (69%) were reused** for multiple transactions.
+- Example of reuse (`URB badc0240`): The packet sequence `['S', 'C', 'S', 'C', 'S', 'C']` clearly shows three distinct transactions using the same `urb_id`.
+
+**Note**: All analysis of transaction timing and logic must be done on these `S`->`C` pairs, not by grouping all packets by `urb_id`.
 
 #### Performance Characteristics
 - **Command latency**: 77-85 microseconds
@@ -196,14 +207,13 @@ Device → Host: Empty Complete (Status=-2, Flag=0x000, Data=\0)
 - **Transaction duration range**: 40μs to 453ms
 - **Streaming throughput**: Up to 133 packets/second
 
-### Streaming Protocol
+### Streaming Protocol as Rapid Transactions
 
-#### Multi-Packet URB Transactions (Session: `orig_adc_record.6`)
-- **Continuous data streaming**: Up to 32 packets per URB (URB ID: 46b45180)
-- **Duration**: Up to 9.348 seconds per streaming transaction
-- **Purpose**: Efficient continuous ADC data collection for this session's use case
-- **Session-specific**: Pattern varies significantly between different capture sessions
-- **URB reuse**: Optimizes bandwidth for high-frequency sampling
+The appearance of "streaming" is achieved not by long-running URBs, but by the host software submitting **a continuous sequence of short-lived `S`->`C` transactions**.
+
+- **High Frequency:** The host queues up many data requests in rapid succession.
+- **No True "Streaming URBs":** What appeared to be a single URB with 32 packets lasting 9 seconds (e.g., `URB 46b45180`) is actually **16 distinct `S`->`C` transactions** where the OS happened to reuse the same memory address.
+- **Purpose:** This rapid-fire transaction model allows for continuous data flow while keeping the protocol responsive to other commands.
 
 ## Data Formats
 
@@ -332,10 +342,10 @@ PD messages are wrapped with a 6-byte header:
 3. Streaming continues with multi-packet URB transactions
 
 ### Transaction Management
-- Each request gets a unique transaction ID (0-255, wrapping)
-- Responses include the same transaction ID for correlation
-- URB IDs enable Submit/Complete packet correlation
-- Timeout: 2 seconds for all operations
+- Each logical transaction is a `Submit` -> `Complete` pair.
+- The application layer uses a unique transaction ID (0-255, wrapping) inside the payload for correlation.
+- The kernel-level `urb_id` (memory address) is **not a reliable unique identifier** for transactions due to reuse. Correlation must be done by tracking `S`->`C` sequences.
+- Timeout: 2 seconds for all operations.
 
 ## Protocol Engineering Insights
 
@@ -372,12 +382,13 @@ The device implements comprehensive error handling:
 - **Polars**: Large-scale data analysis of 11,514+ packets
 
 ### Key Discoveries
-- Zero-length packets carry rich control information in USB metadata
-- URB status codes implement a sophisticated handshaking protocol
-- Multi-packet URB transactions enable efficient streaming
-- Protocol uses dual-layer design (application + USB bulk)
-- **Session-specific behavior**: Each capture session shows different protocol usage patterns
-- Device-specific performance optimization strategies vary by use case
+- **URB ID Reuse is Critical:** The `urb_id` is a non-unique memory address reused by the OS, not a stable transaction ID. This is the key to correctly interpreting the protocol.
+- **Transactions are Short `S`->`C` Pairs:** The protocol is built on many rapid, short-lived Submit->Complete transactions, not long-running streams.
+- **Zero-length packets** carry rich control information in USB metadata.
+- **URB status codes** implement a sophisticated handshaking protocol within each short transaction.
+- **"Streaming" is an illusion** created by queuing many rapid transactions.
+- The protocol uses a dual-layer design (application + USB bulk).
+- **Session-specific behavior**: Each capture session shows different patterns of these rapid transactions.
 
 ### Analysis Limitations
 - Some device configuration commands remain unknown

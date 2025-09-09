@@ -5,7 +5,7 @@ Helper functions for USB protocol analysis using the master dataset.
 
 import polars as pl
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
@@ -246,6 +246,84 @@ def hex_to_ascii(hex_string: str) -> str:
         return ''.join(chr(b) if 32 <= b <= 126 else '.' for b in data)
     except ValueError:
         return '<invalid hex>'
+
+def get_transactions(session_df: pl.DataFrame) -> List[Dict[str, Any]]:
+    """
+    Processes a session DataFrame to identify and return a list of logical
+    Submit -> Complete transactions.
+
+    This function correctly handles URB ID reuse by processing packets
+    strictly in chronological order.
+    """
+    # Ensure the dataframe is sorted by timestamp to process events in order
+    session_df = session_df.sort('timestamp')
+    
+    transactions = []
+    # Group by URB ID to find potential pairs
+    for urb_id, group in session_df.group_by('urb_id'):
+        packets = group.sort('timestamp')
+        
+        # Iterate through the packets for this URB ID in pairs
+        for i in range(0, len(packets), 2):
+            if i + 1 < len(packets):
+                submit_packet = packets[i:i+1]
+                complete_packet = packets[i+1:i+2]
+                
+                # We can be confident of S->C order after previous analysis,
+                # but a check is good practice.
+                if submit_packet['urb_type'][0] == 'S' and complete_packet['urb_type'][0] == 'C':
+                    transaction_info = {
+                        'urb_id': urb_id,
+                        'start_time': submit_packet['timestamp'][0],
+                        'end_time': complete_packet['timestamp'][0],
+                        'duration_ms': (complete_packet['timestamp'][0] - submit_packet['timestamp'][0]) * 1000,
+                        'submit': submit_packet,
+                        'complete': complete_packet,
+                        'type': 'Unknown' # Will be classified later
+                    }
+                    transactions.append(transaction_info)
+
+    # Sort all found transactions chronologically by their start time
+    transactions.sort(key=lambda x: x['start_time'])
+    
+    # Classify each transaction
+    for tx in transactions:
+        submit = tx['submit']
+        complete = tx['complete']
+        
+        if submit['transfer_type'][0] == '0x02':
+            tx['type'] = 'Control Setup'
+        elif submit['direction'][0] == 'H->D' and submit['payload_hex'][0] != '':
+            tx['type'] = 'Host Command'
+        elif submit['direction'][0] == 'D->H' and submit['payload_hex'][0] == '' and complete['payload_hex'][0] != '':
+            tx['type'] = 'Device Data'
+        else:
+            if submit['payload_hex'][0] == '' and complete['payload_hex'][0] == '':
+                 tx['type'] = 'Control/ACK'
+            else:
+                 tx['type'] = 'Other'
+
+    return transactions
+
+def print_transaction_log(transactions: List[Dict[str, Any]], limit: int = 30):
+    """Prints a nicely formatted log of transactions."""
+    print(f'Found {len(transactions)} logical transactions. Displaying first {limit}:')
+    print('-' * 110)
+    print(f'{"#":<3} {"Timestamp (s)":<13} {"Duration (ms)":>12} | {"Type":<15} | {"Submit Details":<30} | {"Complete Details"}')
+    print('-' * 110)
+
+    for i, tx in enumerate(transactions[:limit], 1):
+        submit = tx['submit']
+        complete = tx['complete']
+        
+        submit_details = f"{submit['direction'][0]:<4} {submit['data_length'][0]:>3}b - {submit['payload_hex'][0][:12]:<12}..."
+        complete_details = f"{complete['direction'][0]:<4} {complete['data_length'][0]:>3}b - {complete['payload_hex'][0][:12]:<12}..."
+        
+        print(f'{i:<3} {tx["start_time"]: <13.6f} {tx["duration_ms"]:>12.3f} | {tx["type"]:<15} | {submit_details:<30} | {complete_details}')
+
+    print('-' * 110)
+    if len(transactions) > limit:
+        print(f'... and {len(transactions) - limit} more transactions.')
 
 # -- Rust-backed Parser Integration --
 from km003c_lib import parse_packet, AdcData
