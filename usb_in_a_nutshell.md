@@ -978,3 +978,28 @@ Standard Endpoint requests come in the four varieties listed below.
 
 -   *A **Synch Frame** request is used to report an endpoint
     synchronisation frame.*
+
+---
+
+## A Note on Software Capturing (usbmon) and URBs
+
+The `usb_in_a_nutshell.md` guide excellently describes the on-the-wire USB protocol. However, when analyzing captures from software tools like Linux's `usbmon` (which is what Wireshark uses for USB), what you see is at a slightly higher level of abstraction: the **USB Request Block (URB)**.
+
+### What is a URB?
+A URB is a data structure created by the host computer's operating system (e.g., the Linux kernel) to manage a complete, logical USB I/O operation from start to finish. It represents a request made by a device driver to talk to a device.
+
+- **URBs are a Host-Side Concept:** They are not part of the USB wire protocol itself. They are how the host's software stack organizes and manages communication.
+- **A URB Contains One Logical Transaction:** A single URB will typically contain one `Submit` event (when the driver submits the request) and one or more `Complete` or `Error` events (when the device has responded or the transaction is finished).
+
+### The `urb_id` Field
+
+The `urb_id` seen in Wireshark captures is the **memory address (pointer) of the URB structure in the host's kernel memory.**
+
+#### Critical Point: URB ID Reuse
+Because the `urb_id` is a memory address, it is **not a permanent or unique identifier** for a transaction across a long session. Operating systems are highly efficient at memory management. As soon as a URB's transaction is complete, the kernel will free that memory. The very next time a new USB request is made, the memory allocator may hand out the **exact same memory address** for the new URB.
+
+This leads to a common analysis pitfall:
+-   **Incorrect Interpretation:** Seeing multiple `Submit` -> `Complete` cycles with the same `urb_id` and thinking it's one single, long-running transaction with many phases.
+-   **Correct Interpretation:** This indicates multiple, distinct, and sequential transactions that just happened to be assigned the same recycled memory address by the kernel.
+
+**Therefore, when analyzing `usbmon` captures, a logical transaction should always be defined as a single `Submit` -> `Complete` sequence. Grouping all packets by `urb_id` alone can be misleading.**
