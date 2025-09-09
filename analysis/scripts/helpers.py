@@ -342,7 +342,7 @@ def get_transactions(
 
     return transactions.select([
         'start_time', 'duration_ms', 'type', 'submit_direction', 'submit_data_length',
-        'submit_payload_hex', 'complete_data_length', 'complete_payload_hex', 'urb_id'
+        'submit_payload_hex', 'complete_data_length', 'complete_payload_hex'
     ])
 
 def print_transaction_log(
@@ -368,12 +368,12 @@ def print_transaction_log(
 
     if truncate_payloads:
         display_df = display_df.with_columns([
-            pl.when(pl.col("submit_payload_hex").str.len_chars() > 15)
-              .then(pl.col("submit_payload_hex").str.slice(0, 12) + "...")
+            pl.when(pl.col("submit_payload_hex").str.len_chars() > 11)
+              .then(pl.col("submit_payload_hex").str.slice(0, 8) + "...")
               .otherwise(pl.col("submit_payload_hex"))
               .alias("submit_payload_hex"),
-            pl.when(pl.col("complete_payload_hex").str.len_chars() > 15)
-              .then(pl.col("complete_payload_hex").str.slice(0, 12) + "...")
+            pl.when(pl.col("complete_payload_hex").str.len_chars() > 11)
+              .then(pl.col("complete_payload_hex").str.slice(0, 8) + "...")
               .otherwise(pl.col("complete_payload_hex"))
               .alias("complete_payload_hex"),
         ])
