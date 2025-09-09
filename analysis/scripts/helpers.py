@@ -328,7 +328,7 @@ def get_transactions(
             .when((pl.col('submit_direction') == 'H->D') & (pl.col('submit_payload_hex') != ''))
             .then(pl.lit('Host Command'))
             .when((pl.col('submit_direction') == 'D->H') & (pl.col('submit_payload_hex') == '') & (pl.col('complete_payload_hex') != ''))
-            .then(pl.lit('Device Data'))
+            .then(pl.lit('Device Response'))
             .otherwise(pl.lit('Other Bulk'))
         )
         .when(pl.col('transfer_type') == '0x01')
@@ -387,40 +387,53 @@ def print_transaction_log(
         print(f'... and {len(transactions_df) - limit} more transactions.')
 
 # -- Rust-backed Parser Integration --
-from km003c_lib import parse_packet, AdcData
+from km003c_lib import parse_packet, Packet
 
-def add_parsed_adc_data(df: pl.DataFrame) -> pl.DataFrame:
+def add_parsed_packet_data(df: pl.DataFrame) -> pl.DataFrame:
     """
     Applies the Rust-based parser to a DataFrame, returning a new DataFrame
-    with a 'packet_type' column and columns for the parsed ADC data.
+    with parsed packet information including packet types and ADC data.
     """
 
     def parse_hex_payload(payload_hex: str) -> Optional[dict]:
         """Wrapper to handle hex decoding and call the Rust parser."""
-        NULL_ADC_DICT = {
+        NULL_RESULT = {
+            'packet_type': 'UNPARSEABLE',
             'vbus_v': None, 'ibus_a': None, 'power_w': None, 'vbus_avg_v': None,
             'ibus_avg_a': None, 'temp_c': None, 'vdp_v': None, 'vdm_v': None,
             'vdp_avg_v': None, 'vdm_avg_v': None, 'cc1_v': None, 'cc2_v': None,
         }
         if not payload_hex:
-            return NULL_ADC_DICT
+            return NULL_RESULT
         try:
             payload_bytes = bytes.fromhex(payload_hex)
-            adc_data = parse_packet(payload_bytes)
-            if adc_data:
-                return {
-                    'vbus_v': adc_data.vbus_v, 'ibus_a': adc_data.ibus_a,
-                    'power_w': adc_data.power_w, 'vbus_avg_v': adc_data.vbus_avg_v,
-                    'ibus_avg_a': adc_data.ibus_avg_a, 'temp_c': adc_data.temp_c,
-                    'vdp_v': adc_data.vdp_v, 'vdm_v': adc_data.vdm_v,
-                    'vdp_avg_v': adc_data.vdp_avg_v, 'vdm_avg_v': adc_data.vdm_avg_v,
-                    'cc1_v': adc_data.cc1_v, 'cc2_v': adc_data.cc2_v,
-                }
-            return NULL_ADC_DICT
-        except (ValueError, TypeError):
-            return NULL_ADC_DICT
+            packet = parse_packet(payload_bytes)
+            
+            result = {
+                'packet_type': packet.packet_type,
+                'vbus_v': None, 'ibus_a': None, 'power_w': None, 'vbus_avg_v': None,
+                'ibus_avg_a': None, 'temp_c': None, 'vdp_v': None, 'vdm_v': None,
+                'vdp_avg_v': None, 'vdm_avg_v': None, 'cc1_v': None, 'cc2_v': None,
+            }
+            
+            # Extract ADC data if this is an ADC packet
+            if packet.packet_type == 'SimpleAdcData' and packet.adc_data:
+                adc = packet.adc_data
+                result.update({
+                    'vbus_v': adc.vbus_v, 'ibus_a': adc.ibus_a,
+                    'power_w': adc.power_w, 'vbus_avg_v': adc.vbus_avg_v,
+                    'ibus_avg_a': adc.ibus_avg_a, 'temp_c': adc.temp_c,
+                    'vdp_v': adc.vdp_v, 'vdm_v': adc.vdm_v,
+                    'vdp_avg_v': adc.vdp_avg_v, 'vdm_avg_v': adc.vdm_avg_v,
+                    'cc1_v': adc.cc1_v, 'cc2_v': adc.cc2_v,
+                })
+            
+            return result
+        except Exception:
+            return NULL_RESULT
 
-    adc_struct_type = pl.Struct([
+    parsed_struct_type = pl.Struct([
+        pl.Field('packet_type', pl.String),
         pl.Field('vbus_v', pl.Float64), pl.Field('ibus_a', pl.Float64),
         pl.Field('power_w', pl.Float64), pl.Field('vbus_avg_v', pl.Float64),
         pl.Field('ibus_avg_a', pl.Float64), pl.Field('temp_c', pl.Float64),
@@ -431,13 +444,26 @@ def add_parsed_adc_data(df: pl.DataFrame) -> pl.DataFrame:
 
     parsed_series = df["payload_hex"].map_elements(
         parse_hex_payload,
-        return_dtype=adc_struct_type
+        return_dtype=parsed_struct_type
     )
 
-    return df.with_columns(
-        pl.when(parsed_series.is_not_null())
+    return df.with_columns(parsed_series.alias("parsed_data")).unnest("parsed_data")
+
+
+def add_parsed_adc_data(df: pl.DataFrame) -> pl.DataFrame:
+    """
+    Legacy function - applies parsing and returns only ADC data.
+    Use add_parsed_packet_data() for full packet type information.
+    """
+    return add_parsed_packet_data(df).select([
+        col for col in df.columns
+    ] + [
+        pl.when(pl.col('packet_type') == 'SimpleAdcData')
           .then(pl.lit("ADC_DATA"))
           .otherwise(pl.lit("OTHER"))
           .alias("packet_type"),
-        parsed_series.alias("adc_data")
-    ).unnest("adc_data")
+        pl.col('vbus_v'), pl.col('ibus_a'), pl.col('power_w'), 
+        pl.col('vbus_avg_v'), pl.col('ibus_avg_a'), pl.col('temp_c'),
+        pl.col('vdp_v'), pl.col('vdm_v'), pl.col('vdp_avg_v'), 
+        pl.col('vdm_avg_v'), pl.col('cc1_v'), pl.col('cc2_v'),
+    ])
