@@ -300,7 +300,7 @@ def get_transactions(
     # Convert hex to int for classification logic
     transactions = transactions.with_columns(
         bmrequest_int=pl.col('bmrequest_type').fill_null('0x0').str.strip_prefix("0x").str.to_integer(base=16).fill_null(0),
-        brequest_int=pl.col('brequest').str.strip_prefix("0x").str.to_integer(base=16).fill_null(0)
+        brequest_int=pl.col('brequest').fill_null('0x0').str.strip_prefix("0x").str.to_integer(base=16).fill_null(0)
     )
 
     # Classify transactions
@@ -340,9 +340,57 @@ def get_transactions(
     if filter_out_enumeration:
         transactions = transactions.filter(pl.col('type') != 'Standard Enumeration')
 
+    # Add parsed packet information for Host Commands and Device Responses
+    def parse_packet_safe(payload_hex: str) -> str:
+        """Safely parse a packet and return packet type, or empty string if not parseable."""
+        if not payload_hex:
+            return ""
+        try:
+            payload_bytes = bytes.fromhex(payload_hex)
+            packet = parse_packet(payload_bytes)
+            return packet.packet_type
+        except Exception:
+            return ""
+
+    # Add consolidated payload and packet type columns (since only one direction has payload per transaction)
+    transactions = transactions.with_columns([
+        # Consolidated payload_hex: submit for Host Commands, complete for Device Responses
+        pl.when(
+            (pl.col('type') == 'Host Command') & (pl.col('submit_payload_hex') != '')
+        ).then(
+            pl.col('submit_payload_hex')
+        ).when(
+            (pl.col('type') == 'Device Response') & (pl.col('complete_payload_hex') != '')
+        ).then(
+            pl.col('complete_payload_hex')
+        ).otherwise(pl.lit("")).alias('payload_hex'),
+        
+        # Consolidated payload_length: submit for Host Commands, complete for Device Responses
+        pl.when(
+            pl.col('type') == 'Host Command'
+        ).then(
+            pl.col('submit_data_length')
+        ).when(
+            pl.col('type') == 'Device Response'
+        ).then(
+            pl.col('complete_data_length')
+        ).otherwise(pl.lit(0)).alias('payload_length'),
+        
+        # Parse the consolidated payload
+        pl.when(
+            (pl.col('type') == 'Host Command') & (pl.col('submit_payload_hex') != '')
+        ).then(
+            pl.col('submit_payload_hex').map_elements(parse_packet_safe, return_dtype=pl.String)
+        ).when(
+            (pl.col('type') == 'Device Response') & (pl.col('complete_payload_hex') != '')
+        ).then(
+            pl.col('complete_payload_hex').map_elements(parse_packet_safe, return_dtype=pl.String)
+        ).otherwise(pl.lit("")).alias('packet_type')
+    ])
+
     return transactions.select([
-        'start_time', 'duration_ms', 'type', 'submit_direction', 'submit_data_length',
-        'submit_payload_hex', 'complete_data_length', 'complete_payload_hex'
+        'start_time', 'duration_ms', 'type', 'submit_direction', 
+        'payload_length', 'payload_hex', 'packet_type'
     ])
 
 def print_transaction_log(
@@ -368,14 +416,10 @@ def print_transaction_log(
 
     if truncate_payloads:
         display_df = display_df.with_columns([
-            pl.when(pl.col("submit_payload_hex").str.len_chars() > 11)
-              .then(pl.col("submit_payload_hex").str.slice(0, 8) + "...")
-              .otherwise(pl.col("submit_payload_hex"))
-              .alias("submit_payload_hex"),
-            pl.when(pl.col("complete_payload_hex").str.len_chars() > 11)
-              .then(pl.col("complete_payload_hex").str.slice(0, 8) + "...")
-              .otherwise(pl.col("complete_payload_hex"))
-              .alias("complete_payload_hex"),
+            pl.when(pl.col("payload_hex").str.len_chars() > 11)
+              .then(pl.col("payload_hex").str.slice(0, 8) + "...")
+              .otherwise(pl.col("payload_hex"))
+              .alias("payload_hex"),
         ])
     
     print(f'Found {len(transactions_df)} logical transactions. Displaying first {len(display_df)}:')
@@ -387,7 +431,7 @@ def print_transaction_log(
         print(f'... and {len(transactions_df) - limit} more transactions.')
 
 # -- Rust-backed Parser Integration --
-from km003c_lib import parse_packet, Packet
+from km003c_lib import parse_packet
 
 def add_parsed_packet_data(df: pl.DataFrame) -> pl.DataFrame:
     """
