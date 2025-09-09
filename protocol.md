@@ -50,7 +50,39 @@ The KM003C follows standard USB enumeration procedures with comprehensive descri
 - **Purpose**: USB 3.0+ capabilities (Device 16 only)
 - **Pattern**: Two-stage request (header + full)
 
+### Multi-Stage Initialization Sequence (The "VM Handoff" Effect)
+
+In captures involving a Virtual Machine (e.g., `orig_new_adcsimple0.12`), a complex, three-stage initialization sequence is visible. This is caused by the sequence of physical connection, redirection to the VM, and application startup. Analysis of `dmesg` logs alongside the packet capture confirms this model.
+
+**Stage 1: Physical Connection (Host OS Enumeration)**
+- **Cause:** The device is physically plugged into the host machine (e.g., Linux).
+- **Behavior:** The host OS performs a standard USB enumeration, loading generic drivers like `cdc_acm` and `hid-generic`.
+- **Traffic:** This corresponds to the first cluster of `Standard Enumeration` and basic `HID-Class Command` transactions.
+
+**Stage 2: VM Redirection (Guest OS Enumeration)**
+- **Cause:** The USB device is detached from the host and redirected to the guest OS (e.g., Windows).
+- **Behavior:** The guest OS detects a "new" device and performs its own, more thorough enumeration using the official device drivers.
+- **Traffic:** This corresponds to the second, larger cluster of control packets. Crucially, this is where **proprietary commands like `CUSTOM (0x32)` are sent** by the official driver.
+
+**Stage 3: Application Startup**
+- **Cause:** The official POWER-Z software is launched inside the VM and opens the device.
+- **Behavior:** The application performs its own final set of checks, often re-requesting some standard descriptors.
+- **Traffic:** This corresponds to the third, small cluster of `Standard Enumeration` packets, immediately preceding the main `Host Command` / `Device Data` loop.
+
+This confirms that while much of the setup is standard OS behavior, the **proprietary setup commands occur during the guest OS enumeration phase**, driven by the official device driver.
+
+#### Analysis of `orig_new_adcsimple0.12` Control Packets:
+- **`GET_DESCRIPTOR` (0x06):** 49 times (Standard)
+- **`SET_CONFIGURATION` (0x09):** 3 times (Standard)
+- **`GET_STATUS` (0x00):** 1 time (Standard)
+- **`CUSTOM (0x32)`:** 1 time (**Proprietary / Vendor-Specific**)
+
+This confirms that while much of the setup is standard OS behavior, the host application sends its own custom control commands during initialization. A robust implementation must replicate this custom command. The `bmRequestType` for this command is `0xc2`, which unambiguously identifies it as a Vendor-Specific request according to the USB specification.
+
 ### Non-Standard Control Requests
+
+#### Known Proprietary Commands
+- **`bRequest 0x32`**: A vendor-specific command sent by the application during startup. It is a Device-to-Host transfer, requesting 170 bytes (`wLength: 170`) from the device. This is likely used to fetch a custom descriptor, calibration data, or detailed device status.
 
 #### Unknown Control Commands
 - **Type 0x10** with attribute 0x0001 (length 0)
@@ -388,7 +420,8 @@ The device implements comprehensive error handling:
 - **URB status codes** implement a sophisticated handshaking protocol within each short transaction.
 - **"Streaming" is an illusion** created by queuing many rapid transactions.
 - The protocol uses a dual-layer design (application + USB bulk).
-- **Session-specific behavior**: Each capture session shows different patterns of these rapid transactions.
+- **Session-specific behavior**: Each capture session shows different protocol usage patterns. The `pd_capture_new.9` session is a notable example where the capture appears to have started mid-enumeration, as it only contains a partial set of the standard `GET_DESCRIPTOR` requests at its start.
+- Device-specific performance optimization strategies vary by use case
 
 ### Analysis Limitations
 - Some device configuration commands remain unknown
@@ -403,6 +436,7 @@ The device implements comprehensive error handling:
 - [POWER-Z KM003C Product Page](https://www.power-z.com/products/262)
 - [USB 2.0 Specification](https://www.usb.org/document-library/usb-20-specification)
 - [Linux USB Monitoring (usbmon)](https://www.kernel.org/doc/html/latest/usb/usbmon.html)
+- [USB in a Nutshell by BeyondLogic](https://beyondlogic.org/usbnutshell)
 
 ---
 *Protocol documentation based on comprehensive analysis of 11,514 USB packets*

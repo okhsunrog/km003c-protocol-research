@@ -21,7 +21,7 @@ fn clean_tshark_field(value: &str) -> String {
     if decoded.starts_with('\'') && decoded.ends_with('\'') && decoded.len() >= 2 {
         decoded[1..decoded.len()-1].to_string()
     } else {
-        decoded
+        decoded.to_string()
     }
 }
 
@@ -268,11 +268,11 @@ fn main() -> Result<()> {
 
     println!("Successfully saved {} records to {:?}", final_df.height(), args.output);
 
-    // Print some statistics (with error handling)
-    if let Err(e) = print_statistics(&final_df) {
-        println!("⚠️  Statistics display error (data is fine): {}", e);
-        println!("✅ Dataset saved successfully with {} records", final_df.height());
-    }
+    // // Print some statistics (with error handling)
+    // if let Err(e) = print_statistics(&final_df) {
+    //     println!("⚠️  Statistics display error (data is fine): {}", e);
+    //     println!("✅ Dataset saved successfully with {} records", final_df.height());
+    // }
 
     Ok(())
 }
@@ -560,60 +560,60 @@ fn create_dataframe(records: Vec<UsbPacketRecord>) -> Result<DataFrame> {
     Ok(df)
 }
 
-fn print_statistics(df: &DataFrame) -> Result<()> {
-    println!("\n=== Statistics ===");
-    println!("Total records: {}", df.height());
-    println!("Columns: {:?}", df.get_column_names());
+// fn print_statistics(df: &DataFrame) -> Result<()> {
+//     println!("\n=== Statistics ===");
+//     println!("Total records: {}", df.height());
+//     println!("Columns: {:?}", df.get_column_names());
     
-    // Use lazy evaluation for statistics
-    let lazy_df = df.clone().lazy();
+//     // Use lazy evaluation for statistics
+//     let lazy_df = df.clone().lazy();
     
-    // Basic counts using group_by
-    let direction_stats = lazy_df
-        .clone()
-        .group_by([col("direction")])
-        .agg([len().alias("count")])
-        .sort(["count"], SortMultipleOptions::default().with_order_descending(true))
-        .collect()?;
+//     // Basic counts using group_by
+//     let direction_stats = lazy_df
+//         .clone()
+//         .group_by([col("direction")])
+//         .agg([len().alias("count")])
+//         .sort(["count"], SortMultipleOptions::default().with_order_descending(true))
+//         .collect()?;
     
-    println!("\nDirection distribution:");
-    println!("{}", direction_stats);
+//     println!("\nDirection distribution:");
+//     println!("{}", direction_stats);
     
-    let device_stats = lazy_df
-        .clone()
-        .group_by([col("device_address")])
-        .agg([len().alias("count")])
-        .sort(["count"], SortMultipleOptions::default().with_order_descending(true))
-        .collect()?;
+//     let device_stats = lazy_df
+//         .clone()
+//         .group_by([col("device_address")])
+//         .agg([len().alias("count")])
+//         .sort(["count"], SortMultipleOptions::default().with_order_descending(true))
+//         .collect()?;
     
-    println!("\nDevice address distribution:");
-    println!("{}", device_stats);
+//     println!("\nDevice address distribution:");
+//     println!("{}", device_stats);
     
-    // Data length statistics
-    let length_stats = lazy_df
-        .clone()
-        .select([
-            col("data_length").mean().alias("avg_length"),
-            col("data_length").min().alias("min_length"),
-            col("data_length").max().alias("max_length"),
-        ])
-        .collect()?;
+//     // Data length statistics
+//     let length_stats = lazy_df
+//         .clone()
+//         .select([
+//             col("data_length").mean().alias("avg_length"),
+//             col("data_length").min().alias("min_length"),
+//             col("data_length").max().alias("max_length"),
+//         ])
+//         .collect()?;
     
-    println!("\nPayload length statistics:");
-    println!("{}", length_stats);
+//     println!("\nPayload length statistics:");
+//     println!("{}", length_stats);
     
-    // Time range statistics
-    let time_stats = lazy_df
-        .clone()
-        .select([
-            col("timestamp").min().alias("start_time"),
-            col("timestamp").max().alias("end_time"),
-            (col("timestamp").max() - col("timestamp").min()).alias("duration"),
-        ])
-        .collect()?;
+//     // Time range statistics
+//     let time_stats = lazy_df
+//         .clone()
+//         .select([
+//             col("timestamp").min().alias("start_time"),
+//             col("timestamp").max().alias("end_time"),
+//             (col("timestamp").max() - col("timestamp").min()).alias("duration"),
+//         ])
+//         .collect()?;
     
-    println!("\nTime range:");
-    println!("{}", time_stats);
+//     println!("\nTime range:");
+//     println!("{}", time_stats);
 
-    Ok(())
-}
+//     Ok(())
+// }

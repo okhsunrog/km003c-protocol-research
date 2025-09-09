@@ -247,83 +247,144 @@ def hex_to_ascii(hex_string: str) -> str:
     except ValueError:
         return '<invalid hex>'
 
-def get_transactions(session_df: pl.DataFrame) -> List[Dict[str, Any]]:
+def get_transactions(
+    session_df: pl.DataFrame,
+    filter_out_enumeration: bool = True,
+) -> pl.DataFrame:
     """
-    Processes a session DataFrame to identify and return a list of logical
+    Processes a session DataFrame to identify and return a polars DataFrame of logical
     Submit -> Complete transactions.
-
-    This function correctly handles URB ID reuse by processing packets
-    strictly in chronological order.
     """
-    # Ensure the dataframe is sorted by timestamp to process events in order
-    session_df = session_df.sort('timestamp')
+    # Standard USB request codes
+    STANDARD_ENUMERATION_REQUESTS = {0x00, 0x01, 0x03, 0x05, 0x06, 0x08, 0x09}
+
+    # Clean and separate Submit and Complete packets
+    df = session_df.lazy().select(
+        [
+            pl.col(c).list.first().alias(c)
+            if session_df[c].dtype == pl.List(pl.Unknown) or isinstance(session_df[c].dtype, pl.List)
+            else pl.col(c)
+            for c in session_df.columns
+        ]
+    ).sort("timestamp")
+
+    submits = df.filter(pl.col("urb_type") == "S").select(
+        pl.col("urb_id"),
+        pl.col("timestamp").alias("start_time"),
+        pl.col("transfer_type"),
+        pl.col("direction").alias("submit_direction"),
+        pl.col("payload_hex").alias("submit_payload_hex"),
+        pl.col("data_length").alias("submit_data_length"),
+        pl.col("bmrequest_type"),
+        pl.col("brequest"),
+    )
+
+    completes = df.filter(pl.col("urb_type") == "C").select(
+        pl.col("urb_id"),
+        pl.col("timestamp").alias("end_time"),
+        pl.col("payload_hex").alias("complete_payload_hex"),
+        pl.col("data_length").alias("complete_data_length"),
+    )
+
+    # Create transactions by joining submits and completes
+    # We use a sequence number to handle URB ID reuse correctly.
+    submits = submits.with_columns(pl.cum_count("urb_id").over("urb_id").alias("urb_seq"))
+    completes = completes.with_columns(pl.cum_count("urb_id").over("urb_id").alias("urb_seq"))
+
+    transactions = submits.join(
+        completes, on=["urb_id", "urb_seq"]
+    ).sort("start_time").with_columns(
+        duration_ms=(pl.col("end_time") - pl.col("start_time")) * 1000
+    )
+
+    # Convert hex to int for classification logic
+    transactions = transactions.with_columns(
+        bmrequest_int=pl.col('bmrequest_type').fill_null('0x0').str.strip_prefix("0x").str.to_integer(base=16).fill_null(0),
+        brequest_int=pl.col('brequest').str.strip_prefix("0x").str.to_integer(base=16).fill_null(0)
+    )
+
+    # Classify transactions
+    transactions = transactions.with_columns(
+        pl.when(pl.col('transfer_type') == '0x02')
+        .then(
+            pl.when(pl.col('brequest_int').is_in(list(STANDARD_ENUMERATION_REQUESTS)))
+            .then(pl.lit('Standard Enumeration'))
+            .when(pl.col('brequest_int').is_not_null())
+            .then(
+                pl.when(((pl.col('bmrequest_int') // 32) & 0x03) == 2)
+                .then(pl.concat_str([pl.lit("Vendor Command (0x"), pl.col('brequest_int').cast(pl.Utf8).str.zfill(2), pl.lit(")")]))
+                .when(((pl.col('bmrequest_int') // 32) & 0x03) == 1)
+                .then(pl.concat_str([pl.lit("Class Command (0x"), pl.col('brequest_int').cast(pl.Utf8).str.zfill(2), pl.lit(")")]))
+                .otherwise(pl.lit('Other Control'))
+            )
+            .when(pl.col('bmrequest_type').is_in(['0x21', '0xa1']))
+            .then(pl.lit('HID-Class Command'))
+            .otherwise(pl.lit('Other Control'))
+        )
+        .when(pl.col('transfer_type') == '0x03')
+        .then(
+            pl.when((pl.col('submit_payload_hex') == '') & (pl.col('complete_payload_hex') == ''))
+            .then(pl.lit('Control/ACK'))
+            .when((pl.col('submit_direction') == 'H->D') & (pl.col('submit_payload_hex') != ''))
+            .then(pl.lit('Host Command'))
+            .when((pl.col('submit_direction') == 'D->H') & (pl.col('submit_payload_hex') == '') & (pl.col('complete_payload_hex') != ''))
+            .then(pl.lit('Device Data'))
+            .otherwise(pl.lit('Other Bulk'))
+        )
+        .when(pl.col('transfer_type') == '0x01')
+        .then(pl.lit('Interrupt Handshake'))
+        .otherwise(pl.lit('Unknown'))
+        .alias('type')
+    ).collect()
+
+    if filter_out_enumeration:
+        transactions = transactions.filter(pl.col('type') != 'Standard Enumeration')
+
+    return transactions.select([
+        'start_time', 'duration_ms', 'type', 'submit_direction', 'submit_data_length',
+        'submit_payload_hex', 'complete_data_length', 'complete_payload_hex', 'urb_id'
+    ])
+
+def print_transaction_log(
+    transactions_df: pl.DataFrame,
+    limit: Optional[int] = None,
+    truncate_payloads: bool = True
+):
+    """
+    Prints a nicely formatted log of transactions from a DataFrame.
     
-    transactions = []
-    # Group by URB ID to find potential pairs
-    for urb_id, group in session_df.group_by('urb_id'):
-        packets = group.sort('timestamp')
+    Args:
+        transactions_df: A DataFrame of transactions from get_transactions.
+        limit: The maximum number of transactions to print. Prints all if None.
+        truncate_payloads: If True, shortens long payload hex strings for readability.
+    """
+    if transactions_df.is_empty():
+        print("No transactions to display for this selection.")
+        return
         
-        # Iterate through the packets for this URB ID in pairs
-        for i in range(0, len(packets), 2):
-            if i + 1 < len(packets):
-                submit_packet = packets[i:i+1]
-                complete_packet = packets[i+1:i+2]
-                
-                # We can be confident of S->C order after previous analysis,
-                # but a check is good practice.
-                if submit_packet['urb_type'][0] == 'S' and complete_packet['urb_type'][0] == 'C':
-                    transaction_info = {
-                        'urb_id': urb_id,
-                        'start_time': submit_packet['timestamp'][0],
-                        'end_time': complete_packet['timestamp'][0],
-                        'duration_ms': (complete_packet['timestamp'][0] - submit_packet['timestamp'][0]) * 1000,
-                        'submit': submit_packet,
-                        'complete': complete_packet,
-                        'type': 'Unknown' # Will be classified later
-                    }
-                    transactions.append(transaction_info)
+    display_df = transactions_df
+    if limit is not None:
+        display_df = transactions_df.head(limit)
 
-    # Sort all found transactions chronologically by their start time
-    transactions.sort(key=lambda x: x['start_time'])
+    if truncate_payloads:
+        display_df = display_df.with_columns([
+            pl.when(pl.col("submit_payload_hex").str.len_chars() > 15)
+              .then(pl.col("submit_payload_hex").str.slice(0, 12) + "...")
+              .otherwise(pl.col("submit_payload_hex"))
+              .alias("submit_payload_hex"),
+            pl.when(pl.col("complete_payload_hex").str.len_chars() > 15)
+              .then(pl.col("complete_payload_hex").str.slice(0, 12) + "...")
+              .otherwise(pl.col("complete_payload_hex"))
+              .alias("complete_payload_hex"),
+        ])
     
-    # Classify each transaction
-    for tx in transactions:
-        submit = tx['submit']
-        complete = tx['complete']
-        
-        if submit['transfer_type'][0] == '0x02':
-            tx['type'] = 'Control Setup'
-        elif submit['direction'][0] == 'H->D' and submit['payload_hex'][0] != '':
-            tx['type'] = 'Host Command'
-        elif submit['direction'][0] == 'D->H' and submit['payload_hex'][0] == '' and complete['payload_hex'][0] != '':
-            tx['type'] = 'Device Data'
-        else:
-            if submit['payload_hex'][0] == '' and complete['payload_hex'][0] == '':
-                 tx['type'] = 'Control/ACK'
-            else:
-                 tx['type'] = 'Other'
+    print(f'Found {len(transactions_df)} logical transactions. Displaying first {len(display_df)}:')
+    
+    with pl.Config(tbl_rows=limit if limit is not None else 100, tbl_width_chars=140, tbl_hide_dataframe_shape=True, tbl_formatting="ASCII_FULL_CONDENSED"):
+        print(display_df)
 
-    return transactions
-
-def print_transaction_log(transactions: List[Dict[str, Any]], limit: int = 30):
-    """Prints a nicely formatted log of transactions."""
-    print(f'Found {len(transactions)} logical transactions. Displaying first {limit}:')
-    print('-' * 110)
-    print(f'{"#":<3} {"Timestamp (s)":<13} {"Duration (ms)":>12} | {"Type":<15} | {"Submit Details":<30} | {"Complete Details"}')
-    print('-' * 110)
-
-    for i, tx in enumerate(transactions[:limit], 1):
-        submit = tx['submit']
-        complete = tx['complete']
-        
-        submit_details = f"{submit['direction'][0]:<4} {submit['data_length'][0]:>3}b - {submit['payload_hex'][0][:12]:<12}..."
-        complete_details = f"{complete['direction'][0]:<4} {complete['data_length'][0]:>3}b - {complete['payload_hex'][0][:12]:<12}..."
-        
-        print(f'{i:<3} {tx["start_time"]: <13.6f} {tx["duration_ms"]:>12.3f} | {tx["type"]:<15} | {submit_details:<30} | {complete_details}')
-
-    print('-' * 110)
-    if len(transactions) > limit:
-        print(f'... and {len(transactions) - limit} more transactions.')
+    if limit is not None and len(transactions_df) > limit:
+        print(f'... and {len(transactions_df) - limit} more transactions.')
 
 # -- Rust-backed Parser Integration --
 from km003c_lib import parse_packet, AdcData

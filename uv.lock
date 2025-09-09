@@ -1030,6 +1030,7 @@ name = "km003c-protocol-research"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "ipywidgets" },
     { name = "jupyter" },
     { name = "matplotlib" },
     { name = "numpy" },
@@ -1046,6 +1047,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "ipywidgets", specifier = ">=8.1.7" },
     { name = "jupyter", specifier = ">=1.0.0" },
     { name = "matplotlib", specifier = ">=3.5.0" },
     { name = "numpy", specifier = ">=1.20.0" },
