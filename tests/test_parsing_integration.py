@@ -151,10 +151,10 @@ class TestParsingIntegration:
         # Test parsing some transactions
         parsed_packets = []
         for row in transactions.head(10).iter_rows(named=True):
-            if row['submit_payload_hex']:
+            if row['payload_hex']:
                 try:
-                    submit_bytes = bytes.fromhex(row['submit_payload_hex'])
-                    result = parse_packet(submit_bytes)
+                    payload_bytes = bytes.fromhex(row['payload_hex'])
+                    result = parse_packet(payload_bytes)
                     parsed_packets.append(result.packet_type)
                 except Exception:
                     pass  # Skip invalid packets
