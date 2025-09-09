@@ -7,6 +7,24 @@ use std::path::PathBuf;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+/// Clean tshark field values that contain HTML entities and surrounding quotes
+fn clean_tshark_field(value: &str) -> String {
+    // Decode HTML entities
+    let decoded = value
+        .replace("&#x27;", "'")  // Single quote
+        .replace("&lt;", "<")    // Less than
+        .replace("&gt;", ">")    // Greater than
+        .replace("&amp;", "&")   // Ampersand
+        .replace("&quot;", "\""); // Double quote
+    
+    // Remove surrounding single quotes if present
+    if decoded.starts_with('\'') && decoded.ends_with('\'') && decoded.len() >= 2 {
+        decoded[1..decoded.len()-1].to_string()
+    } else {
+        decoded
+    }
+}
+
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Convert pcap files to Parquet format with USB payload data")]
 struct Cli {
@@ -56,7 +74,6 @@ struct UsbPacketRecord {
     data_length: u32,
     urb_length: u32,
     payload_hex: String,
-    payload_bytes_hex: String,
     // Additional USB metadata
     setup_flag: String,
     data_flag: String,
@@ -325,7 +342,7 @@ fn process_packet(packet: RtSharkPacket, session_id: &str, verbose: bool) -> Res
 
     let urb_type = usb_layer
         .metadata("usb.urb_type")
-        .map(|u| u.value().to_string())
+        .map(|u| clean_tshark_field(u.value()))
         .unwrap_or_else(|| "Unknown".to_string());
 
     let urb_status = usb_layer
@@ -345,12 +362,12 @@ fn process_packet(packet: RtSharkPacket, session_id: &str, verbose: bool) -> Res
 
     let setup_flag = usb_layer
         .metadata("usb.setup_flag")
-        .map(|s| s.value().to_string())
+        .map(|s| clean_tshark_field(s.value()))
         .unwrap_or_else(|| "Unknown".to_string());
 
     let data_flag = usb_layer
         .metadata("usb.data_flag")
-        .map(|d| d.value().to_string())
+        .map(|d| clean_tshark_field(d.value()))
         .unwrap_or_else(|| "Unknown".to_string());
 
     let interval: u32 = usb_layer
@@ -425,7 +442,6 @@ fn process_packet(packet: RtSharkPacket, session_id: &str, verbose: bool) -> Res
         data_length,
         urb_length,
         payload_hex: clean_hex.clone(),
-        payload_bytes_hex: hex::encode(&payload_bytes),
         setup_flag,
         data_flag,
         interval,
@@ -472,7 +488,6 @@ fn create_dataframe(records: Vec<UsbPacketRecord>) -> Result<DataFrame> {
     let data_lengths: Vec<u32> = records.iter().map(|r| r.data_length).collect();
     let urb_lengths: Vec<u32> = records.iter().map(|r| r.urb_length).collect();
     let payload_hexs: Vec<String> = records.iter().map(|r| r.payload_hex.clone()).collect();
-    let payload_bytes_hex: Vec<String> = records.iter().map(|r| r.payload_bytes_hex.clone()).collect();
     let setup_flags: Vec<String> = records.iter().map(|r| r.setup_flag.clone()).collect();
     let data_flags: Vec<String> = records.iter().map(|r| r.data_flag.clone()).collect();
     let intervals: Vec<u32> = records.iter().map(|r| r.interval).collect();
@@ -515,7 +530,6 @@ fn create_dataframe(records: Vec<UsbPacketRecord>) -> Result<DataFrame> {
         "data_length" => data_lengths,
         "urb_length" => urb_lengths,
         "payload_hex" => payload_hexs,
-        "payload_bytes_hex" => payload_bytes_hex,
         "setup_flag" => setup_flags,
         "data_flag" => data_flags,
         "interval" => intervals,
