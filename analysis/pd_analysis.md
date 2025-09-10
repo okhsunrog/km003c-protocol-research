@@ -35,22 +35,55 @@ The KM003C device functions as both an ADC measurement tool and a USB Power Deli
 - [ ] Configuration of PD capture parameters
 - [ ] Status reporting and error handling
 
-## Preliminary Findings
+## Key Discoveries - PD File Analysis
 
-### Packet Classification
-Based on initial analysis, KM003C packets can be classified as:
+### File: `orig_with_pd.13`
+- **Duration**: 42.093 seconds
+- **Total packets**: 2,056
+- **Transactions**: 1,015
 
+**Major finding**: Contains **NEW PACKET TYPES**:
+- **347 × `CmdGetPdData`** - Host commands to request PD data
+- **347 × `PdRawData`** - Device responses with PD capture data
+
+### File: `pd_capture_new.9`  
+- **Duration**: 295.600 seconds (5 minutes)
+- **Total packets**: 6,930
+- **Transactions**: 3,461
+
+**Mixed mode operation**:
+- **1,401 × `CmdGetSimpleAdcData`** - Regular ADC measurements
+- **310 × `CmdGetPdData`** - PD data requests
+- **1,400 × `SimpleAdcData`** - ADC responses  
+- **310 × `PdRawData`** - PD responses
+
+## Protocol Structure Discovery
+
+### PD Command Pattern
+```
+Host → Device: CmdGetPdData (request PD data)
+Device → Host: PdRawData (PD capture data)
+```
+
+### Dual Mode Operation
+The KM003C operates in **dual mode** during PD analysis:
+1. **Continuous ADC polling** (~200ms intervals)
+2. **PD event capture** (on-demand when PD events occur)
+
+### Packet Classification (Updated)
 1. **SimpleAdcData** (0x41 prefix): ADC measurement responses
 2. **CmdGetSimpleAdcData** (0x0C + 0x0200): ADC measurement requests  
-3. **Generic** (various): Likely includes PD analyzer commands and data
+3. **PdRawData**: PD protocol capture data ⭐ **NEW**
+4. **CmdGetPdData**: PD data request commands ⭐ **NEW**
+5. **Generic** (various): Setup/control commands
 
-### Potential PD Patterns
-Looking for patterns in `Generic` packets that might indicate PD functionality:
+### Initial Setup Patterns
+Both files show initial setup sequences with **Generic** commands:
+- `[02 01 00 00]` - 4-byte commands
+- `[44 XX 01 01]` - 36-byte extended commands  
+- `[c4 XX 01 01]` - 20-byte responses
 
-- **Setup Commands**: Device configuration for PD capture
-- **Capture Commands**: Start/stop PD monitoring
-- **Data Transfer**: PD message payload transfer
-- **Status/Control**: Device state and error reporting
+These likely configure the device for PD capture mode.
 
 ## Analysis Methodology
 
@@ -119,21 +152,42 @@ Need to understand how these PD messages are:
 
 ## Investigation Steps
 
-### Phase 1: Pattern Recognition
+### Phase 1: Pattern Recognition ✅ 
 - [x] Create PD analysis notebook
-- [ ] Identify capture files containing PD data
-- [ ] Analyze packet patterns in PD captures
-- [ ] Look for timing correlations
+- [x] Identify capture files containing PD data (`orig_with_pd.13`, `pd_capture_new.9`)
+- [x] Analyze packet patterns in PD captures
+- [x] **DISCOVERED**: New packet types `CmdGetPdData` and `PdRawData`
 
-### Phase 2: Protocol Reverse Engineering
-- [ ] Decode Generic packet structures
-- [ ] Identify PD command/response patterns
-- [ ] Map payload formats to PD message types
+### Phase 2: Protocol Reverse Engineering 🔄
+- [x] ~~Decode Generic packet structures~~ → Focus on PD packet types instead
+- [x] Identify PD command/response patterns → `CmdGetPdData` ↔ `PdRawData`
+- [ ] **URGENT**: Understand `PdRawData` payload format 
+- [ ] **URGENT**: Decode actual PD messages within `PdRawData`
+- [ ] Map PD message timing and sequence
 
-### Phase 3: Implementation
-- [ ] Extend Rust parser with PD packet types
-- [ ] Add PD message decoding functions
+### Phase 3: Implementation 📋
+- [ ] Extend Rust parser to decode `PdRawData` contents
+- [ ] Add PD message decoding functions  
 - [ ] Create PD-specific visualization tools
+- [ ] Add PD timing analysis
+
+## Next Immediate Steps
+
+### 1. Analyze PdRawData Structure
+The Rust parser already recognizes `PdRawData` packets but we need to understand:
+- What's inside the `pd_data` payload?
+- How are PD messages encoded?
+- What's the timestamp/metadata format?
+
+### 2. Compare with USB PD Specification
+- Map discovered data to USB PD message types
+- Understand how CC pin events are encoded
+- Analyze VBUS/VCONN correlation
+
+### 3. Timing Analysis
+- Correlate PD events with ADC measurements
+- Analyze PD negotiation sequences
+- Look for power delivery state changes
 
 ## Reference Materials
 
