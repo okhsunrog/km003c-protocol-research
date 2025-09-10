@@ -204,13 +204,79 @@ The Rust parser already recognizes `PdRawData` packets but we need to understand
 ## Notes and Observations
 
 ### Capture File Analysis
-*Document findings from analyzing specific capture files here*
+
+#### Mystery Solved: "Empty" Device Responses
+Investigation revealed 18 Device Responses with empty `packet_type` in each PD file:
+
+**Pattern Analysis:**
+- **All start with `0x41`** - same as `SimpleAdcData` packets
+- **Payload sizes**: 68 bytes (17 packets) + 84 bytes (1 packet) in `orig_with_pd.13`
+- **Payload sizes**: 68 bytes (18 packets) in `pd_capture_new.9`
+- **Structure**: `41 [ID] 82 03` or `41 [ID] 82 04` headers
+
+**Key Insight**: These are **extended ADC data packets** that our parser doesn't recognize!
+- Standard `SimpleAdcData`: 52 bytes with `41 [ID] 82 02` header 
+- Extended ADC data: 68/84 bytes with `41 [ID] 82 03/04` headers
+
+#### Protocol Variants Discovery
+The KM003C has **multiple ADC data formats**:
+1. **Type 0x02**: 52-byte standard ADC data (parsed correctly)
+2. **Type 0x03**: 68-byte extended ADC data (not parsed - shows as empty)  
+3. **Type 0x04**: 84-byte extended ADC data (not parsed - shows as empty)
+
+This suggests the extended formats contain **additional measurement data** beyond the basic voltage/current/temperature/power readings.
 
 ### Protocol Patterns
-*Record discovered packet patterns and their potential meanings*
 
-### Timing Characteristics  
-*Note timing patterns that might indicate PD events*
+#### PD + Extended ADC Correlation
+The extended ADC packets (68/84 bytes) appear **only in PD capture files**, suggesting:
+- Extended ADC data might include **PD-related measurements**
+- Possible CC1/CC2 voltage readings
+- VCONN measurements  
+- Additional timing/metadata for PD analysis
+
+#### Command Rate Analysis
+
+**ADC-Only Files** (e.g., `orig_open_close.16`):
+- **ADC rate**: ~2-4 req/s (every 200-250ms)
+- **PD rate**: 0 req/s (no PD functionality)
+- **ADC response sizes**: Mostly 52 bytes (standard)
+
+**PD Files** (`orig_with_pd.13`, `pd_capture_new.9`):
+- **ADC rate**: ~3-5 req/s (every 200-240ms) - **same as ADC-only**
+- **PD rate**: ~1-8 req/s (every 40ms when active) - **much faster**
+- **ADC response sizes**: Mixed (52, 68, 84 bytes)
+
+**Key Insight**: The device maintains **normal ADC polling rate** but adds **high-frequency PD polling** when in PD mode.
+
+#### Extended ADC Structure Discovery
+
+**Hypothesis Confirmed**: Host sends `CmdGetSimpleAdcData` and device responds with **extended ADC data** in PD mode!
+
+**Extended ADC Format**:
+- **Header**: `41 [ID] 82 03` (68-byte) or `41 [ID] 82 04` (84-byte)
+- **First 52 bytes**: Standard ADC data (parseable normally)
+- **Extra bytes**: 16 bytes (type 0x03) or 32 bytes (type 0x04)
+
+**Example Extended ADC Analysis**:
+```
+Standard: 41 0a 82 02 [48 bytes ADC data]              → 52 bytes total
+Extended: 41 20 82 03 [48 bytes ADC data] [16 extra]   → 68 bytes total  
+Extended: 41 XX 82 04 [48 bytes ADC data] [32 extra]   → 84 bytes total
+```
+
+**Extra Data Pattern** (first 8 bytes of 16-byte extension):
+```
+10 00 00 03 76 e8 12 00  (timestamp: 0x0012e876?)
+10 00 00 03 16 ea 12 00  (timestamp: 0x0012ea16?)
+10 00 00 03 7c ec 12 00  (timestamp: 0x0012ec7c?)
+```
+
+The extra 16/32 bytes likely contain:
+- **PD event timestamps** (4-8 bytes)
+- **CC1/CC2 voltages** (4-8 bytes) 
+- **PD state information** (4-8 bytes)
+- **VCONN measurements** (remaining bytes)
 
 ---
 
