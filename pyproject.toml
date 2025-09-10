@@ -21,6 +21,8 @@ dependencies = [
     "usbpdpy>=0.1.0",
     "polars",
     "ipywidgets>=8.1.7",
+    "streamlit>=1.49.1",
+    "plotly>=6.3.0",
 ]
 
 [project.optional-dependencies]
