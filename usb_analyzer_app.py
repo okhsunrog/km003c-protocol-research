@@ -99,8 +99,8 @@ def main():
         st.warning("No transactions found for the selected file.")
         return
     
-    # Main content area
-    col1, col2 = st.columns([2, 1])
+    # Main content area - adjust column ratios for better space
+    col1, col2 = st.columns([3, 2])
     
     with col1:
         st.subheader(f"📋 Transactions: {selected_file}")
@@ -123,13 +123,23 @@ def main():
         # Convert to pandas for streamlit display
         display_pandas = display_df.to_pandas()
         
-        # Interactive table with selection
-        selected_indices = st.dataframe(
+        # Interactive table with selection - corrected approach
+        event = st.dataframe(
             display_pandas,
             use_container_width=True,
+            hide_index=True,
             on_select="rerun",
-            selection_mode="single-row"
-        ).selection.rows
+            selection_mode="multi-row",
+            key="transactions_table"
+        )
+        
+        # Get selected rows using correct syntax
+        selected_indices = event.selection.rows
+        
+        # Debug info
+        st.write(f"Selected row indices: {selected_indices}")
+        st.write(f"Event object: {event}")
+        st.write(f"Event selection: {event.selection}")
         
         if len(selected_indices) > 0:
             selected_idx = selected_indices[0]
@@ -148,24 +158,31 @@ def main():
             # Transaction overview card
             with st.container():
                 st.markdown("### Overview")
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.metric("Start Time", f"{selected_transaction['start_time']:.3f}s")
-                    st.metric("Request Type", selected_transaction['request_packet_type'])
-                with col_b:
-                    st.metric("Duration", f"{selected_transaction['duration_ms']:.2f}ms")
-                    st.metric("Response Type", selected_transaction['response_packet_type'])
+                st.metric("Start Time", f"{selected_transaction['start_time']:.3f}s")
+                st.metric("Duration", f"{selected_transaction['duration_ms']:.2f}ms")
+                
+                # Full width for packet types to prevent truncation
+                st.markdown("**Request Type:**")
+                st.code(selected_transaction['request_packet_type'], language=None)
+                st.markdown("**Response Type:**")
+                st.code(selected_transaction['response_packet_type'], language=None)
             
             # Request details
             with st.expander("📤 Request Details", expanded=True):
                 st.text(f"Length: {selected_transaction['payload_length']} bytes")
-                st.code(selected_transaction['payload_hex'], language="text")
+                # Format hex with spaces for better readability
+                hex_formatted = ' '.join([selected_transaction['payload_hex'][i:i+2] 
+                                        for i in range(0, len(selected_transaction['payload_hex']), 2)])
+                st.code(hex_formatted, language=None)
             
             # Response details  
             if selected_transaction['complete_payload_hex']:
                 with st.expander("📥 Response Details", expanded=True):
                     st.text(f"Length: {selected_transaction['complete_data_length']} bytes")
-                    st.code(selected_transaction['complete_payload_hex'], language="text")
+                    # Format hex with spaces for better readability
+                    response_hex_formatted = ' '.join([selected_transaction['complete_payload_hex'][i:i+2] 
+                                                     for i in range(0, len(selected_transaction['complete_payload_hex']), 2)])
+                    st.code(response_hex_formatted, language=None)
             else:
                 st.warning("No response data available")
                 
