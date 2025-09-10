@@ -427,13 +427,22 @@ def print_transaction_log(
     
     print(f'Found {len(transactions_df)} logical transactions. Displaying first {len(display_df)}:')
     
-    # Select columns for display with new format
+    # Select columns for display with new format - truncate hex for readability
     display_columns = display_df.select([
-        'start_time', 'duration_ms', 'transaction_flow', 'submit_direction', 
-        'payload_length', 'payload_hex'
+        'start_time', 'duration_ms', 'transaction_flow',
+        pl.col('payload_length').alias('request_len'),
+        pl.when(pl.col('payload_hex').str.len_chars() > 16)
+          .then(pl.col('payload_hex').str.slice(0, 16) + "...")
+          .otherwise(pl.col('payload_hex'))
+          .alias('request_hex'),
+        pl.col('complete_data_length').alias('response_len'),
+        pl.when(pl.col('complete_payload_hex').str.len_chars() > 16)
+          .then(pl.col('complete_payload_hex').str.slice(0, 16) + "...")
+          .otherwise(pl.col('complete_payload_hex'))
+          .alias('response_hex')
     ])
     
-    with pl.Config(tbl_rows=limit if limit is not None else 100, tbl_width_chars=140, tbl_hide_dataframe_shape=True, tbl_formatting="ASCII_FULL_CONDENSED"):
+    with pl.Config(tbl_rows=limit if limit is not None else 100, tbl_width_chars=200, tbl_hide_dataframe_shape=True, tbl_formatting="ASCII_FULL_CONDENSED"):
         print(display_columns)
 
     if limit is not None and len(transactions_df) > limit:
