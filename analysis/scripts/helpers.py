@@ -436,7 +436,7 @@ from km003c_lib import parse_packet
 def add_parsed_packet_data(df: pl.DataFrame) -> pl.DataFrame:
     """
     Applies the Rust-based parser to a DataFrame, returning a new DataFrame
-    with parsed packet information including packet types and ADC data.
+    with parsed packet information including packet types, ADC data, and PD data.
     """
 
     def parse_hex_payload(payload_hex: str) -> Optional[dict]:
@@ -446,21 +446,20 @@ def add_parsed_packet_data(df: pl.DataFrame) -> pl.DataFrame:
             'vbus_v': None, 'ibus_a': None, 'power_w': None, 'vbus_avg_v': None,
             'ibus_avg_a': None, 'temp_c': None, 'vdp_v': None, 'vdm_v': None,
             'vdp_avg_v': None, 'vdm_avg_v': None, 'cc1_v': None, 'cc2_v': None,
+            'pd_data_hex': None,
+            'has_pd_extension': None,
+            'pd_extension_hex': None,
         }
         if not payload_hex:
             return NULL_RESULT
+
         try:
             payload_bytes = bytes.fromhex(payload_hex)
             packet = parse_packet(payload_bytes)
-            
-            result = {
-                'packet_type': packet.packet_type,
-                'vbus_v': None, 'ibus_a': None, 'power_w': None, 'vbus_avg_v': None,
-                'ibus_avg_a': None, 'temp_c': None, 'vdp_v': None, 'vdm_v': None,
-                'vdp_avg_v': None, 'vdm_avg_v': None, 'cc1_v': None, 'cc2_v': None,
-            }
-            
-            # Extract ADC data if this is an ADC packet
+
+            result = NULL_RESULT.copy()
+            result['packet_type'] = packet.packet_type
+
             if packet.packet_type == 'SimpleAdcData' and packet.adc_data:
                 adc = packet.adc_data
                 result.update({
@@ -471,7 +470,13 @@ def add_parsed_packet_data(df: pl.DataFrame) -> pl.DataFrame:
                     'vdp_avg_v': adc.vdp_avg_v, 'vdm_avg_v': adc.vdm_avg_v,
                     'cc1_v': adc.cc1_v, 'cc2_v': adc.cc2_v,
                 })
-            
+                if packet.pd_extension_data:
+                    result['has_pd_extension'] = True
+                    result['pd_extension_hex'] = packet.pd_extension_data.hex()
+
+            elif packet.packet_type == 'PdRawData' and packet.pd_data:
+                result['pd_data_hex'] = packet.pd_data.hex()
+
             return result
         except Exception:
             return NULL_RESULT
@@ -484,6 +489,9 @@ def add_parsed_packet_data(df: pl.DataFrame) -> pl.DataFrame:
         pl.Field('vdp_v', pl.Float64), pl.Field('vdm_v', pl.Float64),
         pl.Field('vdp_avg_v', pl.Float64), pl.Field('vdm_avg_v', pl.Float64),
         pl.Field('cc1_v', pl.Float64), pl.Field('cc2_v', pl.Float64),
+        pl.Field('pd_data_hex', pl.String),
+        pl.Field('has_pd_extension', pl.Boolean),
+        pl.Field('pd_extension_hex', pl.String),
     ])
 
     parsed_series = df["payload_hex"].map_elements(
@@ -492,7 +500,6 @@ def add_parsed_packet_data(df: pl.DataFrame) -> pl.DataFrame:
     )
 
     return df.with_columns(parsed_series.alias("parsed_data")).unnest("parsed_data")
-
 
 def add_parsed_adc_data(df: pl.DataFrame) -> pl.DataFrame:
     """
