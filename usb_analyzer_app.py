@@ -53,8 +53,8 @@ def main():
     # Sidebar controls
     st.sidebar.header("📊 Analysis Controls")
     
-    # Get available source files
-    source_files = df['source_file'].unique().to_list()
+    # Get available source files - sorted for consistent order
+    source_files = sorted(df['source_file'].unique().to_list())
     source_file_options = []
     for file in source_files:
         count = len(df.filter(pl.col('source_file') == file))
@@ -124,13 +124,14 @@ def main():
         display_pandas = display_df.to_pandas()
         
         # Interactive table with selection - corrected approach
+        # Use source file in key to reset selection when file changes
         event = st.dataframe(
             display_pandas,
             use_container_width=True,
             hide_index=True,
             on_select="rerun",
             selection_mode="multi-row",
-            key="transactions_table"
+            key=f"transactions_table_{selected_file}"
         )
         
         # Get selected rows using correct syntax
