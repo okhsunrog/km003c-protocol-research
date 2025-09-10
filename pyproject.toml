@@ -1,5 +1,7 @@
 [build-system]
-requires = ["maturin>=1.5,<2.0", "cffi"]
+# Use maturin as the build backend to build the Rust extension when this
+# project is packaged. For day-to-day dev, prefer `uv run maturin develop`.
+requires = ["maturin>=1.5,<2.0"]
 build-backend = "maturin"
 
 [project]
@@ -25,8 +27,13 @@ dependencies = [
 dev = [
     "pytest>=8.2.2",
     "pytest-asyncio>=0.23.7",
+    # For building the Rust extension in the active venv
+    "maturin>=1.5,<2.0",
 ]
 
 [tool.maturin]
-features = ["pyo3", "python"]
+# Build the external Rust crate that exports the `km003c_lib` python module.
+# The crate uses the `python` feature to enable pyo3 bindings.
+bindings = "pyo3"
+features = ["python"]
 manifest-path = "/home/okhsunrog/code/rust/km003c-rs/km003c-lib/Cargo.toml"

@@ -252,13 +252,17 @@ def get_transactions(
     filter_out_enumeration: bool = True,
 ) -> pl.DataFrame:
     """
-    Processes a session DataFrame to identify and return a polars DataFrame of logical
-    Submit -> Complete transactions.
+    Processes a session DataFrame to identify logical application-layer transactions.
+    
+    For KM003C protocol:
+    - Host requests: H->D on endpoint 0x01 with payload
+    - Device responses: D->H on endpoint 0x81 with payload
+    - Pairs them by chronological order and transaction ID matching
     """
     # Standard USB request codes
     STANDARD_ENUMERATION_REQUESTS = {0x00, 0x01, 0x03, 0x05, 0x06, 0x08, 0x09}
 
-    # Clean and separate Submit and Complete packets
+    # Clean data
     df = session_df.lazy().select(
         [
             pl.col(c).list.first().alias(c)
@@ -268,8 +272,13 @@ def get_transactions(
         ]
     ).sort("timestamp")
 
-    submits = df.filter(pl.col("urb_type") == "S").select(
-        pl.col("urb_id"),
+    # Separate host requests and device responses based on endpoints and payloads
+    host_requests = df.filter(
+        (pl.col("direction") == "H->D") & 
+        (pl.col("endpoint_address") == "0x01") &
+        (pl.col("payload_hex") != "") &
+        (pl.col("urb_type") == "S")
+    ).select(
         pl.col("timestamp").alias("start_time"),
         pl.col("transfer_type"),
         pl.col("direction").alias("submit_direction"),
@@ -279,68 +288,68 @@ def get_transactions(
         pl.col("brequest"),
     )
 
-    completes = df.filter(pl.col("urb_type") == "C").select(
-        pl.col("urb_id"),
+    device_responses = df.filter(
+        (pl.col("direction") == "D->H") &
+        (pl.col("endpoint_address") == "0x81") &
+        (pl.col("payload_hex") != "") &
+        (pl.col("urb_type") == "C")
+    ).select(
         pl.col("timestamp").alias("end_time"),
         pl.col("payload_hex").alias("complete_payload_hex"),
         pl.col("data_length").alias("complete_data_length"),
     )
 
-    # Create transactions by joining submits and completes
-    # We use a sequence number to handle URB ID reuse correctly.
-    submits = submits.with_columns(pl.cum_count("urb_id").over("urb_id").alias("urb_seq"))
-    completes = completes.with_columns(pl.cum_count("urb_id").over("urb_id").alias("urb_seq"))
+    # Custom pairing: each request with the next chronological response
+    host_requests_collected = host_requests.collect()
+    device_responses_collected = device_responses.collect()
+    
+    host_requests_list = host_requests_collected.sort("start_time").to_dicts()
+    device_responses_list = device_responses_collected.sort("end_time").to_dicts()
+    
+    paired_transactions = []
+    response_idx = 0
+    
+    for request in host_requests_list:
+        request_time = request["start_time"]
+        
+        # Find the next response that comes after this request
+        while (response_idx < len(device_responses_list) and 
+               device_responses_list[response_idx]["end_time"] < request_time):
+            response_idx += 1
+        
+        if response_idx < len(device_responses_list):
+            response = device_responses_list[response_idx]
+            
+            # Create paired transaction
+            transaction = {
+                **request,  # All request fields
+                "end_time": response["end_time"],
+                "complete_payload_hex": response["complete_payload_hex"], 
+                "complete_data_length": response["complete_data_length"],
+                "duration_ms": (response["end_time"] - request_time) * 1000
+            }
+            paired_transactions.append(transaction)
+            response_idx += 1
+        else:
+            # No matching response found
+            transaction = {
+                **request,
+                "end_time": None,
+                "complete_payload_hex": "",
+                "complete_data_length": 0,
+                "duration_ms": None
+            }
+            paired_transactions.append(transaction)
+    
+    transactions = pl.DataFrame(paired_transactions).sort("start_time")
 
-    transactions = submits.join(
-        completes, on=["urb_id", "urb_seq"]
-    ).sort("start_time").with_columns(
-        duration_ms=(pl.col("end_time") - pl.col("start_time")) * 1000
+    # Classify transactions based on new endpoint-based approach
+    transactions = transactions.with_columns(
+        # All our transactions are now Host Request + Device Response pairs
+        pl.lit('Application Transaction').alias('type')
     )
 
-    # Convert hex to int for classification logic
-    transactions = transactions.with_columns(
-        bmrequest_int=pl.col('bmrequest_type').fill_null('0x0').str.strip_prefix("0x").str.to_integer(base=16).fill_null(0),
-        brequest_int=pl.col('brequest').fill_null('0x0').str.strip_prefix("0x").str.to_integer(base=16).fill_null(0)
-    )
-
-    # Classify transactions
-    transactions = transactions.with_columns(
-        pl.when(pl.col('transfer_type') == '0x02')
-        .then(
-            pl.when(pl.col('brequest_int').is_in(list(STANDARD_ENUMERATION_REQUESTS)))
-            .then(pl.lit('Standard Enumeration'))
-            .when(pl.col('brequest_int').is_not_null())
-            .then(
-                pl.when(((pl.col('bmrequest_int') // 32) & 0x03) == 2)
-                .then(pl.concat_str([pl.lit("Vendor Command (0x"), pl.col('brequest_int').cast(pl.Utf8).str.zfill(2), pl.lit(")")]))
-                .when(((pl.col('bmrequest_int') // 32) & 0x03) == 1)
-                .then(pl.concat_str([pl.lit("Class Command (0x"), pl.col('brequest_int').cast(pl.Utf8).str.zfill(2), pl.lit(")")]))
-                .otherwise(pl.lit('Other Control'))
-            )
-            .when(pl.col('bmrequest_type').is_in(['0x21', '0xa1']))
-            .then(pl.lit('HID-Class Command'))
-            .otherwise(pl.lit('Other Control'))
-        )
-        .when(pl.col('transfer_type') == '0x03')
-        .then(
-            pl.when((pl.col('submit_payload_hex') == '') & (pl.col('complete_payload_hex') == ''))
-            .then(pl.lit('Control/ACK'))
-            .when((pl.col('submit_direction') == 'H->D') & (pl.col('submit_payload_hex') != ''))
-            .then(pl.lit('Host Command'))
-            .when((pl.col('submit_direction') == 'D->H') & (pl.col('submit_payload_hex') == '') & (pl.col('complete_payload_hex') != ''))
-            .then(pl.lit('Device Response'))
-            .otherwise(pl.lit('Other Bulk'))
-        )
-        .when(pl.col('transfer_type') == '0x01')
-        .then(pl.lit('Interrupt Handshake'))
-        .otherwise(pl.lit('Unknown'))
-        .alias('type')
-    ).collect()
-
-    if filter_out_enumeration:
-        transactions = transactions.filter(pl.col('type') != 'Standard Enumeration')
-
-    # Add parsed packet information for Host Commands and Device Responses
+    # Parse both request and response payloads
     def parse_packet_safe(payload_hex: str) -> str:
         """Safely parse a packet and return packet type, or empty string if not parseable."""
         if not payload_hex:
@@ -352,45 +361,28 @@ def get_transactions(
         except Exception:
             return ""
 
-    # Add consolidated payload and packet type columns (since only one direction has payload per transaction)
+    # Add parsed packet information for both request and response
     transactions = transactions.with_columns([
-        # Consolidated payload_hex: submit for Host Commands, complete for Device Responses
-        pl.when(
-            (pl.col('type') == 'Host Command') & (pl.col('submit_payload_hex') != '')
-        ).then(
-            pl.col('submit_payload_hex')
-        ).when(
-            (pl.col('type') == 'Device Response') & (pl.col('complete_payload_hex') != '')
-        ).then(
-            pl.col('complete_payload_hex')
-        ).otherwise(pl.lit("")).alias('payload_hex'),
+        # Parse the host request payload
+        pl.col('submit_payload_hex').map_elements(parse_packet_safe, return_dtype=pl.String).alias('request_packet_type'),
         
-        # Consolidated payload_length: submit for Host Commands, complete for Device Responses
-        pl.when(
-            pl.col('type') == 'Host Command'
-        ).then(
-            pl.col('submit_data_length')
-        ).when(
-            pl.col('type') == 'Device Response'
-        ).then(
-            pl.col('complete_data_length')
-        ).otherwise(pl.lit(0)).alias('payload_length'),
+        # Parse the device response payload (handle None values)
+        pl.col('complete_payload_hex').fill_null('').map_elements(parse_packet_safe, return_dtype=pl.String).alias('response_packet_type'),
         
-        # Parse the consolidated payload
-        pl.when(
-            (pl.col('type') == 'Host Command') & (pl.col('submit_payload_hex') != '')
-        ).then(
-            pl.col('submit_payload_hex').map_elements(parse_packet_safe, return_dtype=pl.String)
-        ).when(
-            (pl.col('type') == 'Device Response') & (pl.col('complete_payload_hex') != '')
-        ).then(
-            pl.col('complete_payload_hex').map_elements(parse_packet_safe, return_dtype=pl.String)
-        ).otherwise(pl.lit("")).alias('packet_type')
+        # Create consolidated fields for compatibility with existing code
+        pl.col('submit_payload_hex').alias('payload_hex'),  # Show request payload
+        pl.col('submit_data_length').alias('payload_length'),
+        pl.col('submit_direction').alias('submit_direction'),
+    ]).with_columns([
+        # Use request packet type as the main packet type for compatibility (after creating it)
+        pl.col('request_packet_type').alias('packet_type')
     ])
 
     return transactions.select([
-        'start_time', 'duration_ms', 'type', 'submit_direction', 
-        'payload_length', 'payload_hex', 'packet_type'
+        'start_time', 'end_time', 'duration_ms', 'type', 'submit_direction', 
+        'payload_length', 'payload_hex', 'packet_type',
+        'request_packet_type', 'response_packet_type', 
+        'complete_payload_hex', 'complete_data_length'
     ])
 
 def print_transaction_log(
@@ -414,18 +406,35 @@ def print_transaction_log(
     if limit is not None:
         display_df = transactions_df.head(limit)
 
-    if truncate_payloads:
-        display_df = display_df.with_columns([
-            pl.when(pl.col("payload_hex").str.len_chars() > 11)
-              .then(pl.col("payload_hex").str.slice(0, 8) + "...")
-              .otherwise(pl.col("payload_hex"))
-              .alias("payload_hex"),
-        ])
+    # Create a display-friendly format for the new transaction structure
+    display_df = display_df.with_columns([
+        # Create a descriptive transaction type showing request → response
+        pl.when(pl.col('response_packet_type') != '')
+        .then(pl.concat_str([
+            pl.col('request_packet_type'),
+            pl.lit(' → '),
+            pl.col('response_packet_type')
+        ]))
+        .otherwise(pl.col('request_packet_type'))
+        .alias('transaction_flow'),
+        
+        # Truncate payloads if requested
+        pl.when(pl.col("payload_hex").str.len_chars() > 11)
+          .then(pl.col("payload_hex").str.slice(0, 8) + "...")
+          .otherwise(pl.col("payload_hex"))
+          .alias("payload_hex") if truncate_payloads else pl.col("payload_hex").alias("payload_hex"),
+    ])
     
     print(f'Found {len(transactions_df)} logical transactions. Displaying first {len(display_df)}:')
     
+    # Select columns for display with new format
+    display_columns = display_df.select([
+        'start_time', 'duration_ms', 'transaction_flow', 'submit_direction', 
+        'payload_length', 'payload_hex'
+    ])
+    
     with pl.Config(tbl_rows=limit if limit is not None else 100, tbl_width_chars=140, tbl_hide_dataframe_shape=True, tbl_formatting="ASCII_FULL_CONDENSED"):
-        print(display_df)
+        print(display_columns)
 
     if limit is not None and len(transactions_df) > limit:
         print(f'... and {len(transactions_df) - limit} more transactions.')

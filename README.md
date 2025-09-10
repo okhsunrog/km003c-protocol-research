@@ -66,6 +66,33 @@ cd analysis/notebooks
 jupyter notebook usb_protocol_analysis.ipynb
 ```
 
+### Build Rust Python bindings (maturin via uv)
+The project uses the external Rust crate at `/home/okhsunrog/code/rust/km003c-rs/km003c-lib` to provide the `km003c_lib` Python module.
+
+You can build and install it into the uv-managed virtual environment using one of the following:
+
+```bash
+# 1) Using just (recommended)
+uv sync -E dev  # ensures maturin is available
+just rust-ext
+
+# 2) Direct maturin invocation
+uv run maturin develop \
+  --manifest-path /home/okhsunrog/code/rust/km003c-rs/km003c-lib/Cargo.toml \
+  --features python
+```
+
+After building, the `km003c_lib` module is importable in Python:
+
+```python
+from km003c_lib import parse_packet
+```
+
+Notes:
+- Building the Rust extension requires Rust and Cargo, and network access for first-time dependency fetches.
+- The pyproject is configured with maturin as the build backend so packaging this project will also build the extension.
+- If you don’t have `just`, install it via your package manager (e.g., `sudo apt-get install just` or `brew install just`).
+
 ## 🔍 Key Technical Insights
 
 ### USB Protocol Structure
