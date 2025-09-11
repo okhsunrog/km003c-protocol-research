@@ -1,3 +1,0 @@
-[lint]
-ignore = ["E402", "F821"]
-exclude = ["src/analysis/notebooks/*.ipynb", "tests/*.py"]

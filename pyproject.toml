@@ -14,23 +14,20 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-    "jupyter>=1.0.0",
     "matplotlib>=3.5.0",
     "seaborn>=0.11.0",
     "numpy>=2.3.3",
     "usbpdpy>=0.1.0",
     "polars",
-    "ipywidgets>=8.1.7",
     "streamlit>=1.49.1",
     "plotly>=6.3.0",
+    "pyyaml>=6.0.2",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.2.2",
     "pytest-asyncio>=0.23.7",
-    "black>=24.0.0",
-    "isort>=5.13.2",
     # For building the Rust extension in the active venv
     "maturin>=1.5,<2.0",
 ]
@@ -44,7 +41,13 @@ manifest-path = "/home/okhsunrog/code/rust/km003c-rs/km003c-lib/Cargo.toml"
 
 [dependency-groups]
 dev = [
-    "black>=25.1.0",
-    "isort>=6.0.1",
     "ruff>=0.13.0",
 ]
+
+[tool.ruff.lint]
+ignore = ["E402", "F821"]
+exclude = ["notebooks/*.ipynb", "tests/*.py"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
