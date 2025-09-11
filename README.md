@@ -17,17 +17,17 @@ The project uses a **Rust-based converter** that transforms pcap files into stru
 - Provides complete USB communication visibility (control + data + status packets)
 
 ### Master Dataset
-**File**: `usb_master_dataset.parquet` (506KB)
+**File**: `data/processed/usb_master_dataset.parquet` (506KB)
 - **11,514 USB packets** across 4 devices (addresses 6, 9, 13, 16)
 - **7 capture sessions** with full source tracking
 - **41 fields per packet** including payload data, control packet parsing, URB tracking
 
 ### Analysis Tools
-**Notebooks**:
+**Notebooks** (in `src/analysis/notebooks/`):
 - `usb_protocol_analysis.ipynb` - Interactive analysis of master dataset
 - `usbpdpy_examples.ipynb` - USB Power Delivery message parsing
 
-**Scripts**:
+**Scripts** (in `src/analysis/scripts/`):
 - `helpers.py` - Core analysis functions for USB protocol research
 - `analyze_parquet_with_payload.py` - Command-line analysis tool
 - `parse_messages.py` - USB PD message parsing utility
@@ -62,7 +62,7 @@ control_packets = df.filter(pl.col('transfer_type') == '0x02')
 uv sync
 
 # Start analysis
-cd analysis/notebooks
+cd src/analysis/notebooks
 jupyter notebook usb_protocol_analysis.ipynb
 ```
 
@@ -134,7 +134,7 @@ Notes:
 
 ## 🚀 Quick Start
 
-1. **Load the dataset**: `df = load_master_dataset('usb_master_dataset.parquet')`
+1. **Load the dataset**: `df = load_master_dataset('data/processed/usb_master_dataset.parquet')`
 2. **Explore sessions**: `stats = get_session_stats(df)`
 3. **Analyze patterns**: Use URB IDs for transaction pairing
 4. **Deep dive**: Focus on payload data for protocol reverse engineering

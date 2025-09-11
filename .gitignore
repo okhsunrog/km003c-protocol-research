@@ -30,6 +30,10 @@ env/
 # Analysis outputs
 *.sqlite
 
+# Ignore large data files in raw
+data/raw/*
+!data/processed/usb_master_dataset.parquet
+
 # Allow parquet files (primary data format for USB captures)
 # *.parquet
 

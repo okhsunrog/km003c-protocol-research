@@ -10,9 +10,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
-from typing import Dict, Optional, Tuple
+from pathlib import Path
+from typing import Dict, Optional
 
 import polars as pl
 
@@ -25,7 +25,9 @@ if str(ROOT) not in sys.path:
 try:
     from km003c_lib import parse_packet
 except Exception as e:
-    print("✗ Failed to import km003c_lib. Ensure the Rust bindings are built and available.")
+    print(
+        "✗ Failed to import km003c_lib. Ensure the Rust bindings are built and available."
+    )
     print(f"  Error: {e}")
     sys.exit(1)
 
@@ -70,7 +72,7 @@ def classify_packet(payload: bytes) -> Optional[str]:
             ext_start = 4
             if len(payload) < ext_start + 4:
                 return "GENERIC"
-            attr = int.from_bytes(payload[ext_start:ext_start + 2], "little") & 0x7FFF
+            attr = int.from_bytes(payload[ext_start : ext_start + 2], "little") & 0x7FFF
             if attr == ATTR_ADC:
                 return "ADC_DATA"
             if attr == ATTR_PD:
@@ -89,7 +91,6 @@ def parse_non_adc_details(payload: bytes) -> Dict[str, object]:
 
     first = payload[0]
     pkt_type = first & 0x7F
-    extend = bool(first & 0x80)
     is_ctrl = pkt_type < 0x40
 
     if is_ctrl:
@@ -99,7 +100,11 @@ def parse_non_adc_details(payload: bytes) -> Dict[str, object]:
         pkt_id = payload[1]
         raw_attr = int.from_bytes(payload[2:4], "little") & 0x7FFF
         type_name = {0x0C: "GetData"}.get(pkt_type, f"Ctrl(0x{pkt_type:02X})")
-        kind = "CMD_GET_PD" if raw_attr == 0x0010 else ("CMD_GET_ADC" if raw_attr == 0x0001 else "GENERIC")
+        kind = (
+            "CMD_GET_PD"
+            if raw_attr == 0x0010
+            else ("CMD_GET_ADC" if raw_attr == 0x0001 else "GENERIC")
+        )
         return {
             "kind": kind,
             "ctrl_type": type_name,
@@ -116,10 +121,16 @@ def parse_non_adc_details(payload: bytes) -> Dict[str, object]:
         raw_attr = int.from_bytes(ext[:2], "little") & 0x7FFF
         # Data after extended header
         body = payload[8:]
-        kind = "PD_RAW" if raw_attr == 0x0010 else ("ADC_DATA" if raw_attr == 0x0001 else "GENERIC")
+        kind = (
+            "PD_RAW"
+            if raw_attr == 0x0010
+            else ("ADC_DATA" if raw_attr == 0x0001 else "GENERIC")
+        )
         return {
             "kind": kind,
-            "data_type": {0x41: "PutData", 0x40: "Head"}.get(pkt_type, f"Data(0x{pkt_type:02X})"),
+            "data_type": {0x41: "PutData", 0x40: "Head"}.get(
+                pkt_type, f"Data(0x{pkt_type:02X})"
+            ),
             "id": pkt_id,
             "attribute": raw_attr,
             "payload_len": len(body),
@@ -130,7 +141,9 @@ def parse_non_adc_details(payload: bytes) -> Dict[str, object]:
 def main() -> None:
     ap = argparse.ArgumentParser(description="Scan parquet and parse KM003C packets")
     ap.add_argument("--input", required=True, help="Path to usb_master_dataset.parquet")
-    ap.add_argument("--limit", type=int, default=None, help="Optional row limit for quick scan")
+    ap.add_argument(
+        "--limit", type=int, default=None, help="Optional row limit for quick scan"
+    )
     args = ap.parse_args()
 
     parquet_path = Path(args.input)
@@ -148,10 +161,14 @@ def main() -> None:
     total_payload = len(df_payload)
     print(f"Total rows with payload: {total_payload}")
 
-    results = []
     type_counts: Dict[str, int] = {}
     parsed_samples = []  # store small number of parsed AdcData examples
-    non_adc_samples: Dict[str, list] = {"PD_RAW": [], "CMD_GET_PD": [], "CMD_GET_ADC": [], "GENERIC": []}
+    non_adc_samples: Dict[str, list] = {
+        "PD_RAW": [],
+        "CMD_GET_PD": [],
+        "CMD_GET_ADC": [],
+        "GENERIC": [],
+    }
 
     for row in df_payload.iter_rows(named=True):
         payload_hex = row.get("payload_hex")
@@ -171,23 +188,25 @@ def main() -> None:
             pkt_type = "ADC_DATA"
             # Capture a few examples to show the Python shape
             if len(parsed_samples) < 5:
-                parsed_samples.append({
-                    "repr": repr(parsed),
-                    "fields": {
-                        "vbus_v": parsed.vbus_v,
-                        "ibus_a": parsed.ibus_a,
-                        "power_w": parsed.power_w,
-                        "vbus_avg_v": parsed.vbus_avg_v,
-                        "ibus_avg_a": parsed.ibus_avg_a,
-                        "temp_c": parsed.temp_c,
-                        "vdp_v": parsed.vdp_v,
-                        "vdm_v": parsed.vdm_v,
-                        "vdp_avg_v": parsed.vdp_avg_v,
-                        "vdm_avg_v": parsed.vdm_avg_v,
-                        "cc1_v": parsed.cc1_v,
-                        "cc2_v": parsed.cc2_v,
-                    },
-                })
+                parsed_samples.append(
+                    {
+                        "repr": repr(parsed),
+                        "fields": {
+                            "vbus_v": parsed.vbus_v,
+                            "ibus_a": parsed.ibus_a,
+                            "power_w": parsed.power_w,
+                            "vbus_avg_v": parsed.vbus_avg_v,
+                            "ibus_avg_a": parsed.ibus_avg_a,
+                            "temp_c": parsed.temp_c,
+                            "vdp_v": parsed.vdp_v,
+                            "vdm_v": parsed.vdm_v,
+                            "vdp_avg_v": parsed.vdp_avg_v,
+                            "vdm_avg_v": parsed.vdm_avg_v,
+                            "cc1_v": parsed.cc1_v,
+                            "cc2_v": parsed.cc2_v,
+                        },
+                    }
+                )
         else:
             # Attempt best-effort classification for summary purposes
             pkt_type = classify_packet(raw) or "GENERIC"
@@ -214,9 +233,18 @@ def main() -> None:
             # Flatten key: value one-liners for readability
             fields = sample["fields"]
             keys = [
-                "vbus_v", "ibus_a", "power_w", "temp_c",
-                "vbus_avg_v", "ibus_avg_a", "vdp_v", "vdm_v",
-                "vdp_avg_v", "vdm_avg_v", "cc1_v", "cc2_v",
+                "vbus_v",
+                "ibus_a",
+                "power_w",
+                "temp_c",
+                "vbus_avg_v",
+                "ibus_avg_a",
+                "vdp_v",
+                "vdm_v",
+                "vdp_avg_v",
+                "vdm_avg_v",
+                "cc1_v",
+                "cc2_v",
             ]
             print("    {" + ", ".join(f"{k}: {fields[k]:.6g}" for k in keys) + "}")
     else:

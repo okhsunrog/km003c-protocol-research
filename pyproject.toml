@@ -29,6 +29,8 @@ dependencies = [
 dev = [
     "pytest>=8.2.2",
     "pytest-asyncio>=0.23.7",
+    "black>=24.0.0",
+    "isort>=5.13.2",
     # For building the Rust extension in the active venv
     "maturin>=1.5,<2.0",
 ]
@@ -39,3 +41,10 @@ dev = [
 bindings = "pyo3"
 features = ["python"]
 manifest-path = "/home/okhsunrog/code/rust/km003c-rs/km003c-lib/Cargo.toml"
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "isort>=6.0.1",
+    "ruff>=0.13.0",
+]

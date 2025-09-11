@@ -16,3 +16,11 @@ rust-ext:
 test:
     uv run pytest -q
 
+# Lint code with ruff.
+lint:
+    uv run ruff check --output-format=github src tests
+
+# Format code with ruff.
+format:
+    uv run ruff format src tests
+
