@@ -123,24 +123,19 @@ def main():
         # Convert to pandas for streamlit display
         display_pandas = display_df.to_pandas()
         
-        # Interactive table with selection - corrected approach
+        # Interactive table with selection - single row only
         # Use source file in key to reset selection when file changes
         event = st.dataframe(
             display_pandas,
             use_container_width=True,
             hide_index=True,
             on_select="rerun",
-            selection_mode="multi-row",
+            selection_mode="single-row",
             key=f"transactions_table_{selected_file}"
         )
         
         # Get selected rows using correct syntax
         selected_indices = event.selection.rows
-        
-        # Debug info
-        st.write(f"Selected row indices: {selected_indices}")
-        st.write(f"Event object: {event}")
-        st.write(f"Event selection: {event.selection}")
         
         if len(selected_indices) > 0:
             selected_idx = selected_indices[0]
