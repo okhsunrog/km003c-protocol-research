@@ -1,0 +1,34 @@
+# Manual grouping to show correct transaction boundaries based on real USB dataset
+# Each transaction is a complete command-response sequence following the guide's rules
+
+# Transaction A: Command 0x38 (from frame 1028)
+# Pattern: S(command) → C(ack) + C(data) → S(pre-position for next)
+{"transaction": "A", "frame": 1028, "time": 9.655153, "transfer_type": "0x03", "endpoint": "0x01", "urb": "S", "urb_id": "0xffff8d7d8d7a0a80", "payload_hex": "0c380400", "parsed": "CmdGetComplexAdcData 0x38"}
+{"transaction": "A", "frame": 1029, "time": 9.65539, "transfer_type": "0x03", "endpoint": "0x01", "urb": "C", "urb_id": "0xffff8d7d8d7a0a80", "payload_hex": ""}
+{"transaction": "A", "frame": 1030, "time": 9.65549, "transfer_type": "0x03", "endpoint": "0x81", "urb": "C", "urb_id": "0xffff8d7f754043c0", "payload_hex": "413802070200060...", "parsed": "ComplexAdcData 0x38"}
+{"transaction": "A", "frame": 1031, "time": 9.655737, "transfer_type": "0x03", "endpoint": "0x81", "urb": "S", "urb_id": "0xffff8d7d8d7a0d80", "payload_hex": ""}
+
+# Transaction B: Command 0x39 (from frame 1032)
+{"transaction": "B", "frame": 1032, "time": 9.758179, "transfer_type": "0x03", "endpoint": "0x01", "urb": "S", "urb_id": "0xffff8d7f862f60c0", "payload_hex": "0c390400", "parsed": "CmdGetComplexAdcData 0x39"}
+{"transaction": "B", "frame": 1033, "time": 9.758305, "transfer_type": "0x03", "endpoint": "0x01", "urb": "C", "urb_id": "0xffff8d7f862f60c0", "payload_hex": ""}
+{"transaction": "B", "frame": 1034, "time": 9.758399, "transfer_type": "0x03", "endpoint": "0x81", "urb": "C", "urb_id": "0xffff8d7d8d7a0d80", "payload_hex": "413902060200050...", "parsed": "ComplexAdcData 0x39"}
+{"transaction": "B", "frame": 1035, "time": 9.758732, "transfer_type": "0x03", "endpoint": "0x81", "urb": "S", "urb_id": "0xffff8d7f75404d80", "payload_hex": ""}
+
+# Transaction C: Command 0x3a (from frame 1036)
+{"transaction": "C", "frame": 1036, "time": 9.775008, "transfer_type": "0x03", "endpoint": "0x01", "urb": "S", "urb_id": "0xffff8d7f754049c0", "payload_hex": "0c3a0200", "parsed": "CmdGetSimpleAdcData 0x3a"}
+{"transaction": "C", "frame": 1037, "time": 9.775164, "transfer_type": "0x03", "endpoint": "0x01", "urb": "C", "urb_id": "0xffff8d7f754049c0", "payload_hex": ""}
+{"transaction": "C", "frame": 1038, "time": 9.775181, "transfer_type": "0x03", "endpoint": "0x81", "urb": "C", "urb_id": "0xffff8d7f75404d80", "payload_hex": "413a82020100000...", "parsed": "SimpleAdcData 0x3a"}
+{"transaction": "C", "frame": 1039, "time": 9.775736, "transfer_type": "0x03", "endpoint": "0x81", "urb": "S", "urb_id": "0xffff8d7e56d33780", "payload_hex": ""}
+
+# Transaction D: Command 0x3b (from frame 1040)
+{"transaction": "D", "frame": 1040, "time": 9.866059, "transfer_type": "0x03", "endpoint": "0x01", "urb": "S", "urb_id": "0xffff8d7f75404d80", "payload_hex": "0c3b0400", "parsed": "CmdGetComplexAdcData 0x3b"}
+{"transaction": "D", "frame": 1041, "time": 9.866165, "transfer_type": "0x03", "endpoint": "0x01", "urb": "C", "urb_id": "0xffff8d7f75404d80", "payload_hex": ""}
+{"transaction": "D", "frame": 1042, "time": 9.866341, "transfer_type": "0x03", "endpoint": "0x81", "urb": "C", "urb_id": "0xffff8d7e56d33780", "payload_hex": "413b02060200050...", "parsed": "ComplexAdcData 0x3b"}
+{"transaction": "D", "frame": 1043, "time": 9.87507, "transfer_type": "0x03", "endpoint": "0x81", "urb": "S", "urb_id": "0xffff8d7f75404d80", "payload_hex": ""}
+
+# Key insights from the corrected sample:
+# 1. Each transaction starts with a command Submit on 0x01 (NOT the pre-positioned Submit)
+# 2. The pre-positioned Submit belongs to the transaction that creates it
+# 3. Time gaps between transactions are typically 90-100ms (not 200ms as in fictional data)
+# 4. URB IDs get reused: note how 0xffff8d7f75404d80 appears in multiple transactions
+# 5. Response data Complete uses URB from the previous transaction's pre-positioned Submit
