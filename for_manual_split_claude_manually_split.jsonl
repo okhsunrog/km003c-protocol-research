@@ -1,0 +1,252 @@
+# Manual grouping to show correct transaction boundaries based on real USB dataset
+# Each transaction is a complete command-response sequence following the guide's rules
+
+# Control Transfer Transactions (Device Enumeration Phase)
+# Transaction 1: Control transfer - Get Device Descriptor
+{"transaction": "Control_1", "frame_number": 1, "timestamp": 0.0, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38d350bc00", "payload_hex": "", "parsed": "Control S - Get Descriptor"}
+{"transaction": "Control_1", "frame_number": 2, "timestamp": 0.00016, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38d350bc00", "payload_hex": "", "parsed": "Control C - Device Descriptor"}
+
+# Transaction 2: Control transfer - Get Configuration Descriptor (short)
+{"transaction": "Control_2", "frame_number": 3, "timestamp": 0.000174, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793540", "payload_hex": "", "parsed": "Control S - Get Config Descriptor Short"}
+{"transaction": "Control_2", "frame_number": 4, "timestamp": 0.000339, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793540", "payload_hex": "", "parsed": "Control C - Config Descriptor Short"}
+
+# Transaction 3: Control transfer - Get Configuration Descriptor (full)  
+{"transaction": "Control_3", "frame_number": 5, "timestamp": 0.000346, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793540", "payload_hex": "", "parsed": "Control S - Get Config Descriptor Full"}
+{"transaction": "Control_3", "frame_number": 6, "timestamp": 0.000738, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793540", "payload_hex": "", "parsed": "Control C - Config Descriptor Full"}
+
+# Transaction 4: Control transfer - Get String Descriptor 0
+{"transaction": "Control_4", "frame_number": 7, "timestamp": 5.251597, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793180", "payload_hex": "", "parsed": "Control S - Get String Descriptor 0"}
+{"transaction": "Control_4", "frame_number": 8, "timestamp": 5.251796, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793180", "payload_hex": "", "parsed": "Control C - String Descriptor 0"}
+
+# Transaction 5: Control transfer - Get String Descriptor 1
+{"transaction": "Control_5", "frame_number": 9, "timestamp": 5.252158, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793480", "payload_hex": "", "parsed": "Control S - Get String Descriptor 1"}
+{"transaction": "Control_5", "frame_number": 10, "timestamp": 5.252327, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793480", "payload_hex": "", "parsed": "Control C - String Descriptor 1"}
+
+# Transaction 6: Control transfer - Get String Descriptor 2
+{"transaction": "Control_6", "frame_number": 11, "timestamp": 5.252445, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793900", "payload_hex": "", "parsed": "Control S - Get String Descriptor 2"}
+{"transaction": "Control_6", "frame_number": 12, "timestamp": 5.252665, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793900", "payload_hex": "", "parsed": "Control C - String Descriptor 2"}
+
+# Transaction 7: Bulk transfer - Pre-position for bulk endpoint
+{"transaction": "Bulk_Setup_1", "frame_number": 13, "timestamp": 5.253737, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793d80", "payload_hex": "", "parsed": "Bulk S - Setup buffer for 0x81"}
+{"transaction": "Bulk_Setup_1", "frame_number": 14, "timestamp": 5.253837, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793d80", "payload_hex": "03060000", "parsed": "Bulk C - Initial response"}
+
+# Transaction 8: Next bulk buffer setup
+{"transaction": "Bulk_Setup_2", "frame_number": 15, "timestamp": 5.254301, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793780", "payload_hex": "", "parsed": "Bulk S - Setup next buffer"}
+
+# Transaction 9: Control transfer - Get Language String
+{"transaction": "Control_7", "frame_number": 16, "timestamp": 5.290419, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793540", "payload_hex": "", "parsed": "Control S - Get Language String"}
+{"transaction": "Control_7", "frame_number": 17, "timestamp": 5.290699, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793540", "payload_hex": "", "parsed": "Control C - Language String"}
+
+# Transaction 10: Control transfer - Get Manufacturer String
+{"transaction": "Control_8", "frame_number": 18, "timestamp": 5.291956, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793240", "payload_hex": "", "parsed": "Control S - Get Manufacturer String"}
+{"transaction": "Control_8", "frame_number": 19, "timestamp": 5.292155, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793240", "payload_hex": "", "parsed": "Control C - Manufacturer String"}
+
+# Transaction 11: Control transfer - Get Language ID
+{"transaction": "Control_9", "frame_number": 20, "timestamp": 5.292585, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793240", "payload_hex": "", "parsed": "Control S - Get Language ID"}
+{"transaction": "Control_9", "frame_number": 21, "timestamp": 5.292751, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793240", "payload_hex": "", "parsed": "Control C - Language ID"}
+
+# Transaction 12: Control transfer - Get Product String
+{"transaction": "Control_10", "frame_number": 22, "timestamp": 5.292953, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38830b8300", "payload_hex": "", "parsed": "Control S - Get Product String"}
+{"transaction": "Control_10", "frame_number": 23, "timestamp": 5.293167, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38830b8300", "payload_hex": "", "parsed": "Control C - Product String"}
+
+# Transaction 13: Bulk transfer cancellation
+{"transaction": "Bulk_Cancel_1", "frame_number": 24, "timestamp": 5.328751, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "-2", "urb_id": "0xffff8a3791793780", "payload_hex": "", "parsed": "Bulk C - Cancelled (ENOENT)"}
+
+# Transaction 14: Control transfer - Get Manufacturer String (repeat)
+{"transaction": "Control_11", "frame_number": 25, "timestamp": 5.328831, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a37c8c29180", "payload_hex": "", "parsed": "Control S - Get Manufacturer String"}
+{"transaction": "Control_11", "frame_number": 26, "timestamp": 5.328997, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a37c8c29180", "payload_hex": "", "parsed": "Control C - Manufacturer String"}
+
+# Transaction 15: Control transfer - Get Product String (repeat)
+{"transaction": "Control_12", "frame_number": 27, "timestamp": 5.329742, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a37c8c29c00", "payload_hex": "", "parsed": "Control S - Get Product String"}
+{"transaction": "Control_12", "frame_number": 28, "timestamp": 5.329916, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a37c8c29c00", "payload_hex": "", "parsed": "Control C - Product String"}
+
+# Transaction 16: Control transfer - Get Serial String
+{"transaction": "Control_13", "frame_number": 29, "timestamp": 5.3362, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a37c8c29780", "payload_hex": "", "parsed": "Control S - Get Serial String"}
+{"transaction": "Control_13", "frame_number": 30, "timestamp": 5.336367, "transfer_type": "0x02", "endpoint_address": "0x80", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a37c8c29780", "payload_hex": "", "parsed": "Control C - Serial String"}
+
+# Transaction 17: Setup receive buffer for KM003C communication
+{"transaction": "KM003C_Setup_1", "frame_number": 31, "timestamp": 5.337257, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a37c8c290c0", "payload_hex": "", "parsed": "Setup KM003C receive buffer"}
+
+# KM003C Command-Response Transaction Phase
+# Following the 4-frame pattern: S(command,0x01) → C(ack,0x01) → C(data,0x81) → S(pre-position,0x81)
+
+# Transaction 18: Initial handshake 
+{"transaction": "KM003C_1", "frame_number": 32, "timestamp": 5.372177, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38229e8780", "payload_hex": "02010000", "parsed": "Command 0x02 - Initial handshake"}
+{"transaction": "KM003C_1", "frame_number": 33, "timestamp": 5.372271, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38229e8780", "payload_hex": "", "parsed": "ACK for handshake"}
+{"transaction": "KM003C_1", "frame_number": 34, "timestamp": 5.372274, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a37c8c290c0", "payload_hex": "05010000", "parsed": "Response 0x05 - Handshake response"}
+{"transaction": "KM003C_1", "frame_number": 36, "timestamp": 5.374105, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38229e8540", "payload_hex": "", "parsed": "Pre-position for next transaction"}
+
+# Transaction 19: Authentication/pairing command
+{"transaction": "KM003C_2", "frame_number": 35, "timestamp": 5.374058, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38229e86c0", "payload_hex": "4402010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e", "parsed": "Command 0x44 - Auth/pairing"}
+{"transaction": "KM003C_2", "frame_number": 37, "timestamp": 5.374167, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38229e86c0", "payload_hex": "", "parsed": "ACK for auth"}
+{"transaction": "KM003C_2", "frame_number": 38, "timestamp": 5.37424, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38229e8540", "payload_hex": "c40201012004000040000000ffffffff1b8c1b24", "parsed": "Response 0xc4 - Auth response"}
+{"transaction": "KM003C_2", "frame_number": 39, "timestamp": 5.408576, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38229e8e40", "payload_hex": "", "parsed": "Pre-position for next transaction"}
+
+# Gap in data (frames 40-47 contain additional crypto/auth data)
+
+# Transaction 20: Another auth command
+{"transaction": "KM003C_3", "frame_number": 42, "timestamp": 5.410979, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38229e83c0", "payload_hex": "44030101636beaf3f0856506eee9a27e89722dcfd18b539a39c407d5c063d91102e36a9e", "parsed": "Command 0x44 - Auth step 3"}
+{"transaction": "KM003C_3", "frame_number": 43, "timestamp": 5.411079, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38229e83c0", "payload_hex": "", "parsed": "ACK for auth step 3"}
+{"transaction": "KM003C_3", "frame_number": 44, "timestamp": 5.411164, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38229e8840", "payload_hex": "c40301012044000040000000fffffffff49553f2", "parsed": "Response 0xc4 - Auth step 3 response"}
+{"transaction": "KM003C_3", "frame_number": 45, "timestamp": 5.444591, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38229e80c0", "payload_hex": "", "parsed": "Pre-position for next transaction"}
+
+# Transaction 21: Continue auth sequence (step 4)
+{"transaction": "KM003C_4", "frame_number": 48, "timestamp": 5.899088, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38830b86c0", "payload_hex": "44040101c51167ae613a6d46ec84a6bde8bd462ad18b539a39c407d5c063d91102e36a9e", "parsed": "Command 0x44 - Auth step 4"}
+{"transaction": "KM003C_4", "frame_number": 49, "timestamp": 5.899228, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38830b86c0", "payload_hex": "", "parsed": "ACK for auth step 4"}
+{"transaction": "KM003C_4", "frame_number": 50, "timestamp": 5.899243, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38229e8900", "payload_hex": "c4040101000c000340000000ffffffff638a64bf", "parsed": "Response 0xc4 - Auth step 4 response"}
+{"transaction": "KM003C_4", "frame_number": 51, "timestamp": 5.900851, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38830b8540", "payload_hex": "", "parsed": "Pre-position for next transaction"}
+
+# Transaction 22: Continue auth sequence (step 5)
+{"transaction": "KM003C_5", "frame_number": 54, "timestamp": 5.912901, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38830b8540", "payload_hex": "440501019c409debc8df53b83b066c315250d05cd18b539a39c407d5c063d91102e36a9e", "parsed": "Command 0x44 - Auth step 5"}
+{"transaction": "KM003C_5", "frame_number": 55, "timestamp": 5.912994, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38830b8540", "payload_hex": "", "parsed": "ACK for auth step 5"}
+{"transaction": "KM003C_5", "frame_number": 56, "timestamp": 5.913087, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38830b8480", "payload_hex": "c4050101500401400c000000ffffffff74b2334f", "parsed": "Response 0xc4 - Auth step 5 response"}
+{"transaction": "KM003C_5", "frame_number": 57, "timestamp": 5.914813, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38830b86c0", "payload_hex": "", "parsed": "Pre-position for next transaction"}
+
+# Transaction 23: Final auth/key exchange
+{"transaction": "KM003C_6", "frame_number": 60, "timestamp": 5.926871, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38830b86c0", "payload_hex": "4c0600022cc0c28b15e4783465f1eccc36dbc8e3d1ba3417ec046340d3df92b6ce2a51b4", "parsed": "Command 0x4c - Key exchange"}
+{"transaction": "KM003C_6", "frame_number": 61, "timestamp": 5.927078, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38830b86c0", "payload_hex": "", "parsed": "ACK for key exchange"}
+{"transaction": "KM003C_6", "frame_number": 62, "timestamp": 5.92708, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38830b8300", "payload_hex": "4c00030283bee4d494a658666a74e6d0d42fdc2513e1dc3b746172fa81f43a3d4dfe7aff", "parsed": "Response 0x4c - Key exchange response"}
+{"transaction": "KM003C_6", "frame_number": 63, "timestamp": 5.927225, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38830b8480", "payload_hex": "", "parsed": "Pre-position for next transaction"}
+
+# Transaction 24: First device info command
+{"transaction": "KM003C_7", "frame_number": 64, "timestamp": 5.927411, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38830b8540", "payload_hex": "0c071000", "parsed": "Command 0x0c - Get device info"}
+{"transaction": "KM003C_7", "frame_number": 65, "timestamp": 5.927508, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38830b8540", "payload_hex": "", "parsed": "ACK for device info"}
+{"transaction": "KM003C_7", "frame_number": 66, "timestamp": 5.927713, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38830b8480", "payload_hex": "4107020b0800002d610150f800000000102741ff00000000fffffffffffffffffffffffffafffffffafffffffafffffffafffffffaffffffed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f00ed4a0f005e000000268bb83a43000000000000000000000000000000504f5745522d5a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000207d05d2", "parsed": "Response 0x41 - Device info"}
+{"transaction": "KM003C_7", "frame_number": 67, "timestamp": 5.927814, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38830b8480", "payload_hex": "", "parsed": "Pre-position for next transaction"}
+
+# Transaction 25: Get status command
+{"transaction": "KM003C_8", "frame_number": 68, "timestamp": 5.927996, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38830b8540", "payload_hex": "0c080004", "parsed": "Command 0x0c - Get status"}
+{"transaction": "KM003C_8", "frame_number": 69, "timestamp": 5.928334, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38830b8540", "payload_hex": "", "parsed": "ACK for status"}
+{"transaction": "KM003C_8", "frame_number": 70, "timestamp": 5.92889, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38830b8480", "payload_hex": "4108c2ff00020000", "parsed": "Response 0x41 - Status"}
+{"transaction": "KM003C_8", "frame_number": 71, "timestamp": 5.929737, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38830b8300", "payload_hex": "", "parsed": "Pre-position for next transaction"}
+
+# Transaction 26: Get version command
+{"transaction": "KM003C_9", "frame_number": 72, "timestamp": 5.929886, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38830b86c0", "payload_hex": "0f090000", "parsed": "Command 0x0f - Get version"}
+{"transaction": "KM003C_9", "frame_number": 73, "timestamp": 5.929978, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38830b86c0", "payload_hex": "", "parsed": "ACK for version"}
+{"transaction": "KM003C_9", "frame_number": 74, "timestamp": 5.929979, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38830b8300", "payload_hex": "05090000", "parsed": "Response 0x05 - Version"}
+{"transaction": "KM003C_9", "frame_number": 75, "timestamp": 5.930089, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38830b8300", "payload_hex": "", "parsed": "Pre-position for next transaction"}
+
+# Regular ADC Data Collection Phase - Perfect KM003C command-response pattern
+# Pattern: S(CmdGetSimpleAdcData,0x01) → C(ACK,0x01) → C(SimpleAdcData,0x81) → S(pre-position,0x81)
+
+# Transaction 27: ADC Sample 0x0a (first ADC reading)
+{"transaction": "ADC_0a", "frame_number": 76, "timestamp": 5.990915, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38830b86c0", "payload_hex": "0c0a0200", "parsed": "CmdGetSimpleAdcData 0x0a"}
+{"transaction": "ADC_0a", "frame_number": 77, "timestamp": 5.991099, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38830b86c0", "payload_hex": "", "parsed": "ACK for 0x0a"}
+{"transaction": "ADC_0a", "frame_number": 78, "timestamp": 5.991102, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38830b8300", "payload_hex": "410a82020100000b5c0f0000faffffffa00f0000f2ffffff04100000500000007e0d7b7ed40471014201837e0080780025002100", "parsed": "SimpleAdcData 0x0a"}
+{"transaction": "ADC_0a", "frame_number": 79, "timestamp": 5.9928, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38830b8480", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 28: ADC Sample 0x0b (210ms gap - typical interval)
+{"transaction": "ADC_0b", "frame_number": 80, "timestamp": 6.200257, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38229e80c0", "payload_hex": "0c0b0200", "parsed": "CmdGetSimpleAdcData 0x0b"}
+{"transaction": "ADC_0b", "frame_number": 81, "timestamp": 6.200401, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38229e80c0", "payload_hex": "", "parsed": "ACK for 0x0b"}
+{"transaction": "ADC_0b", "frame_number": 82, "timestamp": 6.200414, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38830b8480", "payload_hex": "410b82020100000ba70f0000f6ffffff810f0000f8ffffffe50f0000560000007f0d7b7ed40471014201837e0080780024002000", "parsed": "SimpleAdcData 0x0b"}
+{"transaction": "ADC_0b", "frame_number": 83, "timestamp": 6.200975, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38229e8840", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 29: ADC Sample 0x0c (210ms gap)
+{"transaction": "ADC_0c", "frame_number": 84, "timestamp": 6.410078, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38229e83c0", "payload_hex": "0c0c0200", "parsed": "CmdGetSimpleAdcData 0x0c"}
+{"transaction": "ADC_0c", "frame_number": 85, "timestamp": 6.410149, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38229e83c0", "payload_hex": "", "parsed": "ACK for 0x0c"}
+{"transaction": "ADC_0c", "frame_number": 86, "timestamp": 6.410234, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38229e8840", "payload_hex": "410c82020100000ba70f0000f6ffffff810f0000f8ffffffe50f0000560000007f0d7b7ed30475014701837e0080780024001f00", "parsed": "SimpleAdcData 0x0c"}
+{"transaction": "ADC_0c", "frame_number": 87, "timestamp": 6.410511, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38229e8e40", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 30: ADC Sample 0x0d (210ms gap)
+{"transaction": "ADC_0d", "frame_number": 88, "timestamp": 6.619927, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793240", "payload_hex": "0c0d0200", "parsed": "CmdGetSimpleAdcData 0x0d"}
+{"transaction": "ADC_0d", "frame_number": 89, "timestamp": 6.619999, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793240", "payload_hex": "", "parsed": "ACK for 0x0d"}
+{"transaction": "ADC_0d", "frame_number": 90, "timestamp": 6.620084, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38229e8e40", "payload_hex": "410d82020100000b750f0000faffffff810f0000f8ffffffe50f0000560000007f0d7b7ed30475014701837e0080780024001f00", "parsed": "SimpleAdcData 0x0d"}
+{"transaction": "ADC_0d", "frame_number": 91, "timestamp": 6.621787, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a37c8c29240", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 31: ADC Sample 0x0e (200ms gap)
+{"transaction": "ADC_0e", "frame_number": 92, "timestamp": 6.820073, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a37917930c0", "payload_hex": "0c0e0200", "parsed": "CmdGetSimpleAdcData 0x0e"}
+{"transaction": "ADC_0e", "frame_number": 93, "timestamp": 6.820178, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a37917930c0", "payload_hex": "", "parsed": "ACK for 0x0e"}
+{"transaction": "ADC_0e", "frame_number": 94, "timestamp": 6.820261, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a37c8c29240", "payload_hex": "410e82020100000b750f0000faffffff810f0000f8ffffffe50f0000560000007f0d7b7ed30475014701837e0080780023001f00", "parsed": "SimpleAdcData 0x0e"}
+{"transaction": "ADC_0e", "frame_number": 95, "timestamp": 6.820504, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793a80", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 32: ADC Sample 0x0f (210ms gap)
+{"transaction": "ADC_0f", "frame_number": 96, "timestamp": 7.030091, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793c00", "payload_hex": "0c0f0200", "parsed": "CmdGetSimpleAdcData 0x0f"}
+{"transaction": "ADC_0f", "frame_number": 97, "timestamp": 7.030171, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793c00", "payload_hex": "", "parsed": "ACK for 0x0f"}
+{"transaction": "ADC_0f", "frame_number": 98, "timestamp": 7.030252, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793a80", "payload_hex": "410f82020100000b9c0f0000e2ffffff880f0000eeffffffec0f00004c000000810d7b7ed2046a013e01837e0080780022001e00", "parsed": "SimpleAdcData 0x0f"}
+{"transaction": "ADC_0f", "frame_number": 99, "timestamp": 7.030421, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a37917930c0", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 33: ADC Sample 0x10 (210ms gap)
+{"transaction": "ADC_10", "frame_number": 100, "timestamp": 7.240102, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793240", "payload_hex": "0c100200", "parsed": "CmdGetSimpleAdcData 0x10"}
+{"transaction": "ADC_10", "frame_number": 101, "timestamp": 7.240174, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793240", "payload_hex": "", "parsed": "ACK for 0x10"}
+{"transaction": "ADC_10", "frame_number": 102, "timestamp": 7.240374, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a37917930c0", "payload_hex": "411082020100000b9c0f0000e2ffffff880f0000eeffffffec0f00004c000000810d7b7ed2046a013e01837e0080780022001d00", "parsed": "SimpleAdcData 0x10"}
+{"transaction": "ADC_10", "frame_number": 103, "timestamp": 7.241829, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793780", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 34: ADC Sample 0x11 (210ms gap)
+{"transaction": "ADC_11", "frame_number": 104, "timestamp": 7.450206, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793540", "payload_hex": "0c110200", "parsed": "CmdGetSimpleAdcData 0x11"}
+{"transaction": "ADC_11", "frame_number": 105, "timestamp": 7.450372, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793540", "payload_hex": "", "parsed": "ACK for 0x11"}
+{"transaction": "ADC_11", "frame_number": 106, "timestamp": 7.450379, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793780", "payload_hex": "411182020100000b9c0f0000e2ffffff880f0000eeffffffec0f00004c000000810d7b7ed3045e013101837e0080780023001e00", "parsed": "SimpleAdcData 0x11"}
+{"transaction": "ADC_11", "frame_number": 107, "timestamp": 7.450661, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793d80", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 35: ADC Sample 0x12 (210ms gap)
+{"transaction": "ADC_12", "frame_number": 108, "timestamp": 7.659962, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793900", "payload_hex": "0c120200", "parsed": "CmdGetSimpleAdcData 0x12"}
+{"transaction": "ADC_12", "frame_number": 109, "timestamp": 7.660059, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793900", "payload_hex": "", "parsed": "ACK for 0x12"}
+{"transaction": "ADC_12", "frame_number": 110, "timestamp": 7.660146, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793d80", "payload_hex": "411282020100000bb90f0000eeffffff880f0000eeffffffec0f00004c000000800d7b7ed3045e013101837e0080780024001f00", "parsed": "SimpleAdcData 0x12"}
+{"transaction": "ADC_12", "frame_number": 111, "timestamp": 7.66046, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3791793480", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 36: ADC Sample 0x13 (200ms gap)
+{"transaction": "ADC_13", "frame_number": 112, "timestamp": 7.860203, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a360264b240", "payload_hex": "0c130200", "parsed": "CmdGetSimpleAdcData 0x13"}
+{"transaction": "ADC_13", "frame_number": 113, "timestamp": 7.860361, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a360264b240", "payload_hex": "", "parsed": "ACK for 0x13"}
+{"transaction": "ADC_13", "frame_number": 114, "timestamp": 7.860364, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3791793480", "payload_hex": "411382020100000bb90f0000eeffffff880f0000eeffffffec0f00004c000000800d7b7ed30473013f01837e0080780025002000", "parsed": "SimpleAdcData 0x13"}
+{"transaction": "ADC_13", "frame_number": 115, "timestamp": 7.860787, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3865ea5900", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 37: ADC Sample 0x14 (210ms gap)
+{"transaction": "ADC_14", "frame_number": 116, "timestamp": 8.070162, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3865ea5f00", "payload_hex": "0c140200", "parsed": "CmdGetSimpleAdcData 0x14"}
+{"transaction": "ADC_14", "frame_number": 117, "timestamp": 8.070262, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3865ea5f00", "payload_hex": "", "parsed": "ACK for 0x14"}
+{"transaction": "ADC_14", "frame_number": 118, "timestamp": 8.070322, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3865ea5900", "payload_hex": "411482020100000be60f0000f2ffffffcf0f0000f0ffffff331000004e0000007f0d7b7ed30473013f01837e0080780025002100", "parsed": "SimpleAdcData 0x14"}
+{"transaction": "ADC_14", "frame_number": 119, "timestamp": 8.070587, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3865ea53c0", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 38: ADC Sample 0x15 (210ms gap)
+{"transaction": "ADC_15", "frame_number": 120, "timestamp": 8.281098, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a360264b240", "payload_hex": "0c150200", "parsed": "CmdGetSimpleAdcData 0x15"}
+{"transaction": "ADC_15", "frame_number": 121, "timestamp": 8.28118, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a360264b240", "payload_hex": "", "parsed": "ACK for 0x15"}
+{"transaction": "ADC_15", "frame_number": 122, "timestamp": 8.281262, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3865ea53c0", "payload_hex": "411582020100000be60f0000f2ffffffcf0f0000f0ffffff331000004e0000007f0d7b7ed30473013f01837e0080780025002000", "parsed": "SimpleAdcData 0x15"}
+{"transaction": "ADC_15", "frame_number": 123, "timestamp": 8.281474, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a360264b240", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 39: ADC Sample 0x16 (210ms gap)
+{"transaction": "ADC_16", "frame_number": 124, "timestamp": 8.490053, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a360264b300", "payload_hex": "0c160200", "parsed": "CmdGetSimpleAdcData 0x16"}
+{"transaction": "ADC_16", "frame_number": 125, "timestamp": 8.490257, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a360264b300", "payload_hex": "", "parsed": "ACK for 0x16"}
+{"transaction": "ADC_16", "frame_number": 126, "timestamp": 8.490265, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a360264b240", "payload_hex": "411682020100000be60f0000f2ffffffcf0f0000f0ffffff331000004e0000007f0d7a7ed2047a014c01827e0080780024001f00", "parsed": "SimpleAdcData 0x16"}
+{"transaction": "ADC_16", "frame_number": 127, "timestamp": 8.4906, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a360264b9c0", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 40: ADC Sample 0x17 (200ms gap)
+{"transaction": "ADC_17", "frame_number": 128, "timestamp": 8.690939, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a360264b3c0", "payload_hex": "0c170200", "parsed": "CmdGetSimpleAdcData 0x17"}
+{"transaction": "ADC_17", "frame_number": 129, "timestamp": 8.691048, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a360264b3c0", "payload_hex": "", "parsed": "ACK for 0x17"}
+{"transaction": "ADC_17", "frame_number": 130, "timestamp": 8.691101, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a360264b9c0", "payload_hex": "411782020100000bb10f000022000000cf0f0000f0ffffff331000004e0000007f0d7a7ed2047a014c01827e0080780023001f00", "parsed": "SimpleAdcData 0x17"}
+{"transaction": "ADC_17", "frame_number": 131, "timestamp": 8.691418, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a360264b780", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 41: ADC Sample 0x18 (210ms gap)
+{"transaction": "ADC_18", "frame_number": 132, "timestamp": 8.900912, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3a055bf240", "payload_hex": "0c180200", "parsed": "CmdGetSimpleAdcData 0x18"}
+{"transaction": "ADC_18", "frame_number": 133, "timestamp": 8.900987, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3a055bf240", "payload_hex": "", "parsed": "ACK for 0x18"}
+{"transaction": "ADC_18", "frame_number": 134, "timestamp": 8.901099, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a360264b780", "payload_hex": "411882020100000bb10f000022000000cf0f0000f0ffffff331000004e0000007f0d7c7ed3046c014101847e0080780023001f00", "parsed": "SimpleAdcData 0x18"}
+{"transaction": "ADC_18", "frame_number": 135, "timestamp": 8.902854, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3799f47b40", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 42: ADC Sample 0x19 (210ms gap)
+{"transaction": "ADC_19", "frame_number": 136, "timestamp": 9.111041, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3a055bf240", "payload_hex": "0c190200", "parsed": "CmdGetSimpleAdcData 0x19"}
+{"transaction": "ADC_19", "frame_number": 137, "timestamp": 9.11114, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3a055bf240", "payload_hex": "", "parsed": "ACK for 0x19"}
+{"transaction": "ADC_19", "frame_number": 138, "timestamp": 9.111192, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3799f47b40", "payload_hex": "411982020100000b980f0000f6ffffffa40f00000c000000081000006a000000800d7c7ed3046c014101847e0080780023001f00", "parsed": "SimpleAdcData 0x19"}
+{"transaction": "ADC_19", "frame_number": 139, "timestamp": 9.111524, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3799f47480", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 43: ADC Sample 0x1a (200ms gap)
+{"transaction": "ADC_1a", "frame_number": 140, "timestamp": 9.311423, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a360264b600", "payload_hex": "0c1a0200", "parsed": "CmdGetSimpleAdcData 0x1a"}
+{"transaction": "ADC_1a", "frame_number": 141, "timestamp": 9.311504, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a360264b600", "payload_hex": "", "parsed": "ACK for 0x1a"}
+{"transaction": "ADC_1a", "frame_number": 142, "timestamp": 9.311628, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3799f47480", "payload_hex": "411a82020100000b980f0000f6ffffffa40f00000c000000081000006a000000800d7c7ed3046c014101847e0080780022001e00", "parsed": "SimpleAdcData 0x1a"}
+{"transaction": "ADC_1a", "frame_number": 143, "timestamp": 9.312633, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3799f47480", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 44: ADC Sample 0x1b (210ms gap)
+{"transaction": "ADC_1b", "frame_number": 144, "timestamp": 9.520971, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3799f47840", "payload_hex": "0c1b0200", "parsed": "CmdGetSimpleAdcData 0x1b"}
+{"transaction": "ADC_1b", "frame_number": 145, "timestamp": 9.521052, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3799f47840", "payload_hex": "", "parsed": "ACK for 0x1b"}
+{"transaction": "ADC_1b", "frame_number": 146, "timestamp": 9.52116, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a3799f47480", "payload_hex": "411b82020100000b3e0f0000f2ffffffa40f00000c000000081000006a000000800d7b7ed30462013b01837e0080780022001e00", "parsed": "SimpleAdcData 0x1b"}
+{"transaction": "ADC_1b", "frame_number": 147, "timestamp": 9.521463, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a37c8c29c00", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Transaction 45: ADC Sample 0x1c (210ms gap)
+{"transaction": "ADC_1c", "frame_number": 148, "timestamp": 9.730991, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a38229e86c0", "payload_hex": "0c1c0200", "parsed": "CmdGetSimpleAdcData 0x1c"}
+{"transaction": "ADC_1c", "frame_number": 149, "timestamp": 9.731065, "transfer_type": "0x03", "endpoint_address": "0x01", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a38229e86c0", "payload_hex": "", "parsed": "ACK for 0x1c"}
+{"transaction": "ADC_1c", "frame_number": 150, "timestamp": 9.731177, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "C", "urb_status": "0", "urb_id": "0xffff8a37c8c29c00", "payload_hex": "411c82020100000b3e0f0000f2ffffffa40f00000c000000081000006a000000800d7b7ed30462013b01837e0080780023001e00", "parsed": "SimpleAdcData 0x1c"}
+{"transaction": "ADC_1c", "frame_number": 151, "timestamp": 9.733026, "transfer_type": "0x03", "endpoint_address": "0x81", "urb_type": "S", "urb_status": "-115", "urb_id": "0xffff8a3799f47780", "payload_hex": "", "parsed": "Pre-position for next"}
+
+# Key insights from this manual split:
+# 1. Perfect KM003C 4-frame pattern: S(cmd,0x01) → C(ack,0x01) → C(data,0x81) → S(pre-pos,0x81)
+# 2. Command sequence increments: 0x0a → 0x0b → 0x0c → ... → 0x1c
+# 3. Time gaps between transactions: typically 200-210ms
+# 4. URB ID reuse is clearly visible (same URB addresses appear in different transactions)
+# 5. Pre-positioned Submit belongs to the transaction that creates it (not the next one)
+# 6. Response data Complete uses URB from previous transaction's pre-positioned Submit
