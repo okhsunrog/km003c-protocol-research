@@ -260,21 +260,33 @@ class KM003CTransactionSplitter:
                     i += len(transaction_frames)
                     continue
             
-            # Bulk setup/other (only if not a KM003C command)
-            elif self.is_bulk_transfer(frame) and frame.urb_type == "S":
-                transaction_frames = self.collect_bulk_setup(frames, i)
-                if transaction_frames:
+            # Bulk setup - add to previous transaction if it exists
+            elif (self.is_bulk_transfer(frame) and frame.urb_type == "S" and 
+                  not self.is_km003c_command(frame)):  # Don't treat KM003C commands as bulk setup
+                if transactions:  # If we have a previous transaction
+                    # Add this bulk setup frame to the previous transaction
+                    transactions[-1].frames.append(frame)
+                    # Update the duration of the previous transaction
+                    transactions[-1].duration = frame.timestamp - transactions[-1].start_time
+                    # Update description to mention the bulk setup
+                    prev_desc = transactions[-1].description
+                    if "with bulk setup" not in prev_desc:
+                        transactions[-1].description = prev_desc + " with bulk setup"
+                    i += 1
+                    continue
+                else:
+                    # No previous transaction, treat as standalone (this should be rare)
                     tx_id = f"Bulk_{len([t for t in transactions if t.transaction_type.startswith('Bulk')]) + 1}"
                     tx = Transaction(
                         transaction_id=tx_id,
                         transaction_type="Bulk_Setup",
-                        frames=transaction_frames,
-                        start_time=transaction_frames[0].timestamp,
-                        duration=transaction_frames[-1].timestamp - transaction_frames[0].timestamp if len(transaction_frames) > 1 else 0,
-                        description=f"Bulk transfer setup with {len(transaction_frames)} frames"
+                        frames=[frame],
+                        start_time=frame.timestamp,
+                        duration=0,
+                        description="Initial bulk transfer setup"
                     )
                     transactions.append(tx)
-                    i += len(transaction_frames)
+                    i += 1
                     continue
             
             # Skip unmatched frames
