@@ -15,7 +15,7 @@ project_root = Path(__file__).parent.parent
 analysis_scripts_path = project_root / "src" / "analysis" / "scripts"
 sys.path.insert(0, str(analysis_scripts_path))
 
-import helpers
+import helpers  # noqa: E402
 
 
 class TestHelpersParsing:

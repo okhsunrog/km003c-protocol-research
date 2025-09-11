@@ -9,7 +9,7 @@ project_root = Path(__file__).parent.parent
 analysis_scripts_path = project_root / "src" / "analysis" / "scripts"
 sys.path.insert(0, str(analysis_scripts_path))
 
-from helpers import get_transactions
+from helpers import get_transactions  # noqa: E402
 
 
 @pytest.fixture
