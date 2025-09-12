@@ -262,13 +262,11 @@ def main():
     
     # Table configuration
     st.sidebar.subheader("🔧 Display Options")
-    max_rows = st.sidebar.slider(
-        "Maximum rows to display",
-        min_value=10,
-        max_value=500,
-        value=50,
-        step=10,
-        help="Limit the number of transactions shown in the table"
+    rows_per_page = st.sidebar.selectbox(
+        "Rows per page",
+        options=[10, 25, 50, 100, 200, 300, 500, 1000, 2000],
+        index=5,  # Default to 300
+        help="Number of transactions to show per page"
     )
 
     # Get processed data
@@ -281,16 +279,41 @@ def main():
         st.warning("No transactions found for the selected file and filters.")
         return
 
+    # Calculate pagination in sidebar
+    total_transactions = len(transactions_summary)
+    total_pages = (total_transactions + rows_per_page - 1) // rows_per_page  # Ceiling division
+    
+    if total_pages > 1:
+        current_page = st.sidebar.selectbox(
+            "Page",
+            options=list(range(1, total_pages + 1)),
+            index=0,
+            format_func=lambda x: f"Page {x} of {total_pages}",
+            key="transaction_page",
+            help="Navigate through transaction pages"
+        )
+    else:
+        current_page = 1
+
     # Main content area
     col1, col2 = st.columns([2, 1])
 
     with col1:
         st.subheader(f"📋 Transactions: {selected_file}")
-        st.caption(f"Found {len(transactions_summary)} transactions")
+        
+        # Calculate slice indices for current page
+        start_idx = (current_page - 1) * rows_per_page
+        end_idx = min(start_idx + rows_per_page, total_transactions)
+        
+        # Show pagination info
+        st.caption(f"Showing transactions {start_idx + 1}-{end_idx} of {total_transactions} total")
+        
+        # Get current page data
+        current_page_data = transactions_summary.slice(start_idx, rows_per_page)
         
         # Prepare display DataFrame with parsed packet information
         display_rows = []
-        for row in transactions_summary.head(max_rows).iter_rows(named=True):
+        for row in current_page_data.iter_rows(named=True):
             # Parse request and response packets for preview
             request_info = parse_packet_preview(row["request_hex"]) if row["request_hex"] else {"preview": "No request"}
             response_info = parse_packet_preview(row["response_hex"]) if row["response_hex"] else {"preview": "No response"}
@@ -309,18 +332,63 @@ def main():
         
         display_df = pl.DataFrame(display_rows)
 
-        # Use st.dataframe for selection
+        # Use st.dataframe for selection with optimized column widths
         selection = st.dataframe(
             display_df,
             on_select="rerun",
             selection_mode="single-row",
             hide_index=True,
-            width='stretch'
-                )
-        
-        # Show pagination info
-        if len(transactions_summary) > max_rows:
-            st.info(f"Showing {max_rows} of {len(transactions_summary)} transactions. Adjust the slider to see more.")
+            width='stretch',
+            column_config={
+                "transaction_id": st.column_config.NumberColumn(
+                    "ID",
+                    help="Transaction ID",
+                    width="small"
+                ),
+                "start_time_s": st.column_config.NumberColumn(
+                    "Time (s)",
+                    help="Start time in seconds",
+                    format="%.3f",
+                    width="small"
+                ),
+                "duration_s": st.column_config.NumberColumn(
+                    "Duration (s)",
+                    help="Transaction duration",
+                    format="%.4f",
+                    width="small"
+                ),
+                "frame_count": st.column_config.NumberColumn(
+                    "Frames",
+                    help="Number of frames in transaction",
+                    width="small"
+                ),
+                "tags": st.column_config.ListColumn(
+                    "Tags",
+                    help="Transaction tags",
+                    width="large"
+                ),
+                "request_type": st.column_config.TextColumn(
+                    "Request",
+                    help="Request packet type and preview",
+                    width="medium"
+                ),
+                "response_type": st.column_config.TextColumn(
+                    "Response", 
+                    help="Response packet type and preview",
+                    width="medium"
+                ),
+                "request_hex": st.column_config.TextColumn(
+                    "Req Hex",
+                    help="Request hex data (truncated)",
+                    width="small"
+                ),
+                "response_hex": st.column_config.TextColumn(
+                    "Resp Hex",
+                    help="Response hex data (truncated)", 
+                    width="small"
+                ),
+            }
+        )
 
     with col2:
         st.subheader("🔍 Transaction Details")
@@ -328,8 +396,9 @@ def main():
         if not selection.selection.rows:
             st.info("👆 Click a transaction in the table to see details")
         else:
-            selected_idx = selection.selection.rows[0]
-            selected_transaction = transactions_summary.row(selected_idx, named=True)
+            selected_page_idx = selection.selection.rows[0]  # Index within current page
+            selected_global_idx = start_idx + selected_page_idx  # Global index in full dataset
+            selected_transaction = transactions_summary.row(selected_global_idx, named=True)
             selected_tid = selected_transaction['transaction_id']
             
             # Transaction overview
