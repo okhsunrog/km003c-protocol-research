@@ -339,6 +339,8 @@ def main():
             selection_mode="single-row",
             hide_index=True,
             width='stretch',
+            # Hide hex columns by default - only show these columns (hex columns can be shown via column visibility controls)
+            column_order=("transaction_id", "start_time_s", "duration_s", "frame_count", "tags", "request_type", "response_type"),
             column_config={
                 "transaction_id": st.column_config.NumberColumn(
                     "ID",
@@ -383,8 +385,8 @@ def main():
                     width="small"
                 ),
                 "response_hex": st.column_config.TextColumn(
-                    "Resp Hex",
-                    help="Response hex data (truncated)", 
+                    "Resp Hex", 
+                    help="Response hex data (truncated)",
                     width="small"
                 ),
             }
