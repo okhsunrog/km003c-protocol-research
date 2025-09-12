@@ -62,6 +62,13 @@ def _tag_structure_and_patterns(transaction_group: pl.DataFrame) -> List[str]:
 
     return list(tags)
 
+def _apply_tags_to_group(group_df: pl.DataFrame) -> List[str]:
+    """Helper function to generate tags for a single transaction group."""
+    return sorted(list(set(
+        _tag_composition(group_df) + 
+        _tag_structure_and_patterns(group_df)
+    )))
+
 def tag_transactions(df: pl.DataFrame) -> pl.DataFrame:
     """
     Analyzes a DataFrame of frames and adds a 'tags' column.
@@ -75,17 +82,12 @@ def tag_transactions(df: pl.DataFrame) -> pl.DataFrame:
     if "transaction_id" not in df.columns:
         raise ValueError("Input DataFrame must contain a 'transaction_id' column.")
 
-    # Group by transaction and apply tagging functions
-    tags_df = df.group_by("transaction_id").agg(
-        pl.col("*")
-    ).map_rows(
-        lambda row: {
-            "transaction_id": row[0],
-            "tags": sorted(list(set(
-                _tag_composition(pl.DataFrame(row[1])) + 
-                _tag_structure_and_patterns(pl.DataFrame(row[1]))
-            )))
-        }
+    # Group by transaction, apply tagging functions, and create a tags DataFrame
+    tags_df = df.group_by("transaction_id").map_groups(
+        lambda group_df: pl.DataFrame({
+            "transaction_id": group_df["transaction_id"][0],
+            "tags": [_apply_tags_to_group(group_df)]
+        })
     )
 
     # Merge the tags back into the original DataFrame

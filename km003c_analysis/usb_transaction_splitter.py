@@ -249,13 +249,19 @@ class USBTransactionSplitter:
         # Convert to list of dicts for processing
         rows = df.to_dicts()
         
-        # Process each frame and assign transaction ID
+        # Process each frame to get its transaction ID
+        transaction_ids = []
         for i, row in enumerate(rows):
             transaction_id = self.process_frame(row, i)
-            row[self.config.transaction_id_col] = transaction_id
+            transaction_ids.append(transaction_id)
         
-        # Convert back to DataFrame
-        return pl.DataFrame(rows)
+        # Create a new DataFrame with just the transaction IDs
+        tid_df = pl.DataFrame({
+            self.config.transaction_id_col: transaction_ids
+        })
+
+        # Horizontally concatenate the transaction ID column with the original, sorted DataFrame
+        return pl.concat([df, tid_df], how="horizontal")
     
     def validate_output(self, df: pl.DataFrame) -> Dict[str, bool]:
         """

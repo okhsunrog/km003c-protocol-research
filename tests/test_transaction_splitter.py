@@ -1,0 +1,66 @@
+import pytest
+import polars as pl
+from pathlib import Path
+import sys
+
+# Add project root to path to allow direct import of the package
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from km003c_analysis.usb_transaction_splitter import split_usb_transactions
+
+PROJECT_ROOT = Path(__file__).parent.parent
+DATASET_PATH = PROJECT_ROOT / "data/processed/usb_master_dataset.parquet"
+
+@pytest.fixture(scope="module")
+def master_df() -> pl.DataFrame:
+    """Fixture to load the master dataset for testing."""
+    if not DATASET_PATH.exists():
+        pytest.fail(f"Master dataset not found at {DATASET_PATH}")
+    return pl.read_parquet(DATASET_PATH)
+
+def test_splitter_runs_without_error(master_df):
+    """Ensures the transaction splitter runs to completion without raising exceptions."""
+    try:
+        result_df = split_usb_transactions(master_df)
+        assert isinstance(result_df, pl.DataFrame)
+        assert "transaction_id" in result_df.columns
+    except Exception as e:
+        pytest.fail(f"split_usb_transactions raised an unexpected exception: {e}")
+
+def test_splitter_preserves_data_integrity_and_order(master_df):
+    """
+    Verifies that the splitter only adds a 'transaction_id' column and does
+    not alter the original data or its order.
+    """
+    # 1. Run the splitter
+    result_df = split_usb_transactions(master_df)
+
+    # 2. Verify row count is unchanged
+    assert master_df.height == result_df.height, "Row count should not be changed by the splitter."
+
+    # 3. Verify original columns are preserved in the same order
+    original_cols = master_df.columns
+    result_cols_without_tid = [col for col in result_df.columns if col != "transaction_id"]
+    assert original_cols == result_cols_without_tid, "Original columns and their order should be preserved."
+
+    # Sort the original DataFrame the same way the splitter does for a valid comparison
+    sorted_master_df = master_df.sort("frame_number")
+
+    # 4. Verify the actual data in the original columns is unchanged
+    assert sorted_master_df.equals(result_df.select(original_cols)), "Original data values should not be modified."
+
+def test_splitter_creates_valid_transactions(master_df):
+    """
+    Checks that the splitter creates a 'transaction_id' column with expected properties.
+    """
+    result_df = split_usb_transactions(master_df)
+    
+    # Check that the transaction_id column exists
+    assert "transaction_id" in result_df.columns
+    
+    # Check that there is more than one transaction created for the master dataset
+    num_transactions = result_df["transaction_id"].n_unique()
+    assert num_transactions > 1, "Splitter should create multiple transactions for this dataset."
+    
+    # Check that transaction IDs are integers, as expected
+    assert result_df["transaction_id"].dtype == pl.Int64
