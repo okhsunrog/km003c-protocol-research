@@ -54,10 +54,33 @@ def _tag_structure_and_patterns(transaction_group: pl.DataFrame) -> List[str]:
 
     # Patterns (Enumeration)
     if "CONTROL_ONLY" in _tag_composition(transaction_group):
-        enumeration_requests = {"Get Descriptor", "Set Address", "Set Configuration"}
-        if "bRequest_name" in transaction_group.columns:
-            requests = set(transaction_group["bRequest_name"].drop_nulls().to_list())
-            if requests.intersection(enumeration_requests):
+        # USB standard request codes for enumeration (as hex integers)
+        # 0x00 = GET_STATUS, 0x01 = CLEAR_FEATURE, 0x03 = SET_FEATURE,
+        # 0x05 = SET_ADDRESS, 0x06 = GET_DESCRIPTOR, 0x08 = GET_CONFIGURATION,
+        # 0x09 = SET_CONFIGURATION
+        STANDARD_ENUMERATION_REQUESTS = {0x00, 0x01, 0x03, 0x05, 0x06, 0x08, 0x09}
+        
+        if "brequest" in transaction_group.columns:
+            # Convert brequest values to integers for comparison
+            brequest_values = transaction_group["brequest"].drop_nulls().to_list()
+            brequest_ints = set()
+            for val in brequest_values:
+                try:
+                    # Handle both plain numbers and hex strings
+                    if isinstance(val, str):
+                        val = val.strip()
+                        if val.startswith("0x"):
+                            # Hex string
+                            brequest_ints.add(int(val, 16))
+                        else:
+                            # Plain decimal string
+                            brequest_ints.add(int(val, 10))
+                    else:
+                        brequest_ints.add(int(val))
+                except (ValueError, AttributeError):
+                    continue
+            
+            if brequest_ints.intersection(STANDARD_ENUMERATION_REQUESTS):
                 tags.add("ENUMERATION")
 
     return list(tags)
