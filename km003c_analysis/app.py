@@ -5,391 +5,139 @@ Interactive USB Protocol Analyzer - Streamlit App
 A modern web interface for analyzing KM003C USB protocol transactions
 with interactive tables, detailed transaction views, and ADC data visualization.
 """
-
-import sys
-from pathlib import Path
-
-import plotly.graph_objects as go
-import polars as pl
 import streamlit as st
-from plotly import subplots
+import polars as pl
+from pathlib import Path
+import sys
 
-import helpers
-
-# Setup project paths
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root / "src" / "analysis" / "scripts"))
+# Local package imports
+from usb_transaction_splitter import split_usb_transactions
+from transaction_tagger import tag_transactions
 
 # Page configuration
 st.set_page_config(
     page_title="USB Protocol Analyzer",
     page_icon="🔌",
     layout="wide",
-    initial_sidebar_state="expanded",
 )
 
-
 @st.cache_data
-def load_data():
-    """Load the master dataset with caching."""
-    return helpers.load_master_dataset(project_root / "usb_master_dataset.parquet")
+def load_and_process_data(source_file: str, hide_enumeration: bool) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """
+    Loads, splits, and tags USB data for a given source file.
 
+    Returns:
+        A tuple containing:
+        - The aggregated transaction summary DataFrame.
+        - The full DataFrame of all frames with transaction_id and tags.
+    """
+    # Load master dataset
+    project_root = Path(__file__).parent.parent
+    master_df = pl.read_parquet(project_root / "data" / "processed" / "usb_master_dataset.parquet")
+    
+    # Filter for the selected source file
+    df_source = master_df.filter(pl.col("source_file") == source_file)
+    
+    # Core processing pipeline
+    df_split = split_usb_transactions(df_source)
+    df_tagged = tag_transactions(df_split)
+    
+    # Optional: Filter out enumeration transactions
+    if hide_enumeration:
+        df_tagged = df_tagged.filter(~pl.col("tags").list.contains("ENUMERATION"))
 
-@st.cache_data
-def get_transactions_cached(source_file: str, hide_enumeration: bool):
-    """Get transactions for a source file with caching."""
-    df = load_data()
-    filtered_df = df.filter(pl.col("source_file") == source_file)
-    return helpers.get_transactions(
-        filtered_df, filter_out_enumeration=hide_enumeration
-    )
+    if df_tagged.is_empty():
+        return pl.DataFrame(), pl.DataFrame()
+
+    # Create the aggregated transaction summary view
+    transactions_summary = df_tagged.group_by("transaction_id").agg(
+        pl.min("timestamp").alias("start_time"),
+        (pl.max("timestamp") - pl.min("timestamp")).alias("duration_s"),
+        pl.first("tags").alias("tags"),
+        pl.count().alias("frame_count"),
+        pl.col("payload_hex").filter(pl.col("direction") == "Out").first().alias("request_hex"),
+        pl.col("payload_hex").filter(pl.col("direction") == "In").first().alias("response_hex"),
+    ).sort("start_time")
+    
+    return transactions_summary, df_tagged
 
 
 def main():
     st.title("🔌 USB Protocol Analyzer")
     st.markdown("Interactive analysis of KM003C USB protocol transactions")
 
-    # Load data
+    # Load master dataset to get source file list
     try:
-        df = load_data()
+        project_root = Path(__file__).parent.parent
+        df = pl.read_parquet(project_root / "data" / "processed" / "usb_master_dataset.parquet")
     except Exception as e:
         st.error(f"Failed to load dataset: {e}")
-        st.stop()
+        return
 
     # Sidebar controls
     st.sidebar.header("📊 Analysis Controls")
-
-    # Get available source files - sorted for consistent order
     source_files = sorted(df["source_file"].unique().to_list())
-    source_file_options = []
-    for file in source_files:
-        count = len(df.filter(pl.col("source_file") == file))
-        source_file_options.append(f"{file} ({count} packets)")
-
-    # Source file selection
-    selected_option = st.sidebar.selectbox(
-        "Source File", source_file_options, help="Select a capture file to analyze"
+    selected_file = st.sidebar.selectbox(
+        "Source File", source_files, help="Select a capture file to analyze"
     )
-    selected_file = selected_option.split(" (")[0]
 
-    # Filter options
     hide_enumeration = st.sidebar.checkbox(
-        "Hide enumeration packets",
+        "Hide enumeration transactions",
         value=True,
         help="Filter out USB enumeration transactions",
     )
 
-    show_adc_plot = st.sidebar.checkbox(
-        "Show ADC data plot",
-        value=False,
-        help="Display voltage/current measurements over time",
-    )
+    # Get processed data
+    with st.spinner("Splitting and tagging transactions..."):
+        transactions_summary, all_frames_tagged = load_and_process_data(
+            selected_file, hide_enumeration
+        )
 
-    # Table configuration
-    st.sidebar.subheader("🔧 Table Options")
-    max_rows = st.sidebar.slider(
-        "Maximum rows to display", min_value=10, max_value=500, value=50, step=10
-    )
-
-    # Get transactions
-    with st.spinner("Loading transactions..."):
-        transactions = get_transactions_cached(selected_file, hide_enumeration)
-
-    if transactions.is_empty():
-        st.warning("No transactions found for the selected file.")
+    if transactions_summary.is_empty():
+        st.warning("No transactions found for the selected file and filters.")
         return
 
-    # Main content area - adjust column ratios for better space
+    # Main content area
     col1, col2 = st.columns([3, 2])
 
     with col1:
         st.subheader(f"📋 Transactions: {selected_file}")
-        st.caption(f"Found {len(transactions)} transactions")
+        st.caption(f"Found {len(transactions_summary)} transactions")
 
-        # Display transactions table
-        display_df = transactions.head(max_rows).select(
-            [
-                "start_time",
-                "duration_ms",
-                "request_packet_type",
-                "response_packet_type",
-                pl.col("payload_length").alias("req_len"),
-                pl.col("complete_data_length").alias("resp_len"),
-                pl.when(pl.col("payload_hex").str.len_chars() > 16)
-                .then(pl.col("payload_hex").str.slice(0, 16) + "...")
-                .otherwise(pl.col("payload_hex"))
-                .alias("request_hex"),
-            ]
-        )
-
-        # Convert to pandas for streamlit display
-        display_pandas = display_df.to_pandas()
-
-        # Interactive table with selection - single row only
-        # Use source file in key to reset selection when file changes
-        event = st.dataframe(
-            display_pandas,
-            use_container_width=True,
-            hide_index=True,
+        # Use st.dataframe for selection
+        selection = st.dataframe(
+            transactions_summary,
             on_select="rerun",
             selection_mode="single-row",
-            key=f"transactions_table_{selected_file}",
-        )
-
-        # Get selected rows using correct syntax
-        selected_indices = event.selection.rows
-
-        if len(selected_indices) > 0:
-            selected_idx = selected_indices[0]
-            selected_transaction = transactions.row(selected_idx, named=True)
-
-            # Show pagination info
-            if len(transactions) > max_rows:
-                st.info(
-                    f"Showing {max_rows} of {len(transactions)} transactions. Adjust the slider to see more."
+            hide_index=True,
+            use_container_width=True
                 )
 
     with col2:
-        st.subheader("🔍 Transaction Details")
-
-        if len(selected_indices) > 0:
-            st.success("Transaction selected")
-
-            # Transaction overview card
-            with st.container():
-                st.markdown("### Overview")
-                st.metric("Start Time", f"{selected_transaction['start_time']:.3f}s")
-                st.metric("Duration", f"{selected_transaction['duration_ms']:.2f}ms")
-
-                # Full width for packet types to prevent truncation
-                st.markdown("**Request Type:**")
-                st.code(selected_transaction["request_packet_type"], language=None)
-                st.markdown("**Response Type:**")
-                st.code(selected_transaction["response_packet_type"], language=None)
-
-            # Request details
-            with st.expander("📤 Request Details", expanded=True):
-                st.text(f"Length: {selected_transaction['payload_length']} bytes")
-                # Format hex with spaces for better readability
-                hex_formatted = " ".join(
-                    [
-                        selected_transaction["payload_hex"][i : i + 2]
-                        for i in range(0, len(selected_transaction["payload_hex"]), 2)
-                    ]
-                )
-                st.code(hex_formatted, language=None)
-
-            # Response details
-            if selected_transaction["complete_payload_hex"]:
-                with st.expander("📥 Response Details", expanded=True):
-                    st.text(
-                        f"Length: {selected_transaction['complete_data_length']} bytes"
-                    )
-                    # Format hex with spaces for better readability
-                    response_hex_formatted = " ".join(
-                        [
-                            selected_transaction["complete_payload_hex"][i : i + 2]
-                            for i in range(
-                                0, len(selected_transaction["complete_payload_hex"]), 2
-                            )
-                        ]
-                    )
-                    st.code(response_hex_formatted, language=None)
-            else:
-                st.warning("No response data available")
-
-            # ADC data if available
-            if selected_transaction["response_packet_type"] == "SimpleAdcData":
-                with st.expander("⚡ ADC Measurements", expanded=True):
-                    try:
-                        # Parse the response packet to get ADC data
-                        from km003c_lib import parse_packet
-
-                        response_bytes = bytes.fromhex(
-                            selected_transaction["complete_payload_hex"]
-                        )
-                        packet = parse_packet(response_bytes)
-
-                        if packet.adc_data:
-                            adc = packet.adc_data
-                            col_x, col_y = st.columns(2)
-                            with col_x:
-                                st.metric("VBUS", f"{adc.vbus_v:.3f}V")
-                                st.metric("IBUS", f"{adc.ibus_a:.3f}A")
-                                st.metric("Power", f"{adc.power_w:.3f}W")
-                                st.metric("Temperature", f"{adc.temp_c:.1f}°C")
-                            with col_y:
-                                st.metric("CC1", f"{adc.cc1_v:.3f}V")
-                                st.metric("CC2", f"{adc.cc2_v:.3f}V")
-                                st.metric("D+", f"{adc.vdp_v:.3f}V")
-                                st.metric("D-", f"{adc.vdm_v:.3f}V")
-                    except Exception as e:
-                        st.error(f"Failed to parse ADC data: {e}")
+        st.subheader("🔍 Frame Details")
+        
+        if not selection.selection.rows:
+            st.info("👆 Click a transaction in the table to see its frames")
         else:
-            st.info("👆 Click a row in the table to see details")
+            selected_idx = selection.selection.rows[0]
+            selected_tid = transactions_summary.row(selected_idx, named=True)['transaction_id']
+            
+            st.info(f"Showing frames for Transaction ID: **{selected_tid}**")
+            
+            transaction_frames = all_frames_tagged.filter(
+                pl.col("transaction_id") == selected_tid
+            ).select([
+                "frame_number",
+                "timestamp",
+                "transfer_type",
+                "endpoint_address",
+                "direction",
+                "urb_type",
+                "data_length",
+                "payload_hex"
+            ]).sort("frame_number")
 
-    # ADC Plot Section
-    if show_adc_plot:
-        st.subheader("📈 ADC Data Visualization")
-
-        # Filter for ADC transactions only
-        adc_transactions = transactions.filter(
-            pl.col("response_packet_type") == "SimpleAdcData"
-        )
-
-        if not adc_transactions.is_empty():
-            try:
-                # Parse all ADC responses to extract measurement data
-                adc_data = []
-                for row in adc_transactions.iter_rows(named=True):
-                    try:
-                        from km003c_lib import parse_packet
-
-                        response_bytes = bytes.fromhex(row["complete_payload_hex"])
-                        packet = parse_packet(response_bytes)
-
-                        if packet.adc_data:
-                            adc = packet.adc_data
-                            adc_data.append(
-                                {
-                                    "time": row["start_time"],
-                                    "vbus_v": adc.vbus_v,
-                                    "ibus_a": adc.ibus_a,
-                                    "power_w": adc.power_w,
-                                    "temp_c": adc.temp_c,
-                                    "cc1_v": adc.cc1_v,
-                                    "cc2_v": adc.cc2_v,
-                                    "vdp_v": adc.vdp_v,
-                                    "vdm_v": adc.vdm_v,
-                                }
-                            )
-                    except Exception:
-                        continue
-
-                if adc_data:
-                    adc_df = pl.DataFrame(adc_data)
-                    adc_pandas = adc_df.to_pandas()
-
-                    # Create subplot
-                    fig = subplots.make_subplots(
-                        rows=2,
-                        cols=2,
-                        subplot_titles=(
-                            "Voltage & Current",
-                            "Power & Temperature",
-                            "CC Voltages",
-                            "Data Lines",
-                        ),
-                        specs=[
-                            [{"secondary_y": True}, {"secondary_y": True}],
-                            [{"secondary_y": False}, {"secondary_y": False}],
-                        ],
-                    )
-
-                    # Voltage & Current
-                    fig.add_trace(
-                        go.Scatter(
-                            x=adc_pandas["time"],
-                            y=adc_pandas["vbus_v"],
-                            name="VBUS (V)",
-                            line=dict(color="red"),
-                        ),
-                        row=1,
-                        col=1,
-                    )
-                    fig.add_trace(
-                        go.Scatter(
-                            x=adc_pandas["time"],
-                            y=adc_pandas["ibus_a"],
-                            name="IBUS (A)",
-                            line=dict(color="blue"),
-                        ),
-                        row=1,
-                        col=1,
-                        secondary_y=True,
-                    )
-
-                    # Power & Temperature
-                    fig.add_trace(
-                        go.Scatter(
-                            x=adc_pandas["time"],
-                            y=adc_pandas["power_w"],
-                            name="Power (W)",
-                            line=dict(color="green"),
-                        ),
-                        row=1,
-                        col=2,
-                    )
-                    fig.add_trace(
-                        go.Scatter(
-                            x=adc_pandas["time"],
-                            y=adc_pandas["temp_c"],
-                            name="Temp (°C)",
-                            line=dict(color="orange"),
-                        ),
-                        row=1,
-                        col=2,
-                        secondary_y=True,
-                    )
-
-                    # CC Voltages
-                    fig.add_trace(
-                        go.Scatter(
-                            x=adc_pandas["time"],
-                            y=adc_pandas["cc1_v"],
-                            name="CC1 (V)",
-                            line=dict(color="purple"),
-                        ),
-                        row=2,
-                        col=1,
-                    )
-                    fig.add_trace(
-                        go.Scatter(
-                            x=adc_pandas["time"],
-                            y=adc_pandas["cc2_v"],
-                            name="CC2 (V)",
-                            line=dict(color="brown"),
-                        ),
-                        row=2,
-                        col=1,
-                    )
-
-                    # Data Lines
-                    fig.add_trace(
-                        go.Scatter(
-                            x=adc_pandas["time"],
-                            y=adc_pandas["vdp_v"],
-                            name="D+ (V)",
-                            line=dict(color="cyan"),
-                        ),
-                        row=2,
-                        col=2,
-                    )
-                    fig.add_trace(
-                        go.Scatter(
-                            x=adc_pandas["time"],
-                            y=adc_pandas["vdm_v"],
-                            name="D- (V)",
-                            line=dict(color="magenta"),
-                        ),
-                        row=2,
-                        col=2,
-                    )
-
-                    fig.update_layout(
-                        height=600,
-                        title_text="ADC Measurements Over Time",
-                        showlegend=True,
-                    )
-
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("No valid ADC data found in selected transactions")
-
-            except Exception as e:
-                st.error(f"Failed to create ADC plot: {e}")
-        else:
-            st.info("No ADC transactions found in selected file")
+            st.dataframe(transaction_frames, use_container_width=True, hide_index=True)
 
 
 if __name__ == "__main__":
