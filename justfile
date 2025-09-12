@@ -4,6 +4,7 @@ default:
     @echo "Available recipes:"
     @echo "  rust-ext   Build/install km003c_lib into the uv venv"
     @echo "  test       Run pytest"
+    @echo "  app        Run the Streamlit protocol analyzer app"
 
 # Build and install the Rust extension into the current uv-managed environment.
 # Requires: `uv sync -E dev` so `maturin` is available, and Rust toolchain.
@@ -23,4 +24,8 @@ lint:
 # Format code with ruff.
 format:
     uv run ruff format src tests
+
+# Run the Streamlit protocol analyzer app.
+app:
+    uv run streamlit run km003c_analysis/app.py
 
