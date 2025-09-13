@@ -8,18 +8,16 @@ with interactive tables, detailed transaction views, and data visualization.
 
 import streamlit as st
 import polars as pl
-import plotly.express as px
 import plotly.graph_objects as go
 from plotly import subplots
 from pathlib import Path
-import sys
 
 # Local package imports
 from usb_transaction_splitter import split_usb_transactions
 from transaction_tagger import tag_transactions
 
 # Import the proper Rust library for packet parsing
-from km003c_lib import parse_packet, parse_raw_packet, Packet, RawPacket, AdcData
+from km003c_lib import parse_packet, parse_raw_packet
 
 
 def extract_transaction_payloads(transaction_frames: pl.DataFrame) -> dict:
@@ -677,7 +675,7 @@ def main():
                                     "vdm_v": adc.vdm_v,
                                 }
                             )
-                    except Exception as e:
+                    except Exception:
                         # Skip transactions that can't be parsed as ADC data
                         continue
 
