@@ -158,17 +158,16 @@ Based on official documentation, the device provides:
 **Key Findings**:
 - Uses PyUSB for device communication
 - Identifies multiple USB interfaces with different sampling rates:
-  - **Interface 0**: Vendor Specific (1000 samples/sec) - Primary protocol interface
-  - **Interface 1**: HID Interface (500 samples/sec) - Alternative HID access
-  - **Interface 2**: CDC Data (1000 samples/sec) - Serial data interface
-  - **Interface 3**: Available but not documented in that implementation
+  - **Interface 0**: Vendor Specific (bulk 0x01/0x81) — primary protocol interface
+  - **Interface 2**: CDC Data (bulk 0x02/0x82) — serial data interface
+  - **Interface 3**: HID (interrupt 0x05/0x85) — alternative access path
 - 64-byte data buffer structure with dual 4-byte headers
 - Handles signed 32-bit integers for measurements
 - Motivation: "Looking for a power meter that didn't need Windows"
 
 **Real Device Verification**: The connected device confirms 4 interfaces (0-3), with Interface 3 being HID (as mentioned in the implementation) and Interface 2 being CDC Data.
 
-**Protocol Insights**:
+**Protocol Insights (bulk interface)**:
 ```python
 # Data parsing example from community implementation
 data_buffer = 64  # bytes
@@ -227,8 +226,9 @@ struct powerz_sensor_data {
 **Scaling Factors**:
 - Current measurements: Divide by 1000 (µA → mA)
 - Bus voltage: Divide by 1000 (µV → mV)
-- Auxiliary voltages: Divide by 10 (0.1mV resolution)
-- Temperature: Complex two-byte calculation
+- Auxiliary voltages (instantaneous CC1/CC2, D+, D-, VDD): 0.1 mV units (divide by 10 for mV, 10,000 for V)
+- Averaged auxiliary voltages (CC2_avg, D+_avg, D-_avg): 1.0 mV units (divide by 1 for mV, 1,000 for V)
+- Temperature: Two-byte calculation (see Temperature Conversion)
 
 ### 4. JavaScript Implementation (fqueze/usb-power-profiling)
 **Repository**: https://github.com/fqueze/usb-power-profiling
@@ -252,11 +252,9 @@ Every USB transaction consists of three phases:
 3. **Handshake Packet**: Acknowledgment and error correction
 
 ### Transfer Types
-The KM003C uses **Bulk Transfers** exclusively for data communication:
-- **Characteristics**: Large data transfers with error correction
-- **Error Recovery**: CRC16 validation with retransmission
-- **Bandwidth**: Uses spare bandwidth after higher-priority transfers
-- **Packet Size**: Up to 64 bytes for full-speed USB
+The KM003C uses **Bulk Transfers** for its primary vendor-specific protocol (Interface 0). The HID interface (Interface 3) uses **Interrupt Transfers**:
+- Bulk: large data transfers with error correction; CRC16 with retransmission; uses spare bandwidth; up to 64 bytes at full-speed USB.
+- Interrupt (HID): periodic polling with guaranteed service interval; 64-byte reports.
 
 ### Host-Centric Protocol
 - Only the host (computer) initiates transactions
@@ -409,7 +407,7 @@ The KM003C uses sophisticated zero-length packet (ZLP) signaling:
 #### URB Status Codes
 | Status | Meaning | Count | Usage Pattern |
 |--------|---------|-------|---------------|
-| -115 | EINPROGRESS | 102 | Device requesting send permission |
+| -115 | EINPROGRESS | 102 | IN URB pending (host buffer posted) |
 | 0 | SUCCESS | 95 | Command acknowledged |
 | -2 | ENOENT | 2 | Operation cancelled/not found |
 
@@ -423,9 +421,9 @@ The KM003C uses sophisticated zero-length packet (ZLP) signaling:
 
 #### Pattern 1: Data Request Handshake
 ```
-1. Device→Host: Empty Submit (Status=-115, "requesting permission")
-2. Host processes request
-3. Device→Host: Complete with actual data (52+ bytes)
+1. Host→Device: submits IN URB (buffer posted) → urb_status = -115 (EINPROGRESS)
+2. Device produces data
+3. Device→Host: completion with actual data (e.g., 52+ bytes for ADC PutData)
 ```
 
 #### Pattern 2: Command Acknowledgment
@@ -483,22 +481,25 @@ struct adc_packet {
         uint32_t size : 10;      // ADC payload size (44)
     } extended_header;
     
-    // ADC data payload (48 bytes - official structure)
+    // ADC data payload (44 bytes)
     struct adc_data {
-        int32_t vbus;           // VBUS voltage (1µV units)
-        int32_t ibus;           // IBUS current (1µA units)  
-        int32_t vbus_avg;       // Averaged VBUS (1µV)
-        int32_t ibus_avg;       // Averaged IBUS (1µA)
-        int32_t vbus_ori_avg;   // Uncalibrated VBUS average
-        int32_t ibus_ori_avg;   // Uncalibrated IBUS average
-        int16_t temperature;    // Internal temperature
-        uint16_t vcc1;          // CC1 voltage (0.1mV resolution)
-        uint16_t vcc2;          // CC2 voltage (0.1mV resolution)
-        uint16_t vdp;           // D+ voltage (0.1mV resolution)
-        uint16_t vdm;           // D- voltage (0.1mV resolution)
-        uint16_t vdd;           // Internal VDD (0.1mV resolution)
-        uint8_t sample_rate:2;  // Sample rate index (0-4)
-        uint8_t reserved[3];    // Padding
+        int32_t vbus;             // VBUS voltage (1µV units)
+        int32_t ibus;             // IBUS current (1µA units)  
+        int32_t vbus_avg;         // Averaged VBUS (1µV)
+        int32_t ibus_avg;         // Averaged IBUS (1µA)
+        int32_t vbus_ori_avg;     // Uncalibrated VBUS average
+        int32_t ibus_ori_avg;     // Uncalibrated IBUS average
+        int16_t temperature;      // Internal temperature (LSB = 1/128 °C)
+        uint16_t vcc1_tenth_mv;   // CC1 voltage (0.1mV units)
+        uint16_t vcc2_tenth_mv;   // CC2 voltage (0.1mV units)
+        uint16_t vdp_tenth_mv;    // D+ voltage (0.1mV units)
+        uint16_t vdm_tenth_mv;    // D- voltage (0.1mV units)
+        uint16_t vdd_tenth_mv;    // Internal VDD (0.1mV units)
+        uint8_t sample_rate:2;    // Sample rate index (0-4)
+        uint8_t flags;            // Vendor flags (observed 128)
+        uint16_t cc2_avg_mv;      // CC2 averaged voltage (1mV units)
+        uint16_t vdp_avg_mv;      // D+ averaged voltage (1mV units)
+        uint16_t vdm_avg_mv;      // D- averaged voltage (1mV units)
     } adc_data;
     
     // Optional PD extension (12-824 bytes)
@@ -718,7 +719,7 @@ class KM003CDevice {
         
         await this.device.open();
         await this.device.selectConfiguration(1);
-        await this.device.claimInterface(1);
+        await this.device.claimInterface(0);
     }
     
     async readData() {
@@ -816,7 +817,7 @@ class KM003CDevice {
 #### Multi-Interface Support
 - **Issue**: Device has multiple USB interfaces with different capabilities
 - **Solution**: Test each interface to determine optimal sampling rate
-- **Recommendation**: Interface 1 (HID) for compatibility, Interface 0/3 for performance
+- **Recommendation**: Interface 3 (HID) for compatibility, Interface 0 for primary bulk protocol
 
 ---
 

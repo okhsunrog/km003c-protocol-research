@@ -54,4 +54,5 @@ just app     # Launch Streamlit web interface
 - External Rust crate must be built before running tests that import `km003c_lib`
 - Master dataset: `data/processed/usb_master_dataset.parquet` (11,514 USB packets)
 - Protocol documentation: `docs/protocol_specification.md`
+- Ongoing research notes: `docs/protocol_research_findings_wip.md`
 - Use URB IDs to match Submit/Complete transaction pairs
