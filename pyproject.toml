@@ -24,14 +24,6 @@ dependencies = [
     "pyyaml>=6.0.2",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.2.2",
-    "pytest-asyncio>=0.23.7",
-    # For building the Rust extension in the active venv
-    "maturin>=1.5,<2.0",
-]
-
 [tool.maturin]
 # Build the external Rust crate that exports the `km003c_lib` python module.
 # The crate uses the `python` feature to enable pyo3 bindings.
@@ -41,8 +33,39 @@ manifest-path = "/home/okhsunrog/code/rust/km003c-rs/km003c-lib/Cargo.toml"
 
 [dependency-groups]
 dev = [
+    "pytest>=8.2.2",
+    "pytest-asyncio>=0.23.7",
+    "mypy>=1.18.1",
+    "types-pyyaml>=6.0.12",
     "ruff>=0.13.0",
+    "maturin>=1.5,<2.0",
 ]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+implicit_reexport = false
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = ["plotly.*", "km003c_lib.*", "streamlit.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]  
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
 
 [tool.ruff.lint]
 ignore = ["E402", "F821"]

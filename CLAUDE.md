@@ -37,6 +37,9 @@ just test
 # or
 uv run pytest -q
 
+# Type check with mypy
+uv run mypy km003c_analysis/
+
 # Lint code
 just lint
 # or

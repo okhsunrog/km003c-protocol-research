@@ -11,16 +11,17 @@ import polars as pl
 import plotly.graph_objects as go
 from plotly import subplots
 from pathlib import Path
+from typing import Any
 
 # Local package imports
-from usb_transaction_splitter import split_usb_transactions
-from transaction_tagger import tag_transactions
+from .usb_transaction_splitter import split_usb_transactions
+from .transaction_tagger import tag_transactions
 
 # Import the proper Rust library for packet parsing
 from km003c_lib import parse_packet, parse_raw_packet
 
 
-def extract_transaction_payloads(transaction_frames: pl.DataFrame) -> dict:
+def extract_transaction_payloads(transaction_frames: pl.DataFrame) -> dict[str, Any]:
     """
     Extract request and response payloads from transaction frames.
 
@@ -30,7 +31,7 @@ def extract_transaction_payloads(transaction_frames: pl.DataFrame) -> dict:
     Returns:
         Dictionary with request_data, response_data, and metadata
     """
-    result = {
+    result: dict[str, Any] = {
         "request_data": None,
         "response_data": None,
         "request_frames": [],
@@ -77,7 +78,7 @@ def extract_transaction_payloads(transaction_frames: pl.DataFrame) -> dict:
     return result
 
 
-def parse_packet_preview(hex_data: str) -> dict:
+def parse_packet_preview(hex_data: str) -> dict[str, Any]:
     """
     Parse hex data using the proper Rust km003c_lib and return a preview.
 
@@ -240,7 +241,7 @@ def load_and_process_data(
     return transactions_summary, df_tagged
 
 
-def main():
+def main() -> None:
     st.title("🔌 USB Protocol Analyzer")
     st.markdown("Interactive analysis of KM003C USB protocol transactions")
 
@@ -427,10 +428,12 @@ def main():
     with col2:
         st.subheader("🔍 Transaction Details")
 
-        if not selection.selection.rows:
+        if not selection["selection"]["rows"]:
             st.info("👆 Click a transaction in the table to see details")
         else:
-            selected_page_idx = selection.selection.rows[0]  # Index within current page
+            selected_page_idx = selection["selection"]["rows"][
+                0
+            ]  # Index within current page
             selected_global_idx = (
                 start_idx + selected_page_idx
             )  # Global index in full dataset
