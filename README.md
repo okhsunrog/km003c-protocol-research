@@ -5,6 +5,7 @@ Reverse engineering the ChargerLAB POWER-Z KM003C USB-C power analyzer protocol.
 ## Protocol Documentation
 
 [`docs/protocol_specification.md`](docs/protocol_specification.md) - Complete protocol specification for the KM003C device. Consolidates reverse engineering findings, community implementations, and official documentation.
+[`docs/pd_sqlite_export_format.md`](docs/pd_sqlite_export_format.md) - Format of PD captures exported by the official Windows app (SQLite schema + Raw BLOB wire layout).
 
 ## Architecture
 

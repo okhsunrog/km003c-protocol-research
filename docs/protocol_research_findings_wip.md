@@ -228,3 +228,177 @@ Per-capture analysis
 - tx 52 | start=7.928605 | len=20 | size_bytes=12 | chunk=0
   - request: 0c 01 20 00
   - response: 41 01 82 00 10 00 00 03 73 d3 5b 00 05 00 00 00 a5 0c 7c 00
+
+### Dissection Notes (Reversing In Progress)
+
+ADC+PD combined packet layout (PutData, attribute=1, next=1)
+- Main header (4B): type=0x41 (PutData), id=[8-bit]
+- Extended header (4B): attribute=0x0001 (ADC), next=1, chunk=0, size=44
+- ADC payload (44B):
+  - int32 vbus_uV
+  - int32 ibus_uA
+  - int32 vbus_avg_uV
+  - int32 ibus_avg_uA
+  - int32 vbus_ori_avg_uV
+  - int32 ibus_ori_avg_uA
+  - int16 temp_raw
+  - uint16 vcc1_tenth_mV, vcc2_tenth_mV, vdp_tenth_mV, vdm_tenth_mV, vdd_tenth_mV
+  - uint8 sample_rate_idx, uint8 flags
+  - uint16 cc2_avg_mV, vdp_avg_mV, vdm_avg_mV
+- Appended PD subpacket (16B total):
+  - PD extended header (4B): attribute=0x0010 (PD), next=0, size=12
+  - PD status payload (12B):
+    - u8 type_id
+    - u24 timestamp (LE)
+    - u16 vbus_raw_mV
+    - u16 ibus_raw_mA
+    - u16 cc1_raw_mV
+    - u16 cc2_raw_mV
+
+PD-only packet layout (PutData, attribute=16)
+- Main header (4B): type=0x41 (PutData), id=[8-bit]
+- Extended header (4B): attribute=0x0010 (PD), next=0, size=12
+- PD status payload (12B): same fields as above
+
+Unit correlations (empirical)
+- vbus: `pd.vbus_raw_mV ≈ adc.vbus_uV / 1000` (exact for most samples in pd_capture_new.9)
+- cc1/cc2: `pd.cc*_raw_mV ≈ adc.vcc*_tenth_mV / 10` (matches within 0–1 mV for most samples)
+- ibus: `pd.ibus_raw_mA` aligns with `adc.ibus_uA / 1000` when near 0 in this capture
+
+Request mapping (verified)
+- `0C [id] 02 00` → GetData(ADC): yields ADC-only (52B)
+- `0C [id] 22 00` → GetData(ADC+PD): yields ADC (52B) + PD status (16B appended)
+- `0C [id] 20 00` → GetData(PD): yields PD-only status (20B total)
+- Mode toggles: `10 [id] 02 00` (enable, Unknown(16)) and `11 [id] 00 00` (disable, Unknown(17)), each ACKed by `05 [id] 00 00` (Accept)
+
+Open reverse questions
+- PD status `type_id`: observed wide range [1..255] with many values; likely not a static type but an event/sample code or rolling ID. Needs correlation to inner PD activity.
+- Exact scaling/meaning for ibus_raw when non-zero; confirm against ADC averages under load.
+- Confirm whether PD status `timestamp` is a free-running 24-bit counter (units TBD) and how it relates to ADC timing.
+
+### Unified Model: Chained Payload System (Gemini 2.5 Pro synthesis)
+
+Summary
+- The `next` bit in an ExtendedHeader indicates that an additional, structured payload segment immediately follows the current payload.
+- Parsing proceeds as: read DataHeader + first ExtendedHeader → parse its payload → if `next=1`, read the next ExtendedHeader at the current cursor → parse next payload → repeat until `next=0`.
+
+Validation on pd_capture_new.9
+- All 18 ADC+PD combos validate the chain model exactly:
+  - Outer: attribute=1 (ADC), next=1, size=44 → ADC payload (44B)
+  - Nested: attribute=16 (PD), next=0, size=12 → PD status payload (12B)
+  - Total length: 8 + 44 + 4 + 12 = 68 bytes (matches observed)
+- All PD-only responses validate as single-link chains:
+  - Outer: attribute=16, next=0, size=12 → PD status payload (12B)
+  - Total length: 20 bytes (matches observed)
+
+Cross‑dataset validation (master dataset)
+- For every PutData with `next=1` (52 total across the dataset):
+  - A nested ExtendedHeader is present exactly at offset `8 + outer.size_bytes`.
+  - The nested `next` is always 0 (observed).
+  - Nested attributes observed: PD (16) in 36 cases and AdcQueue (2) in 16 cases.
+  - Length consistency:
+    - Nested PD (16): total equals `8 + outer.size + 4 + nested.size` (e.g., 68, 84, 96 bytes).
+    - Nested AdcQueue (2): `size_bytes=20` encodes the queue header size; the segment also includes a variable-length queue payload (28–968 bytes), explaining totals like 836, 856, 876 bytes.
+
+Robust parsing algorithm
+1) Read DataHeader (4B) + first ExtendedHeader (4B), `cursor=8`.
+2) Parse payload for `attribute` using `size_bytes`; advance `cursor += size_bytes`.
+3) If `next==1`: read the next ExtendedHeader at `cursor`, advance `cursor += 4`, and loop to step 2.
+4) If `next==0`: segment parsing completes. For AdcQueue (2), the 20‑byte header describes a following variable‑length queue payload to parse using its internal fields.
+
+Status of Gemini 2.5 Pro findings
+- Correct for the ADC+PD (68B) and PD-only (20B) structures seen in pd_capture_new.9.
+- Generalized here to include larger chained tails via AdcQueue (2) observed elsewhere in the dataset.
+
+### PD Message Parsing (usbpdpy)
+
+Tooling
+- Library: `usbpdpy` (installed via `uv add usbpdpy`).
+- Usage: `usbpdpy.parse_pd_message(bytes)`, `usbpdpy.get_message_type_name(msg.header.message_type)`.
+
+Approach
+- For PD-only responses (attribute=16):
+  - `size_bytes == 12` → treat as PD status (not a wire PD message).
+  - `size_bytes > 12` → payload often embeds one or more wire PD messages amidst device metadata (timestamps/markers).
+  - We scan payloads for parseable PD headers; for pd_capture_new.9, the first PD message in each larger payload parses cleanly at offset 0.
+
+Findings on pd_capture_new.9
+- Implemented two strategies:
+  - Direct parse at offset 0 (works for some short payloads but may misinterpret metadata as PD)
+  - Wrapped-event parser (skip 12B preamble, then parse per-event PD messages via 6B headers)
+- Wrapped-event results (pd_capture_new.9):
+  - tx 221 | size=108 → GoodCRC, GoodCRC, GoodCRC
+  - tx 226 | size=88 → GoodCRC, GoodCRC, GotoMin, GoodCRC, Accept, GoodCRC
+  - tx 230 | size=28 → PS_RDY, GoodCRC
+  - Script: `notebooks/parse_pd_wrapped.py`
+
+Caveats and structure hints
+- The PD-only payloads with `size_bytes > 12` are “event packets” that contain one or more PD wire messages, each preceded by a 6‑byte event header (size/timestamp/SOP). A 12‑byte preamble precedes the stream.
+- Directly feeding the entire payload at offset 0 to `usbpdpy` can yield plausible names but may actually parse metadata; prefer the wrapped-event parser.
+- The 12‑byte PD status block seen in ADC+PD combos is not a wire PD message and should not be passed to `usbpdpy`.
+
+ 
+
+Across‑capture PD message summary (wrapped‑event parser)
+- Script: `notebooks/summarize_pd_messages.py`
+- Method: For each `source_file`, consider PD‑only PutData (`attribute=16`) with `size_bytes > 12`, parse messages via 12B preamble + repeated 6B headers.
+- Results:
+  - pd_capture_new.9: PD payloads>12B=5, decoded=3
+    - size_bytes counts: 18×2, 108×1, 88×1, 28×1
+    - PD types observed: GoodCRC×8, GotoMin×1, Accept×1, PS_RDY×1
+  - orig_with_pd.13: PD payloads>12B=5, decoded=3
+    - size_bytes counts: 18×2, 76×1, 44×1, 88×1
+    - PD types observed: GoodCRC×7, GotoMin×1, Accept×1
+  - All other sources in this dataset: PD payloads>12B=0
+
+Notes
+- “decoded” here means at least one PD wire message successfully parsed in the payload; counts include multiple events per payload.
+- GoodCRC dominance is expected as acknowledgements are frequent; presence of GotoMin, Accept, and PS_RDY indicates real protocol activity captured.
+- Searched specifically for Source_Capabilities / Source_Capabilities_Extended in PD-only payloads using the wrapped-event parser: none found in this dataset’s sources. Control requests (e.g., Get_Source_Cap, Get_Source_Cap_Extended) can appear in host requests, but corresponding Source Capabilities data messages were not observed in the parsed event streams here.
+
+### Source Capabilities Search (multi-offset)
+
+Method
+- For every PD-only PutData (`attribute=16`) with `size_bytes > 12`, scan the payload at multiple offsets and attempt parsing via `usbpdpy.parse_pd_message`.
+- Search for names containing `Source_Capabilities` or `SourceCapabilities` (standard or extended).
+- Also applied the wrapped-event parser (12B preamble + repeated 6B headers) and parsed PD wires per event.
+
+Findings
+- No `Source_Capabilities` data messages were found in this dataset using either approach.
+- We do find the corresponding control requests at various offsets (examples):
+  - pd_capture_new.9: tx 221 (size=108, off=0) → Get_Source_Cap_Extended; tx 226 (size=88, off=0) → Get_Source_Cap_Extended; tx 230 (size=28, off=12) → Get_Source_Cap; tx 298 (size=18, off=0) → Get_Source_Cap
+  - orig_with_pd.13: tx 177 (size=76, off=21) → Get_Source_Cap_Extended; tx 178 (size=44, off=21) → Get_Source_Cap_Extended; tx 182 (size=88, off=21) → Get_Source_Cap_Extended; tx 328 (size=18, off=4) → Get_Source_Cap_Extended
+- Wrapped-event decoding of those long payloads yields GoodCRC/Accept/GotoMin/PS_RDY sequences around the same time windows, but not the actual Source Capabilities data message.
+
+Interpretation
+- These captures show the host issuing Get_Source_Cap[(_Extended)] requests, and the device logging PD control/handshake traffic; however, the actual `Source_Capabilities` data reply is not present in these streams.
+- Possibilities:
+  - The reply occurred outside the logged windows or in a different capture.
+  - The device routed those data objects through a different attribute (e.g., queued segments) not present in these two sources.
+  - usbpdpy may label some extended/structured messages as `Unknown(…)` in this version; none of those parsed here matched Source Capabilities.
+
+Artifacts
+- Scripts:
+  - `notebooks/parse_pd_wrapped.py` — event parser per payload
+  - `notebooks/summarize_pd_messages.py` — cross-capture summary of PD-only payloads
+  - `notebooks/parse_pd_sqlite_verbose.py` — verbose PD SQLite event dump (human-readable)
+
+### Source Capabilities candidates (SQLite)
+
+Based on wire-length heuristics (header + 6×4B data objects = 26 bytes), the following PD events extracted from `data/sqlite/pd_new.sqlite` are strong candidates for `Source_Capabilities` messages. usbpdpy currently mislabels these as `GoodCRC`, but the structure clearly shows a 2‑byte header followed by 6 × 4‑byte PDOs:
+
+- Time 6.297s, ts=6297, wire_len=26
+  - Header: `a1 61`
+  - PDO1: `2c 91 01 08`
+  - PDO2: `2c d1 02 00`
+  - PDO3: `2c c1 03 00`
+  - PDO4: `2c b1 04 00`
+  - PDO5: `45 41 06 00`
+  - PDO6: `3c 21 dc c0`
+- Time 6.300s, ts=6300, same payload as above
+- Time 6.302s, ts=6302, same payload as above
+- Time 6.448s, ts=6448, same PDOs, header differs: `a1 63`
+
+Notes
+- 26 bytes equals `2 + 6×4`, which is the exact wire size for `Source_Capabilities` carrying 6 PDOs.
+- Header and PDO field decoding requires correct PD bitfield mapping (and possibly spec‑revision handling). The byte grouping above isolates the objects for downstream decoders.

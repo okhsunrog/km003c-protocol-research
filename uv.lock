@@ -478,7 +478,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "seaborn", specifier = ">=0.11.0" },
     { name = "streamlit", specifier = ">=1.49.1" },
-    { name = "usbpdpy", specifier = ">=0.1.0" },
+    { name = "usbpdpy", specifier = ">=0.2.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -1404,11 +1404,11 @@ wheels = [
 
 [[package]]
 name = "usbpdpy"
-version = "0.1.0"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/34/b3/d1b3be578a28b99ce42ea80215bbd7a71252ff3b9dd625de86206ec16889/usbpdpy-0.1.0.tar.gz", hash = "sha256:d90e6a149ca6384230ccf3ef4ff1636867944873b7c9a0639bfb33ae512f702b", size = 7232, upload-time = "2025-09-04T15:48:09.336Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/86/ba/af54cfc0b3d4ea5b2a078cce82d1d4da6b8b91f0495fe318836b97166b44/usbpdpy-0.2.0.tar.gz", hash = "sha256:3a14a6c5771868dc30b380626c785816c155f3dbaa738fe65b8e87fb885628fe", size = 31842, upload-time = "2025-09-28T11:30:54.608Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/92/be/c9e2f4b5458411087ca4fb73b5bba1d3328733b681aa0bcefc6e88926832/usbpdpy-0.1.0-cp313-cp313-manylinux_2_34_x86_64.whl", hash = "sha256:d8f29313274eaabf411a3e609564c8dce39ce74d5bb2fa878605eb23969f3572", size = 233024, upload-time = "2025-09-04T15:48:07.404Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/00/da31b32d76b16bfef828fb4c7a53283d0c05aead78d0c37fb727512d07e1/usbpdpy-0.2.0-cp312-cp312-manylinux_2_34_x86_64.whl", hash = "sha256:a2e1980bad8c9a1137538c52ce074c75e604d7a0fcc91a86674ba506cb51757d", size = 271437, upload-time = "2025-09-28T11:30:52.52Z" },
 ]
 
 [[package]]
