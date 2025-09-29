@@ -46,16 +46,26 @@ df_with_transactions = split_usb_transactions(df)
 df_tagged = tag_transactions(df_with_transactions)
 ```
 
+### Production Tools
+```bash
+# Comprehensive SQLite PD export analyzer
+uv run python -m km003c_analysis.tools.pd_sqlite_analyzer --verbose
+
+# Export PD analysis to JSON/Parquet
+uv run python -m km003c_analysis.tools.pd_sqlite_analyzer --export-json results.json
+uv run python -m km003c_analysis.tools.pd_sqlite_analyzer --export-parquet messages.parquet
+```
+
 ### Analysis Scripts
 ```bash
-# PD SQLite export analysis with usbpdpy v0.2.0
-uv run python scripts/pd_sqlite.py
-
 # Complete KM003C protocol analysis
 uv run python scripts/analyze_km003c_protocol.py
 
 # Export PD messages to Parquet
 uv run python scripts/export_pd_messages.py
+
+# Wrapped PD format parsing
+uv run python scripts/parse_pd_wrapped.py
 ```
 
 ### Web Interface

@@ -17,6 +17,7 @@ from .core import (
 # Import submodules for easy access
 from . import core
 from . import dashboards
+from . import tools
 
 __all__ = [
     # Core functions
@@ -27,4 +28,5 @@ __all__ = [
     # Submodules
     "core",
     "dashboards",
+    "tools",
 ]
