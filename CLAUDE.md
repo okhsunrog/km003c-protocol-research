@@ -25,10 +25,10 @@ just lint     # Lint code with ruff
 just format   # Format code with ruff
 
 # Individual commands
-uv run pytest -q                    # Tests only
-uv run mypy km003c_analysis/        # Type checking
-uv run ruff check km003c_analysis   # Linting
-uv run ruff format km003c_analysis  # Formatting
+uv run pytest -q                          # Tests only
+uv run mypy km003c_analysis/              # Type checking
+uv run ruff check km003c_analysis scripts # Linting
+uv run ruff format km003c_analysis scripts # Formatting
 ```
 
 ### Applications
@@ -40,12 +40,16 @@ just app     # Launch Streamlit web interface
 
 ### Core Components
 - `rust_pcap_converter/` - PCAP to Parquet converter using tshark
-- `km003c_analysis/` - Python analysis library with modular structure:
+- `km003c_analysis/` - Python analysis library (reusable components):
   - `core/` - USB transaction processing (splitter, tagger)
-  - `parsers/` - Protocol parsers (PD SQLite, KM003C protocol, wrapped PD)
-  - `exporters/` - Data export utilities (Parquet, analysis reports, summaries)
   - `dashboards/` - Streamlit web interfaces (main app, PD analysis dashboard)
   - `app.py` - Main entry point for Streamlit GUI
+- `scripts/` - Analysis and export scripts (research workflows):
+  - `pd_sqlite.py` - PD SQLite export analysis with usbpdpy v0.2.0
+  - `analyze_km003c_protocol.py` - Complete KM003C protocol analysis
+  - `parse_pd_wrapped.py` - Wrapped PD format parser
+  - `export_*.py` - Data export utilities
+  - `summarize_pd_messages.py` - PD message summarization
 - `km003c_lib` - External Rust crate providing protocol parsing (built via maturin)
 - `notebooks/` - Jupyter notebooks for manual data exploration
 
@@ -53,21 +57,20 @@ just app     # Launch Streamlit web interface
 1. Capture USB traffic as PCAP files
 2. Convert to Parquet with 41 USB protocol fields extracted
 3. Process into transactions and add semantic tags
-4. Analyze via Streamlit web interface or specialized parsers
+4. Analyze via Streamlit web interface or run analysis scripts
 
 ### Module Usage
 ```python
-# Core transaction processing
+# Core transaction processing (reusable library)
 from km003c_analysis.core import split_usb_transactions, tag_transactions
-
-# Protocol parsing
-from km003c_analysis.parsers import pd_sqlite, protocol, wrapped_pd
-
-# Data export
-from km003c_analysis.exporters import analysis, pd_messages, summary
 
 # Launch main GUI
 uv run python -m streamlit run km003c_analysis/app.py
+
+# Run analysis scripts
+uv run python scripts/pd_sqlite.py
+uv run python scripts/analyze_km003c_protocol.py
+uv run python scripts/export_complete_pd_analysis.py
 ```
 
 ## Development Notes

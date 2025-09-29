@@ -21,8 +21,7 @@ from dataclasses import dataclass
 import usbpdpy
 
 # Local package imports  
-from ..core.usb_transaction_splitter import split_usb_transactions
-from ..core.transaction_tagger import tag_transactions
+from km003c_analysis.core import split_usb_transactions, tag_transactions
 
 # Import the Rust library for KM003C packet parsing
 try:

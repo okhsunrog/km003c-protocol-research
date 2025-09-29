@@ -18,8 +18,7 @@ from collections import Counter, defaultdict
 import polars as pl
 import usbpdpy
 
-from ..core.usb_transaction_splitter import split_usb_transactions
-from ..core.transaction_tagger import tag_transactions
+from km003c_analysis.core import split_usb_transactions, tag_transactions
 
 
 def parse_pd_wrapped_payload(payload: bytes) -> list[dict]:

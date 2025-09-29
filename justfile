@@ -19,11 +19,11 @@ test:
 
 # Lint code with ruff.
 lint:
-    uv run ruff check --output-format=github src tests
+    uv run ruff check --output-format=github km003c_analysis scripts tests
 
 # Format code with ruff.
 format:
-    uv run ruff format src tests
+    uv run ruff format km003c_analysis scripts tests
 
 # Run the Streamlit protocol analyzer app.
 app:

@@ -18,8 +18,9 @@ Reverse engineering the ChargerLAB POWER-Z KM003C USB-C power analyzer protocol.
 `data/processed/usb_master_dataset.parquet` - 11,514 USB packets across 4 devices and 7 capture sessions.
 
 ### Analysis Tools
-- `km003c_analysis/` - Python library for USB transaction analysis
-- `notebooks/` - Jupyter notebooks for protocol exploration
+- `km003c_analysis/` - Python library for reusable USB transaction processing and GUI
+- `scripts/` - Analysis and data export scripts for research workflows
+- `notebooks/` - Jupyter notebooks for manual protocol exploration
 - `rust_pcap_converter/` - PCAP processing tool
 
 ## Usage
@@ -35,7 +36,7 @@ just rust-ext  # Build km003c_lib Python bindings
 ./rust_pcap_converter/target/debug/pcap_to_parquet --input capture.pcapng
 ```
 
-### Analysis
+### Analysis Library
 ```python
 from km003c_analysis import split_usb_transactions, tag_transactions
 import polars as pl
@@ -43,6 +44,18 @@ import polars as pl
 df = pl.read_parquet("data/processed/usb_master_dataset.parquet")
 df_with_transactions = split_usb_transactions(df)
 df_tagged = tag_transactions(df_with_transactions)
+```
+
+### Analysis Scripts
+```bash
+# PD SQLite export analysis with usbpdpy v0.2.0
+uv run python scripts/pd_sqlite.py
+
+# Complete KM003C protocol analysis
+uv run python scripts/analyze_km003c_protocol.py
+
+# Export PD messages to Parquet
+uv run python scripts/export_pd_messages.py
 ```
 
 ### Web Interface
