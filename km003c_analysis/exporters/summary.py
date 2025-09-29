@@ -14,17 +14,12 @@ Run:
 from __future__ import annotations
 
 from pathlib import Path
-import sys
 from collections import Counter, defaultdict
 import polars as pl
 import usbpdpy
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from km003c_analysis.usb_transaction_splitter import split_usb_transactions
-from km003c_analysis.transaction_tagger import tag_transactions
+from ..core.usb_transaction_splitter import split_usb_transactions
+from ..core.transaction_tagger import tag_transactions
 
 
 def parse_pd_wrapped_payload(payload: bytes) -> list[dict]:

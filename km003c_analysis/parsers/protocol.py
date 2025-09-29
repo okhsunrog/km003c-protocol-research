@@ -21,8 +21,8 @@ from dataclasses import dataclass
 import usbpdpy
 
 # Local package imports  
-from km003c_analysis.usb_transaction_splitter import split_usb_transactions
-from km003c_analysis.transaction_tagger import tag_transactions
+from ..core.usb_transaction_splitter import split_usb_transactions
+from ..core.transaction_tagger import tag_transactions
 
 # Import the Rust library for KM003C packet parsing
 try:
@@ -135,20 +135,27 @@ def analyze_km003c_protocol() -> None:
     pd_results = []
     current_source_capabilities = None
     
-    # Extract all payloads from transactions
-    for transaction in tagged_transactions:
-        for direction in ["OUT", "IN"]:
-            frames = transaction.get(direction, [])
-            for frame in frames:
-                payload_hex = frame.get("payload_hex", "")
-                if len(payload_hex) >= 16:  # Minimum meaningful payload
-                    all_payloads.append({
-                        "transaction_id": transaction.get("transaction_id", 0),
-                        "direction": direction,
-                        "timestamp": frame.get("timestamp", 0),
-                        "payload_hex": payload_hex,
-                        "payload_length": len(payload_hex) // 2,
-                    })
+    # Extract all payloads from transactions DataFrame
+    if "payload_hex" in tagged_transactions.columns:
+        payload_df = tagged_transactions.filter(
+            pl.col("payload_hex").is_not_null() & 
+            (pl.col("payload_hex").str.len_chars() >= 16)
+        ).select([
+            "transaction_id",
+            "timestamp", 
+            "payload_hex",
+            "endpoint_address"
+        ])
+        
+        for row in payload_df.iter_rows(named=True):
+            direction = "OUT" if row["endpoint_address"] == "0x01" else "IN"
+            all_payloads.append({
+                "transaction_id": row["transaction_id"],
+                "direction": direction,
+                "timestamp": row["timestamp"],
+                "payload_hex": row["payload_hex"],
+                "payload_length": len(row["payload_hex"]) // 2,
+            })
     
     print(f"Found {len(all_payloads)} application payloads")
     
