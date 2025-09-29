@@ -85,8 +85,8 @@ uv run python scripts/export_complete_pd_analysis.py
 
 - External Rust crate must be built before running tests that import `km003c_lib`
 - Master dataset: `data/processed/usb_master_dataset.parquet` (11,514 USB packets)
-- **Protocol specification**: `docs/km003c_protocol_specification.md` - Complete KM003C protocol format
-- Research summary: `docs/protocol_research_findings_wip.md` - Major breakthroughs achieved
+- **Protocol specification**: `docs/protocol_specification.md` - Complete consolidated protocol
+- Research summary: see `docs/protocol_specification.md` (Research findings integrated)
 - Code organization: `docs/code_organization_strategy.md` - Development methodology
 - Use URB IDs to match Submit/Complete transaction pairs
 

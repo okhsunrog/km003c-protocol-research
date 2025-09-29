@@ -560,49 +560,88 @@ The KM003C provides comprehensive USB Power Delivery analysis:
 - **CmdGetPdData**: Host requests for PD protocol data
 - **PdRawData**: Device responses containing PD events and messages
 
-### PD Extension Data Structure
+### PD Data (Consolidated)
 
-When `next=1` in ADC packets, PD extension data is appended:
+KM003C PD data appears in two forms:
 
-#### PD Extension Sizes
-| Size | Count | Content Description |
-|------|-------|-------------------|
-| +16 bytes | 35 | Basic PD event data |
-| +32 bytes | 1 | Extended PD event data |
-| +104 bytes | 4 | PD session metadata |
-| +784-824 bytes | 11 | Complete PD capture sessions |
+- PD Status block (12 bytes): measurement/status summary often chained after ADC (ADC+PD = 68 bytes total).
+- PD Event stream (≥18 bytes): wrapped USB PD wire messages with a 12‑byte preamble followed by repeated 6‑byte event headers and PD wire payloads. Present in PD‑only responses and, rarely, as the PD segment within an ADC+PD.
 
-#### PD Inner Event Stream
+#### PD Status (12 bytes)
+Included with ADC+PD (most commonly 68‑byte total packets). Not a PD wire message.
 
-PD data contains three event types:
+| Offset | Size | Field         | Description |
+|--------|------|---------------|-------------|
+| 0      | 1    | type_id       | Event/status identifier |
+| 1      | 3    | timestamp24   | 24‑bit little‑endian timestamp |
+| 4      | 2    | vbus_raw_mV   | VBUS voltage (mV) |
+| 6      | 2    | ibus_raw_mA   | IBUS current (mA) |
+| 8      | 2    | cc1_raw_mV    | CC1 voltage (mV) |
+| 10     | 2    | cc2_raw_mV    | CC2 voltage (mV) |
 
-```c
-// Connection Events (6 bytes)
-struct connection_event {
-    uint8_t type_id;         // Always 0x45
-    uint8_t timestamp[3];    // 24-bit little-endian
-    uint8_t reserved;
-    uint8_t event_data;      // CC pin (bits 7-4) + action (bits 3-0)
-};
+Correlation: vbus_raw_mV and ibus_raw_mA closely track ADC measurements near the same timestamp (median diffs ~0.3 mV and ~0.01 mA observed).
 
-// Status Packets (12 bytes)  
-struct status_packet {
-    uint8_t type_id;         // Any except 0x45, 0x80-0x9F
-    uint8_t timestamp[3];    // 24-bit little-endian
-    uint16_t vbus_raw;       // VBUS voltage (raw)
-    uint16_t ibus_raw;       // IBUS current (raw)
-    uint16_t cc1_raw;        // CC1 voltage (raw)
-    uint16_t cc2_raw;        // CC2 voltage (raw)
-};
+#### PD Event Stream (preamble + events)
+Payload layout observed in PD‑only responses and in the rare 84‑byte ADC+PD case:
 
-// Wrapped PD Messages (Variable length)
-struct wrapped_pd_message {
-    uint8_t type_dir;        // Type ID (0x80-0x9F) + direction
-    uint8_t timestamp[3];    // 24-bit timestamp
-    uint8_t reserved[2];
-    uint8_t pd_message[];    // Standard USB PD message
-};
-```
+- Preamble: 12 bytes of device metadata. First 4 bytes are a 32‑bit little‑endian timestamp framing the following events. This preamble is not a measurement status.
+- Events: repeated blocks with a 6‑byte header followed by PD wire bytes.
+
+Preamble (12 bytes):
+- 0..3: timestamp (uint32, little‑endian) framing the following events
+- 4..5: vbus_mV (uint16)
+- 6..7: ibus_mA (int16)
+- 8..9: cc1_mV (uint16)
+- 10..11: cc2_mV (uint16)
+
+Event header format:
+- size_flag: 1 byte
+- timestamp: 4 bytes, little‑endian (32‑bit)
+- sop: 1 byte (SOP type)
+
+Wire length computation:
+- wire_len = (size_flag & 0x3F) − 5
+- Validated on all event‑bearing payloads; yields standard 2/6/26‑byte PD wire messages. PD‑only 18‑byte payloads contain preamble + empty header (no wire data).
+
+Example (84‑byte ADC+PD with PD event stream of 28 bytes):
+- PD payload (28 bytes): `22fb12008323eaff73060800870efb120000a607870ffb1200004106`
+- Parsed as: preamble `22fb12008323eaff73060800`, then two events
+  - size_flag=0x87 → wire_len=2, ts=0x00120EF7, SOP=0, wire=`a607` → PS_RDY
+  - size_flag=0x87 → wire_len=2, ts=0x00120FF7, SOP=0, wire=`4106` → GoodCRC
+
+Note on SQLite Raw: The per‑event 6‑byte headers and wire length encoding are the same in SQLite `pd_table.Raw` blobs. SQLite rows do not include the 12‑byte preamble found in USB PD‑only payloads; they may include separate 6‑byte connection/status events (type 0x45) documented in the SQLite section.
+
+Connection/status (0x45) event codes:
+- 0x11 → Connect (observed at the beginning of a capture)
+- 0x12 → Disconnect (observed after the PD transfer sequence)
+
+Observed preamble behavior:
+- The 32‑bit preamble timestamp closely matches the first/last event timestamps in the same payload.
+- vbus_mV/ibus_mA reflect live measurements similar to ADC readings (typical |ΔVBUS| < 12 mV, |ΔIBUS| < 75 mA when non‑zero). Attach/detach preambles may show 0/0.
+- cc1_mV/cc2_mV track CC line voltages (e.g., ~1.65 V levels for CC presence), generally stable during a burst and changing around connect/disconnect.
+
+### PD Status vs PD Preamble (12 bytes)
+
+Where they appear:
+- PD Status (12B): Chained after ADC in ADC+PD packets (commonly 68‑byte total).
+- PD Preamble (12B): The first 12 bytes of PD‑only payloads >12B; also seen in the rare 84‑byte ADC+PD that embeds an event stream.
+
+Side‑by‑side field layout (little‑endian):
+
+| Field | PD Status (ADC+PD 68B) | PD Preamble (PD‑only/evented) | Notes |
+|------|-------------------------|-------------------------------|-------|
+| Lead | [0] type_id (1B) | none | Status has type byte; preamble does not |
+| Timestamp | [1..3] timestamp24 (3B) | [0..3] timestamp32 (4B) | Preamble’s 32‑bit ts frames the following events |
+| VBUS | [4..5] vbus_mV (u16) | [4..5] vbus_mV (u16) | Both correlate with ADC |
+| IBUS | [6..7] ibus_mA (u16, observed ≥0) | [6..7] ibus_mA (i16, signed) | Preamble shows small negatives (e.g., −72 mA) |
+| CC1 | [8..9] cc1_mV (u16) | [8..9] cc1_mV (u16) | Tracks CC presence/level |
+| CC2 | [10..11] cc2_mV (u16) | [10..11] cc2_mV (u16) | Tracks CC presence/level |
+
+Behavior and usage:
+- PD Status: Self‑contained measurement snapshot appended to ADC; not followed by PD event headers in the common 68B packets.
+- PD Preamble: Measurement snapshot that precedes a wrapped event stream; immediately followed by repeated 6‑byte event headers + PD wire data.
+- Connect/disconnect markers are separate 6‑byte `0x45 …` events after the preamble (0x11 = Connect at start, 0x12 = Disconnect at end).
+- Neither block encodes PD message direction; direction comes from PD wire headers (decoded roles: Source/Sink, Dfp/Ufp).
 
 ### Dual Mode Operation
 
@@ -646,6 +685,89 @@ This allows simultaneous power monitoring and protocol analysis.
 - **Correlation**: Use application-layer transaction ID, not URB ID
 - **Timeout**: 2 seconds for all operations
 - **Error Recovery**: Automatic retry at USB level
+
+---
+
+## KM003C Application‑Layer Protocol (Consolidated)
+
+This section consolidates the working protocol details for application‑layer messages observed over the vendor bulk interface.
+
+### Message Structure
+
+All application messages follow: `[Main Header (4B)] [Extended Header (4B)] [Payload]`.
+
+Main Header (4 bytes, little‑endian, bit‑fields):
+- bits 0..6: `type` (0x0C=GetData, 0x41=PutData)
+- bit 7: `extend` (extended header flag)
+- bits 8..15: `id` (rolling counter 0..255)
+- bits 16..21: reserved
+- bits 22..31: `obj_count` (approx total_length/4 − 3)
+
+Extended Header (4 bytes, little‑endian):
+- bits 0..14: `attribute` (1=ADC, 16=PD)
+- bit 15: `next` (1=another payload follows in this message)
+- bits 16..21: `chunk` (0 for these cases)
+- bits 22..31: `size_bytes` (payload size for this segment)
+
+Chained payloads: If `next=1`, read the next 4‑byte extended header and its payload immediately after the previous payload.
+
+### Requests and Responses
+
+Host GetData requests (examples):
+- `0C [id] 02 00` → ADC only → device PutData with 52‑byte total (44B ADC)
+- `0C [id] 22 00` → ADC+PD → device PutData with 68‑byte total (44B ADC + 12B PD status)
+- `0C [id] 20 00` → PD only → device PutData with 20+ byte PD payload (status or event stream)
+
+IDs increment modulo 256; response `id` matches the request.
+
+### ADC Payload (44 bytes)
+
+Offsets and fields (little‑endian):
+- 0: vbus_uV (int32)
+- 4: ibus_uA (int32)
+- 8: vbus_avg_uV (int32)
+- 12: ibus_avg_uA (int32)
+- 16: vbus_ori_avg_uV (int32)
+- 20: ibus_ori_avg_uA (int32)
+- 24: temp_raw (int16)
+- 26: vcc1_tenth_mV (uint16)
+- 28: vcc2_tenth_mV (uint16)
+- 30: vdp_tenth_mV (uint16)
+- 32: vdm_tenth_mV (uint16)
+- 34: vdd_tenth_mV (uint16)
+- 36: sample_rate_idx (uint8)
+- 37: flags (uint8)
+- 38: cc2_avg_mV (uint16)
+- 40: vdp_avg_mV (uint16)
+- 42: vdm_avg_mV (uint16)
+
+### PD Payloads
+
+- PD Status (12B): measurement/status block as described above. Common in ADC+PD 68‑byte total messages; correlates with ADC values.
+- PD Event Stream (≥18B): preamble (12B) + repeated events (6B header + wire_len bytes). `wire_len = (size_flag & 0x3F) − 5`.
+
+### Observed Sizes (dataset)
+
+- ADC‑only: total=52 bytes
+- ADC+PD: total=68 bytes (PD size=12) common; one instance total=84 bytes (PD size=28, event stream)
+- PD‑only payload sizes: 12, 18, 28, 44, 76, 88, 108 bytes
+  - 12B = status block (not PD wire)
+  - 18B = preamble + empty header (no PD message)
+  - ≥28B = event stream containing 1+ PD wire messages
+
+### PD Status vs Preamble (Verified)
+
+- PD Status (12B): includes 24‑bit timestamp and measured VBUS/IBUS/CC values; tracks ADC measurements.
+- PD‑only preamble (first 12B of PD‑only payloads >12B): includes a 32‑bit timestamp (first 4 bytes) and metadata; not measurements. Parsing it as status yields unrealistic currents/voltages; do not treat it as PD status.
+
+### Control (Mode) Commands
+
+- Enable PD monitoring: request `10 [id] 02 00` → response `05 [id] 00 00` (accept)
+- Disable PD monitoring: request `11 [id] 00 00` → response `05 [id] 00 00`
+
+### Object Count Calculation
+
+Empirical relation: `obj_count ≈ (total_message_length / 4) − 3` for standard single‑segment messages; adjust when chained segments are present.
 
 ---
 
