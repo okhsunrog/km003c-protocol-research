@@ -60,6 +60,45 @@ Notes
 - Do not confuse these event headers with the 12‑byte “PD status” block used in KM003C ADC+PD combo packets; that 12‑byte status block is not present in this SQLite format.
 - Direction is not stored in the wrapper header; it is derived from the PD wire header (power role bit). With updated `usbpdpy`, you can read `pd_power_role` (Source/Sink) and `pd_data_role` (Dfp/Ufp) from the decoded header.
 
+## PD Event Kinds and Decoding
+
+Two event kinds appear in both USB PD‑only payloads (after the 12‑byte preamble) and in SQLite `Raw` blobs (without a preamble):
+
+- Connection/Status event
+  - Header: 6 bytes, first byte = `0x45`
+  - Fields: `[0]=0x45`, `[1..3]=timestamp_le24`, `[4]=reserved`, `[5]=event_code`
+  - Codes observed: `0x11` (Connect), `0x12` (Disconnect)
+  - No PD wire bytes follow.
+
+- Wrapped PD message event
+  - Header: 6 bytes, first byte `size_flag ∈ [0x80..0x9F]`
+  - Fields: `[0]=size_flag`, `[1..4]=timestamp_le32`, `[5]=sop`
+  - Computed: `wire_len = (size_flag & 0x3F) − 5`
+  - Followed by exactly `wire_len` bytes of PD wire data.
+
+PD wire messages are standard USB Power Delivery frames:
+- PD Header: 2 bytes (little‑endian) containing `message_type`, `num_data_objects`, `message_id`, `power_role`, `data_role`, `spec_revision`.
+- Data Objects: `num_data_objects * 4` bytes following the header.
+- Decoding: use `usbpdpy.parse_pd_message(wire)` and read fields from `msg.header` and the returned object list.
+
+Typical message types seen (pd_capture_new.9):
+- `GoodCRC` (control) — header only, no data objects (2 wire bytes total)
+- `Source_Capabilities` (data) — 6 PDOs observed (26 wire bytes total)
+- `Request` (data) — 1 RDO (6 wire bytes total)
+- `Accept` (control) — header only (2 wire bytes total)
+- `PS_RDY` (control) — header only (2 wire bytes total)
+
+PD data object quick reference (common cases):
+- Fixed Supply PDO (Source_Capabilities): 32‑bit field encoding supply type, voltage (50 mV units), maximum current (10 mA units), and capability flags (e.g., dual‑role power, USB communications capable). Multiple PDOs enumerate available rails.
+- Request Data Object (Request): 32‑bit field encoding the selected PDO index, operating current, maximum current, and flags (e.g., no USB suspend, USB communications capable, capability mismatch).
+
+Note: For full semantics of PDO/RDO bits, refer to the USB Power Delivery specification. The usbpdpy library exposes parsed fields for convenience.
+
+### Timestamp Semantics and Alignment
+- Wrapper event timestamps (`timestamp_le32`) use a millisecond base and align with USB PD event `ts32` from PD‑only payloads.
+- KM003C’s 12‑byte PD status block in USB (chained after ADC) uses a separate 24‑bit counter at ~40 ms/tick; it does not appear in SQLite exports and should not be conflated with wrapper timestamps.
+- In USB PD‑only payloads, the 12‑byte preamble `ts32` is an end‑of‑burst anchor; the inner per‑event timestamps are less than or equal to this preamble timestamp by a few milliseconds. SQLite rows store only the per‑event timestamps; there is no preamble in `Raw`.
+
 ## Parsing Example (Python)
 
 The repo includes a reference parser that decodes `pd_table.Raw` and feeds PD wire messages to `usbpdpy`. With the updated library, `Source_Capabilities` parses cleanly and exposes roles:
@@ -107,6 +146,13 @@ for each row in pd_table:
   - `preamble: e5 e8 5b 00 00 00 00 00 76 06 03 00` + `event: 45 e2 e8 5b 00 11`
   - `preamble: 07 f4 5b 00 fa 13 00 00 a5 0c 7d 00` + `event: 45 fc f3 5b 00 12`
 - Wrapped PD messages appear identically (aside from the absence of the 12‑byte preamble in the SQLite rows).
+
+Observed distribution (pd_capture_new.9):
+- All wrapped PD events are SOP (sop=0) in this capture.
+- Message counts: GoodCRC=4, Source_Capabilities=4, Request=1, Accept=1, PS_RDY=1.
+
+Empty PD responses (no new messages):
+- USB may return a minimal 18‑byte PdPacket (12‑byte preamble + an empty 6‑byte event header with `wire_len=0`). These indicate “no wire data this tick” and typically do not produce a corresponding SQLite event row unless a separate `0x45` status event is emitted.
 
 Direction and connect/disconnect applicability to Parquet:
 - PD message direction (Source→Sink or Sink→Source) is inferred from the PD wire header (roles), identical for SQLite and Parquet.

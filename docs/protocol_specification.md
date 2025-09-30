@@ -241,6 +241,12 @@ KM003C PD data appears in two forms:
 - PD Status block (12 bytes): measurement/status summary often chained after ADC (ADC+PD = 68 bytes total).
 - PD Event stream (≥18 bytes): wrapped USB PD wire messages with a 12‑byte preamble followed by repeated 6‑byte event headers and PD wire payloads. Present in PD‑only responses and, rarely, as the PD segment within an ADC+PD.
 
+#### Timestamp Semantics (Observed)
+- PD preamble/event timestamps (`ts32`) are milliseconds and align with capture time; monotonic non‑decreasing.
+- In event‑bearing payloads, the preamble `ts32` acts as an end‑of‑burst anchor; all inner event timestamps are less than or equal to the preamble by a few ms.
+- PD status timestamps (`ts24`) are a coarse device counter at ~40 ms per tick; monotonic non‑decreasing but not millisecond‑resolution. For ms‑level timing use the event/preamble `ts32`.
+For deeper PD details and SQLite parity, see pd_sqlite_export_format.md.
+
 #### PD Status (12 bytes)
 Included with ADC+PD (most commonly 68‑byte total packets). Not a PD wire message.
 
@@ -277,6 +283,9 @@ Wire length computation:
 - wire_len = (size_flag & 0x3F) − 5
 - Validated on all event‑bearing payloads; yields standard 2/6/26‑byte PD wire messages. PD‑only 18‑byte payloads contain preamble + empty header (no wire data).
 
+No‑new‑data behavior:
+- When no new PD wire messages are available, the device answers a PD‑only GetData with a minimal 18‑byte PdPacket: 12‑byte preamble + a single empty 6‑byte event header (no wire bytes).
+
 Example (84‑byte ADC+PD with PD event stream of 28 bytes):
 - PD payload (28 bytes): `22fb12008323eaff73060800870efb120000a607870ffb1200004106`
 - Parsed as: preamble `22fb12008323eaff73060800`, then two events
@@ -312,8 +321,8 @@ Side‑by‑side field layout (little‑endian):
 | CC2 | [10..11] cc2_mV (u16) | [10..11] cc2_mV (u16) | Tracks CC presence/level |
 
 Behavior and usage:
-- PD Status: Self‑contained measurement snapshot appended to ADC; not followed by PD event headers in the common 68B packets.
-- PD Preamble: Measurement snapshot that precedes a wrapped event stream; immediately followed by repeated 6‑byte event headers + PD wire data.
+- PD Status: Self‑contained measurement snapshot appended to ADC; not followed by PD event headers in the common 68B packets. `timestamp24` is ~40 ms/tick.
+- PD Preamble: Measurement snapshot that precedes a wrapped event stream; immediately followed by repeated 6‑byte event headers + PD wire data. `timestamp32` is ms and frames the following events (upper‑bound within the burst).
 - Connect/disconnect markers are separate 6‑byte `0x45 …` events after the preamble (0x11 = Connect at start, 0x12 = Disconnect at end).
 - Neither block encodes PD message direction; direction comes from PD wire headers (decoded roles: Source/Sink, Dfp/Ufp).
 
@@ -362,6 +371,12 @@ Notes:
 - **Correlation**: Use application-layer transaction ID, not URB ID
 - **Timeout**: 2 seconds for all operations
 - **Error Recovery**: Automatic retry at USB level
+
+### Observed Request Cadence (pd_capture_new.9)
+- ADC GetData (mask 0x0001): ~200 ms intervals (median ~210 ms)
+- PD GetData (mask 0x0010): ~40 ms intervals (median ~40 ms)
+- ADC+PD GetData (mask 0x0011): infrequent composite snapshots
+These are empirical observations, not guaranteed device behavior.
 
 ---
 
