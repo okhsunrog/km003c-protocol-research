@@ -6,122 +6,28 @@ This document provides the definitive, comprehensive protocol specification for 
 
 ## Table of Contents
 
-1. [Device Identification](#device-identification)
+1. [Device Overview](#device-overview)
 2. [Official Documentation Sources](#official-documentation-sources)
-3. [Community Implementations](#community-implementations)
-4. [USB Protocol Fundamentals](#usb-protocol-fundamentals)
-5. [Device Enumeration and Control Protocol](#device-enumeration-and-control-protocol)
-6. [Application Layer Protocol](#application-layer-protocol)
-7. [USB Bulk Transfer Protocol](#usb-bulk-transfer-protocol)
-8. [Data Formats and Structures](#data-formats-and-structures)
-9. [Power Delivery (PD) Protocol Support](#power-delivery-pd-protocol-support)
-10. [Communication Patterns](#communication-patterns)
-11. [Implementation Examples](#implementation-examples)
-12. [Protocol Analysis Findings](#protocol-analysis-findings)
-13. [References and Attribution](#references-and-attribution)
+3. [Application Layer Protocol](#application-layer-protocol)
+4. [Data Formats and Structures](#data-formats-and-structures)
+5. [Power Delivery (PD) Protocol Support](#power-delivery-pd-protocol-support)
+6. [Communication Patterns](#communication-patterns)
+7. [Protocol Analysis Findings](#protocol-analysis-findings)
+8. [References and Attribution](#references-and-attribution)
 
 ---
 
-## Device Identification
+## Device Overview
 
-### USB Device Properties
+The **ChargerLAB POWER-Z KM003C** is a USB-C power analyzer that provides real-time monitoring of voltage, current, power, and USB Power Delivery protocol analysis.
+
+### Key Device Properties
 - **Vendor ID**: `0x5FC9` (ChargerLAB)
 - **Product ID**: `0x0063` (KM003C model)
-- **Device Version**: `1.00` (bcdDevice)
-- **USB Version**: `2.10` (USB 2.1 compliant)
-- **Serial Number**: `007965` (example device)
-- **Device Class**: `0xEF` (Miscellaneous Device)
-- **Device SubClass**: `0x02` (Interface Association)
-- **Device Protocol**: `0x01` (Interface Association)
-- **Max Packet Size**: `32 bytes` (EP0)
-- **Power Requirements**: `100mA` (Bus powered)
-- **Speed**: `12 Mbps` (Full Speed)
+- **Primary Interface**: USB Bulk transfers on Interface 0
+- **Communication**: Vendor-specific protocol over USB
 
-### Complete Interface Configuration
-
-The KM003C implements **4 distinct USB interfaces** with different capabilities:
-
-#### Interface 0: Vendor Specific (Primary Protocol)
-- **Interface Class**: `0xFF` (Vendor Specific)
-- **Driver**: `powerz` (Linux kernel hwmon driver)
-- **Function**: Main ADC and PD protocol communication
-- **Endpoints**:
-  - `0x01 OUT`: Bulk, 64 bytes max packet, 0ms interval
-  - `0x81 IN`: Bulk, 64 bytes max packet, 0ms interval
-
-#### Interface 1: CDC Communications (Serial Interface)
-- **Interface Class**: `0x02` (Communications)
-- **Interface SubClass**: `0x02` (Abstract Control Model)
-- **Driver**: `cdc_acm` (CDC ACM serial driver)
-- **Function**: Serial command interface
-- **Endpoints**:
-  - `0x83 IN`: Interrupt, 8 bytes max packet, 10ms interval
-
-#### Interface 2: CDC Data (Serial Data)
-- **Interface Class**: `0x0A` (CDC Data)
-- **Driver**: `cdc_acm` (paired with Interface 1)
-- **Function**: Serial data transfer
-- **Endpoints**:
-  - `0x02 OUT`: Bulk, 64 bytes max packet, 0ms interval
-  - `0x82 IN`: Bulk, 64 bytes max packet, 0ms interval
-
-#### Interface 3: Human Interface Device
-- **Interface Class**: `0x03` (HID)
-- **HID Version**: `1.11`
-- **Driver**: `usbhid` (Generic HID driver)
-- **Function**: HID-based data interface (alternative access method)
-- **Endpoints**:
-  - `0x05 OUT`: Interrupt, 64 bytes max packet, 1ms interval
-  - `0x85 IN`: Interrupt, 64 bytes max packet, 1ms interval
-
-### USB Descriptor Hierarchy
-
-```
-Device Descriptor (18 bytes)
-└── Configuration Descriptor (130 bytes total)
-    ├── Interface 0 (Vendor Specific - powerz driver)
-    │   ├── Endpoint 0x01 OUT (Bulk)
-    │   └── Endpoint 0x81 IN (Bulk)
-    ├── Interface Association Descriptor (CDC)
-    ├── Interface 1 (CDC Communications)
-    │   ├── CDC Header Descriptor (v1.10)
-    │   ├── CDC Call Management Descriptor
-    │   ├── CDC ACM Descriptor
-    │   ├── CDC Union Descriptor
-    │   └── Endpoint 0x83 IN (Interrupt)
-    ├── Interface 2 (CDC Data)
-    │   ├── Endpoint 0x02 OUT (Bulk)
-    │   └── Endpoint 0x82 IN (Bulk)
-    └── Interface 3 (HID)
-        ├── HID Descriptor (9 bytes, v1.11)
-        ├── Endpoint 0x05 OUT (Interrupt)
-        └── Endpoint 0x85 IN (Interrupt)
-```
-
-### Binary Object Store (BOS) Descriptor
-
-The device includes a BOS descriptor with Platform Device Capability:
-- **UUID**: `{d8dd60df-4589-4cc7-9cd2-659d9e648a9f}`
-- **Capability Data**: `00 00 03 06 aa 00 20 00`
-- **Purpose**: Likely USB-C specific capabilities or vendor extensions
-
-### Device Family
-The KM003C is part of the POWER-Z family of USB-C analyzers:
-- **KM002C**: Product ID `0x0061` (earlier model)
-- **KM003C**: Product ID `0x0063` (current focus)
-
-### Linux System Integration
-
-**USB Topology**: Bus 1, Port 1.3, Device 21
-**Kernel Drivers**:
-- `powerz`: Interface 0 (hwmon driver for voltage/current monitoring)
-- `cdc_acm`: Interfaces 1&2 (serial communication)
-- `usbhid`: Interface 3 (HID generic driver)
-
-**System Paths**:
-- `/sys/bus/usb/devices/1-1.3/` - Device sysfs directory
-- `/dev/ttyACM*` - CDC ACM serial devices
-- `/sys/class/hwmon/hwmonX/` - Hardware monitoring interface
+For URB-level handshakes, descriptors, and transport details, see [USB Transport Specification](usb_transport_specification.md).
 
 ---
 
@@ -150,242 +56,67 @@ Based on official documentation, the device provides:
 
 ---
 
-## Community Implementations
-
-### 1. Python Implementation (chaseleif/km003c)
-**Repository**: https://github.com/chaseleif/km003c
-
-**Key Findings**:
-- Uses PyUSB for device communication
-- Identifies multiple USB interfaces with different sampling rates:
-  - **Interface 0**: Vendor Specific (bulk 0x01/0x81) — primary protocol interface
-  - **Interface 2**: CDC Data (bulk 0x02/0x82) — serial data interface
-  - **Interface 3**: HID (interrupt 0x05/0x85) — alternative access path
-- 64-byte data buffer structure with dual 4-byte headers
-- Handles signed 32-bit integers for measurements
-- Motivation: "Looking for a power meter that didn't need Windows"
-
-**Real Device Verification**: The connected device confirms 4 interfaces (0-3), with Interface 3 being HID (as mentioned in the implementation) and Interface 2 being CDC Data.
-
-**Protocol Insights (bulk interface)**:
-```python
-# Data parsing example from community implementation
-data_buffer = 64  # bytes
-headers = 2 * 4   # bytes (dual 4-byte headers)
-measurements = {
-    'vbus': signed_32bit,
-    'ibus': signed_32bit,
-    'vbus_avg': signed_32bit,
-    'ibus_avg': signed_32bit,
-    'temperature': calculated,
-    'vcc1': auxiliary_voltage,
-    'vcc2': auxiliary_voltage,
-    'vdp': auxiliary_voltage,
-    'vdm': auxiliary_voltage,
-    'vdd': auxiliary_voltage
-}
-```
-
-### 2. Pascal Implementation (LongDirtyAnimAlf/km003c)
-**Repository**: https://github.com/LongDirtyAnimAlf/km003c
-
-**Key Findings**:
-- Cross-platform datalogger implementation (98.8% Pascal)
-- Uses libusb for USB communication
-- Requires platform-specific libusb installation
-- Provides PC-based logging capabilities for KM003C
-
-### 3. Linux Kernel Driver (drivers/hwmon/powerz.c)
-**Repository**: Linux kernel mainline
-
-**Key Protocol Details**:
-```c
-// Official kernel driver protocol
-#define POWERZ_EP_CMD_OUT    0x01
-#define POWERZ_EP_DATA_IN    0x81
-#define POWERZ_CMD_SIZE      4
-#define POWERZ_DATA_SIZE     64
-
-// Command sequence to trigger data read
-static const u8 cmd_trigger[] = {0x0c, 0x00, 0x02, 0x00};
-
-// Data structure from kernel driver
-struct powerz_sensor_data {
-    __le32 bus_voltage;      // V_bus
-    __le32 bus_current;      // I_bus  
-    __le32 bus_voltage_avg;  // Average V_bus
-    __le32 bus_current_avg;  // Average I_bus
-    // Additional measurements...
-    __le16 temperature[2];   // Temperature sensors
-    __le16 vcc1, vcc2;       // CC pin voltages
-    __le16 vdp, vdm;         // Data line voltages
-    __le16 vdd;              // Internal voltage
-};
-```
-
-**Scaling Factors**:
-- Current measurements: Divide by 1000 (µA → mA)
-- Bus voltage: Divide by 1000 (µV → mV)
-- Auxiliary voltages (instantaneous CC1/CC2, D+, D-, VDD): 0.1 mV units (divide by 10 for mV, 10,000 for V)
-- Averaged auxiliary voltages (CC2_avg, D+_avg, D-_avg): 1.0 mV units (divide by 1 for mV, 1,000 for V)
-- Temperature: Two-byte calculation (see Temperature Conversion)
-
-### 4. JavaScript Implementation (fqueze/usb-power-profiling)
-**Repository**: https://github.com/fqueze/usb-power-profiling
-
-**Key Features**:
-- Node.js implementation for USB power profiling
-- Sampling interval: 1ms
-- HTTP API server on `localhost:2121`
-- Firefox Profiler integration for power visualization
-- WinUSB driver requirement on Windows
-- Characteristic: "Sampling driven by the computer"
-
----
-
-## USB Protocol Fundamentals
-
-### USB Transaction Structure
-Every USB transaction consists of three phases:
-1. **Token Packet**: Defines transaction type and target
-2. **Data Packet**: Contains payload (optional)
-3. **Handshake Packet**: Acknowledgment and error correction
-
-### Transfer Types
-The KM003C uses **Bulk Transfers** for its primary vendor-specific protocol (Interface 0). The HID interface (Interface 3) uses **Interrupt Transfers**:
-- Bulk: large data transfers with error correction; CRC16 with retransmission; uses spare bandwidth; up to 64 bytes at full-speed USB.
-- Interrupt (HID): periodic polling with guaranteed service interval; 64-byte reports.
-
-### Host-Centric Protocol
-- Only the host (computer) initiates transactions
-- Device responds to host requests
-- No device-initiated interrupts
-- Polling-based data acquisition
-
----
-
-## Device Enumeration and Control Protocol
-
-### Standard USB Enumeration
-
-The KM003C follows standard USB enumeration with comprehensive descriptor requests:
-
-#### Device Descriptor Pattern
-```
-bmRequestType: 0x80 (Device-to-Host)
-bRequest: 0x06 (GET_DESCRIPTOR)  
-wValue: 0x0100 (Device Descriptor)
-wLength: 18 bytes
-```
-
-#### Configuration Descriptor Pattern
-Two-stage request for complete configuration:
-1. **Header Request**: wLength=9 (basic info)
-2. **Full Request**: wLength=130 (complete configuration)
-
-#### String Descriptor Requests
-High-volume requests for device identification:
-- Manufacturer, Product, Serial Number strings
-- Multiple language support (Language ID in wIndex)
-- Variable lengths: 4, 255, 258 bytes
-
-### Multi-Stage Initialization (VM Environment)
-
-When used in virtualized environments, a three-stage initialization occurs:
-
-1. **Physical Connection (Host OS)**
-   - Basic USB enumeration by host OS
-   - Generic drivers loaded (`cdc_acm`, `hid-generic`)
-   - Standard descriptors requested
-
-2. **VM Redirection (Guest OS)**
-   - Device redirected to virtual machine
-   - Guest OS performs thorough enumeration
-   - **Critical**: Proprietary commands sent by official driver
-   - Custom command `bRequest=0x32` with `bmRequestType=0xC2`
-
-3. **Application Startup**
-   - Official software opens device
-   - Additional descriptor verification
-   - Main communication loop begins
-
-### Proprietary Control Commands
-
-#### Vendor-Specific Request (0x32)
-```c
-// Critical proprietary command during enumeration
-struct vendor_request {
-    .bmRequestType = 0xC2,  // Vendor-specific, Device-to-Host
-    .bRequest = 0x32,       // Proprietary command
-    .wValue = 0x0000,
-    .wIndex = 0x0000,
-    .wLength = 170          // Device returns 170 bytes
-};
-```
-
-**Purpose**: Likely device capability query or calibration data retrieval
-
-#### Unknown Control Commands
-Additional proprietary commands discovered:
-- **Type 0x10** with attribute 0x0001 (zero length)
-- **Type 0x11** with attribute 0x0000 (zero length)
-- **GetData** with attribute 0x0011 (undocumented)
-
----
-
 ## Application Layer Protocol
 
 ### Packet Structure Overview
 
-The KM003C implements a sophisticated dual-layer protocol:
-1. **Low-level**: USB bulk transfer handshaking
-2. **High-level**: Application command/response protocol
+This section specifies the application-layer message formats. USB transport (URBs, ZLPs, descriptors) is documented separately in `docs/usb_transport_specification.md`.
 
-### Control Packet Format
-```c
-struct ctrl_header {
-    uint8_t packet_type;    // Command type identifier
-    bool extend_flag;       // Extended packet indicator
-    uint8_t transaction_id; // Rolling transaction ID (0-255)
-    uint16_t attribute;     // Command/response attribute
-};
-```
+### Message Headers (4 bytes, little‑endian)
 
-### Data Packet Format
-**All PutData packets (type 0x41) have extended headers by design**:
+The first 32 bits of every message encode a common header with type‑specific low bits. Bit numbering below is little‑endian, least‑significant bit = 0.
 
-```c
-struct data_header {
-    uint8_t packet_type;     // 0x41 (CMD_PUT_DATA)
-    bool extend_flag;        // Purpose unclear (not size indicator)
-    uint8_t transaction_id;  // Rolling ID (0-255)
-    uint8_t object_count;    // Packet size / 4 words
-};
+- GetData Header (type = 0x0C)
+  - bits 0..6: `packet_type` = 0x0C
+  - bit 7: `reserved_flag` (vendor‑specific; not an "extended header present" flag)
+  - bits 8..15: `id` (8‑bit rolling transaction ID)
+  - bit 16: reserved (unused)
+  - bits 17..31: `attribute_mask` (15‑bit)
+    - Bitmask semantics: combine independent bits with bitwise OR to request multiple data classes in one response
+    - Observed bits → response attribute mapping:
+      • 0x0001 → ADC (extended attribute 1)
+      • 0x0002 → AdcQueue (extended attribute 2)
+      • 0x0008 → Settings (extended attribute 8)
+      • 0x0010 → PdPacket (extended attribute 16)
+      • 0x0200 → Unknown512 (extended attribute 512)
+    - Observed combinations (bitwise OR):
+      • 0x0011 (0x0001 | 0x0010) → ADC + PD
+      • 0x0003 (0x0001 | 0x0002) → ADC + AdcQueue
+    - Example: `mask = 0x0001 | 0x0010` requests ADC plus PD in a single PutData response
 
-struct extended_header {
-    uint16_t attribute;      // Data type (ADC=1, PD=16, etc.)
-    bool next_flag;          // Extension data present
-    uint8_t chunk_number;    // Chunk ID (typically 0)
-    uint16_t payload_size;   // Attribute-specific size
-};
-```
+- PutData Header (type = 0x41)
+  - bits 0..6: `packet_type` = 0x41
+  - bit 7: `reserved_flag` (vendor‑specific; not an "extended header present" flag)
+  - bits 8..15: `id` (matches requesting GetData `id`)
+  - bits 16..21: reserved (unused)
+  - bits 22..31: `obj_count_words` (≈ total_message_length / 4)
+
+- Logical Extended Header (4 bytes, little‑endian)
+  - bits 0..14: `attribute` (1 = ADC, 2 = AdcQueue, 16 = PdPacket, 8 = Settings)
+  - bit 15: `next` (1 = another logical packet follows, 0 = last)
+  - bits 16..21: `chunk` (typically 0)
+  - bits 22..31: `size_bytes` (payload size for THIS logical packet)
 
 ### Command Types
 
-#### Control Commands
-| Type | Hex | Attribute | Description |
-|------|-----|-----------|-------------|
-| GetData | 0x0C | 0x0001 (Adc) | Request ADC measurements |
+- Requests (GetData)
+| Type | Hex | Attribute Mask | Description |
+|------|-----|----------------|-------------|
+| GetData | 0x0C | 0x0001 (ADC) | Request ADC measurements |
+| GetData | 0x0C | 0x0002 (AdcQueue) | Request ADC queue summary/block |
 | GetData | 0x0C | 0x0010 (PdPacket) | Request PD protocol data |
-| Accept | 0x05 | 0x0000 | Acknowledge command |
+| GetData | 0x0C | 0x0011 (ADC+PD) | Request ADC plus PD (bitwise OR) |
+| GetData | 0x0C | 0x0003 (ADC+AdcQueue) | Request ADC plus AdcQueue (bitwise OR) |
+| GetData | 0x0C | 0x0008 (Settings) | Request settings/configuration |
 
-#### Data Responses  
+- Responses
 | Type | Hex | Attribute | Description |
 |------|-----|-----------|-------------|
 | PutData | 0x41 | 0x0001 (Adc) | ADC measurement data |
-| PutData | 0x41 | 0x0010 (PdPacket) | PD protocol events |
+| PutData | 0x41 | 0x0010 (PdPacket) | PD protocol events/status |
 | PutData | 0x41 | 0x0002 (AdcQueue) | Queued ADC data |
 | PutData | 0x41 | 0x0008 (Settings) | Device configuration |
+| Accept | 0x05 | 0x0000 | Command acknowledgment (mode/control)
 
 ### Extended Header Usage by Attribute
 
@@ -396,126 +127,69 @@ struct extended_header {
 | ATT_AdcQueue (2) | 288 | Fixed 20 (header size) | 28-968 bytes payload |
 | ATT_Settings (8) | 7 | Exact payload size | 180 bytes |
 
----
-
-## USB Bulk Transfer Protocol
-
-### Zero-Length Packet Protocol
-
-The KM003C uses sophisticated zero-length packet (ZLP) signaling:
-
-#### URB Status Codes
-| Status | Meaning | Count | Usage Pattern |
-|--------|---------|-------|---------------|
-| -115 | EINPROGRESS | 102 | IN URB pending (host buffer posted) |
-| 0 | SUCCESS | 95 | Command acknowledged |
-| -2 | ENOENT | 2 | Operation cancelled/not found |
-
-#### Transfer Flags
-| Flag | Hex | Meaning |
-|------|-----|---------|
-| URB_SHORT_NOT_OK | 0x00000200 | Strict length validation |
-| Standard | 0x00000000 | Relaxed requirements |
-
-### Handshaking Patterns
-
-#### Pattern 1: Data Request Handshake
-```
-1. Host→Device: submits IN URB (buffer posted) → urb_status = -115 (EINPROGRESS)
-2. Device produces data
-3. Device→Host: completion with actual data (e.g., 52+ bytes for ADC PutData)
-```
-
-#### Pattern 2: Command Acknowledgment
-```
-1. Host→Device: Submit with command (4 bytes)
-2. Device→Host: Empty Complete (Status=0, "acknowledged")
-```
-
-#### Pattern 3: Error Signaling
-```
-Device→Host: Empty Complete (Status=-2, "operation failed")
-```
-
-### URB Transaction Management
-
-#### Critical Understanding: URB ID Reuse
-The `urb_id` field in USB monitoring tools (like Wireshark/usbmon) represents a **kernel memory address**, not a unique transaction identifier:
-
-- **Memory Recycling**: Same address reused for new transactions
-- **Analysis Impact**: Must group by Submit→Complete pairs, not URB ID
-- **Transaction Definition**: One logical transaction = One S→C pair
-- **Performance**: Rapid transaction cycling creates "streaming" illusion
-
-#### Timing Characteristics
-- **Command Latency**: 77-85 microseconds
-- **ADC Polling**: ~200ms intervals  
-- **PD Capture**: ~40ms when active
-- **Maximum Throughput**: 133 packets/second sustained
-
----
 
 ## Data Formats and Structures
 
-### Complete ADC Packet Structure
+### PutData Packet Structure (Chained Logical Packets)
 
-Based on official KM003C documentation and reverse engineering:
+The KM003C uses a sophisticated chained logical packet structure within PutData packets. Each PutData packet contains one or more logical packets, each with its own extended header and payload:
 
 ```c
-// Complete ADC packet format (52-876 bytes total)
-struct adc_packet {
-    // Main header (4 bytes)
+// PutData packet with chained logical packets (52-876 bytes total)
+struct putdata_packet {
+    // Main header (4 bytes, little endian)
     struct {
-        uint32_t type : 7;      // 65 (CMD_PUT_DATA)
-        uint32_t extend : 1;    // Purpose unclear
-        uint32_t id : 8;        // Transaction ID
-        uint32_t reserved : 6;  // Unused
-        uint32_t obj_count : 10; // Total size / 4
+        uint32_t type : 7;       // 65 (CMD_PUT_DATA)
+        uint32_t reserved : 1;   // Vendor-reserved (observed 1 for PutData)
+        uint32_t id : 8;         // Transaction ID
+        uint32_t unused : 6;     // Unused
+        uint32_t obj_count_words : 10; // Approximate total_size/4
     } main_header;
-    
-    // Extended header (4 bytes) - Always present
-    struct {
-        uint32_t attribute : 15; // 1 (ATT_ADC)
-        uint32_t next : 1;       // PD extension flag
-        uint32_t chunk : 6;      // Always 0
-        uint32_t size : 10;      // ADC payload size (44)
-    } extended_header;
-    
-    // ADC data payload (44 bytes)
-    struct adc_data {
-        int32_t vbus;             // VBUS voltage (1µV units)
-        int32_t ibus;             // IBUS current (1µA units)  
-        int32_t vbus_avg;         // Averaged VBUS (1µV)
-        int32_t ibus_avg;         // Averaged IBUS (1µA)
-        int32_t vbus_ori_avg;     // Uncalibrated VBUS average
-        int32_t ibus_ori_avg;     // Uncalibrated IBUS average
-        int16_t temperature;      // Internal temperature (LSB = 1/128 °C)
-        uint16_t vcc1_tenth_mv;   // CC1 voltage (0.1mV units)
-        uint16_t vcc2_tenth_mv;   // CC2 voltage (0.1mV units)
-        uint16_t vdp_tenth_mv;    // D+ voltage (0.1mV units)
-        uint16_t vdm_tenth_mv;    // D- voltage (0.1mV units)
-        uint16_t vdd_tenth_mv;    // Internal VDD (0.1mV units)
-        uint8_t sample_rate:2;    // Sample rate index (0-4)
-        uint8_t flags;            // Vendor flags (observed 128)
-        uint16_t cc2_avg_mv;      // CC2 averaged voltage (1mV units)
-        uint16_t vdp_avg_mv;      // D+ averaged voltage (1mV units)
-        uint16_t vdm_avg_mv;      // D- averaged voltage (1mV units)
-    } adc_data;
-    
-    // Optional PD extension (12-824 bytes)
-    // Present when next=1 in extended header
-    uint8_t pd_extension[];
+
+    // Chained logical packets - continue until next=0
+    struct logical_packet {
+        // Extended header (4 bytes, little endian)
+        struct {
+            uint32_t attribute : 15; // Logical packet type (1=ADC, 16=PdPacket, 2=AdcQueue)
+            uint32_t next : 1;       // 1=another logical packet follows, 0=last packet
+            uint32_t chunk : 6;      // Chunk number (typically 0)
+            uint32_t size : 10;      // Size of THIS logical packet's payload
+        } extended_header;
+
+        uint8_t payload[size];       // Payload data specific to this logical packet
+    } logical_packets[];             // Repeat until next=0
 };
 ```
 
-### ADC Packet Size Variants
+### Logical Packet Types
 
-**Perfect 100% correlation between `next` bit and packet size**:
+| Attribute | Name | Description | Payload Size |
+|-----------|------|-------------|--------------|
+| 1 | ADC | Voltage, current, temperature measurements | 44 bytes |
+| 2 | AdcQueue | Queued ADC data | Variable |
+| 16 | PdPacket | USB Power Delivery protocol data | Variable |
 
-| next Bit | Packet Count | Total Size | Structure |
-|----------|--------------|------------|-----------|
-| next=0 | 1,823 | 52 bytes | 4B main + 4B ext + 44B ADC |
-| next=1 | 52 | 68-876 bytes | Standard + Variable PD data |
+### ADC Logical Packet Payload
+
+See single source of truth in KM003C Application‑Layer Protocol (Consolidated) → "ADC Payload (44 bytes)" for the byte‑accurate offset table.
+
+### Common Packet Patterns
+
+**Verified across 2,836 packets with zero violations:**
+
+| Pattern | Count | Total Size | Structure |
+|---------|-------|------------|-----------|
+| **ADC only** | 1,825 | 52 bytes | `ADC(next=0)` |
+| **ADC + PdPacket** | 36 | 68 bytes | `ADC(next=1) + PdPacket(next=0)` |
+| **ADC + AdcQueue** | 16 | Variable | `ADC(next=1) + AdcQueue(next=0)` |
+| **PdPacket only** | 657 | Variable | `PdPacket(next=0)` |
+
+### Chaining Rules
+
+1. **Next Flag**: Set to `1` if another logical packet follows, `0` for the last packet
+2. **Perfect Compliance**: All 2,836 analyzed packets follow this rule with zero violations
+3. **Self-Contained**: Each logical packet has its own extended header and payload
+4. **Variable Length**: Total packet size depends on number and size of chained logical packets
 
 ### Sample Rate Mapping
 ```c
@@ -656,27 +330,30 @@ This allows simultaneous power monitoring and protocol analysis.
 
 ## Communication Patterns
 
-### ADC Data Request Flow
+### ADC Data Request Flow (Application Layer)
 ```
-1. Host → Device: GetData command (4 bytes, attribute=Adc)
-   Payload: [0x0C, 0x01, 0x02, 0x00]
-   
-2. Device → Host: ZLP Complete (Status=0, acknowledged)
+1. Host → Device: GetData (type=0x0C) requesting ADC/PD
+   - Attribute mask: 0x0001 (ADC), 0x0010 (PdPacket), or 0x0011 (ADC+PD)
+   - Format: 4‑byte header with matching transaction ID
 
-3. Device → Host: ZLP Submit (Status=-115, requesting permission)
+2. Device → Host: PutData (type=0x41) response
+   - Main header (4B) + one or more logical packets
+   - Typical responses:
+     • ADC only (total 52B): [Main][ADC(next=0)]
+     • ADC + PD status (total 68B): [Main][ADC(next=1)][PdPacket(next=0)]
 
-4. Device → Host: PutData with ADC (52+ bytes)
-   Structure: [main_header][extended_header][adc_data][optional_pd]
+Notes:
+- The response `id` matches the request `id` (8‑bit rolling).
+- For URB/USB transport handshakes (e.g., ZLP Submit/Complete statuses), see USB transport documentation: docs/usb_transport_specification.md.
 ```
 
-### PD Data Request Flow  
+### PD Data Request Flow
 ```
-1. Host → Device: GetData command (4 bytes, attribute=PdPacket)
-   Payload: [0x0C, 0x10, 0x02, 0x00]
-   
-2. Device → Host: PutData with PD events
-   Structure: [main_header][extended_header][pd_event_stream]
-   
+1. Host → Device: GetData (type=0x0C) with attribute mask 0x0010 (PdPacket)
+
+2. Device → Host: PutData with PD logical packet
+   Structure: [Main Header][PdPacket logical packet (next=0)]
+
 3. Multi-packet streaming for large PD captures
 ```
 
@@ -694,31 +371,15 @@ This section consolidates the working protocol details for application‑layer m
 
 ### Message Structure
 
-All application messages follow: `[Main Header (4B)] [Extended Header (4B)] [Payload]`.
+PutData messages use chained logical packets: `[Main Header (4B)] [Logical Packet 1] [Logical Packet 2] ... [Logical Packet N]`
 
-Main Header (4 bytes, little‑endian, bit‑fields):
-- bits 0..6: `type` (0x0C=GetData, 0x41=PutData)
-- bit 7: `extend` (extended header flag)
-- bits 8..15: `id` (rolling counter 0..255)
-- bits 16..21: reserved
-- bits 22..31: `obj_count` (approx total_length/4 − 3)
+Each logical packet follows: `[Extended Header (4B)] [Payload]`
 
-Extended Header (4 bytes, little‑endian):
-- bits 0..14: `attribute` (1=ADC, 16=PD)
-- bit 15: `next` (1=another payload follows in this message)
-- bits 16..21: `chunk` (0 for these cases)
-- bits 22..31: `size_bytes` (payload size for this segment)
+See Message Headers above for exact bit layouts of the 4‑byte main header and 4‑byte logical extended header. Continue reading logical packets until `next=0`.
 
-Chained payloads: If `next=1`, read the next 4‑byte extended header and its payload immediately after the previous payload.
+### Transaction Notes
 
-### Requests and Responses
-
-Host GetData requests (examples):
-- `0C [id] 02 00` → ADC only → device PutData with 52‑byte total (44B ADC)
-- `0C [id] 22 00` → ADC+PD → device PutData with 68‑byte total (44B ADC + 12B PD status)
-- `0C [id] 20 00` → PD only → device PutData with 20+ byte PD payload (status or event stream)
-
-IDs increment modulo 256; response `id` matches the request.
+IDs increment modulo 256; the PutData response `id` matches the GetData request `id`.
 
 ### ADC Payload (44 bytes)
 
@@ -743,17 +404,11 @@ Offsets and fields (little‑endian):
 
 ### PD Payloads
 
-- PD Status (12B): measurement/status block as described above. Common in ADC+PD 68‑byte total messages; correlates with ADC values.
-- PD Event Stream (≥18B): preamble (12B) + repeated events (6B header + wire_len bytes). `wire_len = (size_flag & 0x3F) − 5`.
+See Power Delivery (PD) Protocol Support for detailed PD payload formats (status vs preamble + event stream) and parsing rules.
 
-### Observed Sizes (dataset)
+### Sizes (reference)
 
-- ADC‑only: total=52 bytes
-- ADC+PD: total=68 bytes (PD size=12) common; one instance total=84 bytes (PD size=28, event stream)
-- PD‑only payload sizes: 12, 18, 28, 44, 76, 88, 108 bytes
-  - 12B = status block (not PD wire)
-  - 18B = preamble + empty header (no PD message)
-  - ≥28B = event stream containing 1+ PD wire messages
+For common total sizes and structures, see Communication Patterns → Common Packet Patterns.
 
 ### PD Status vs Preamble (Verified)
 
@@ -767,91 +422,10 @@ Offsets and fields (little‑endian):
 
 ### Object Count Calculation
 
-Empirical relation: `obj_count ≈ (total_message_length / 4) − 3` for standard single‑segment messages; adjust when chained segments are present.
+Empirical relation: `obj_count_words ≈ (total_message_length / 4) − 3` for standard single‑segment messages; adjust when chained segments are present.
 
 ---
 
-## Implementation Examples
-
-### Linux Kernel Driver Usage
-```c
-// From drivers/hwmon/powerz.c
-static int powerz_get_data(struct powerz_data *data) {
-    static const u8 cmd[] = {0x0c, 0x00, 0x02, 0x00};
-    int ret;
-    
-    // Send trigger command
-    ret = usb_bulk_msg(data->udev, 
-                      usb_sndbulkpipe(data->udev, POWERZ_EP_CMD_OUT),
-                      (void *)cmd, sizeof(cmd), NULL, 1000);
-    if (ret < 0) return ret;
-    
-    // Read response  
-    ret = usb_bulk_msg(data->udev,
-                      usb_rcvbulkpipe(data->udev, POWERZ_EP_DATA_IN), 
-                      data->buffer, POWERZ_DATA_SIZE, NULL, 1000);
-    
-    return ret;
-}
-```
-
-### Python Implementation Pattern
-```python
-# Based on chaseleif/km003c approach
-import usb.core
-import struct
-
-def read_km003c_data():
-    # Find device
-    dev = usb.core.find(idVendor=0x5FC9, idProduct=0x0063)
-    
-    # Use Interface 1 (HID, 500 SPS)
-    interface = 1
-    
-    # Read 64-byte buffer
-    data = dev.read(0x81, 64)
-    
-    # Parse headers (2 x 4 bytes)
-    header1, header2 = struct.unpack('<II', data[:8])
-    
-    # Parse measurements (signed 32-bit)
-    measurements = struct.unpack('<iiiiii', data[8:32])
-    vbus, ibus, vbus_avg, ibus_avg, temp_raw, aux = measurements
-    
-    return {
-        'voltage': vbus / 1000.0,    # µV to mV
-        'current': ibus / 1000.0,    # µA to mA  
-        'power': (vbus * ibus) / 1e12  # Watts
-    }
-```
-
-### JavaScript WebUSB Pattern
-```javascript
-// Based on fqueze/usb-power-profiling
-class KM003CDevice {
-    constructor() {
-        this.device = null;
-        this.samplingInterval = 1; // ms
-    }
-    
-    async connect() {
-        this.device = await navigator.usb.requestDevice({
-            filters: [{ vendorId: 0x5FC9, productId: 0x0063 }]
-        });
-        
-        await this.device.open();
-        await this.device.selectConfiguration(1);
-        await this.device.claimInterface(0);
-    }
-    
-    async readData() {
-        const result = await this.device.transferIn(0x81, 64);
-        return new DataView(result.data.buffer);
-    }
-}
-```
-
----
 
 ## Protocol Analysis Findings
 
@@ -888,128 +462,27 @@ class KM003CDevice {
 
 ### Performance Characteristics
 
-#### Device Performance Profiles
-| Device Addr | Packets | Rate (pps) | Avg Payload | Use Case |
-|-------------|---------|------------|-------------|----------|
-| 6 | 2,152 | 133.1 | 97.2 bytes | High-frequency ADC |
-| 13 | 2,030 | 66.0 | 8.7 bytes | Fast command-response |
-| 16 | 248 | 44.0 | 12.4 bytes | Low-volume monitoring |
-| 9 | 6,924 | 23.4 | 12.6 bytes | PD protocol analysis |
-
-#### Latency Analysis
-- **Ultra-low command latency**: 77-85 microseconds
-- **ADC collection interval**: ~200ms per reading
-- **PD event capture**: ~40ms when active
-- **Transaction duration range**: 40µs to 453ms
-- **Sustained throughput**: Up to 133 packets/second
-
----
-
-## Troubleshooting and Edge Cases
-
-### Common Implementation Issues
-
-#### URB ID Misinterpretation
-**Problem**: Grouping packets by `urb_id` thinking it's a unique transaction identifier
-**Solution**: Use Submit→Complete pairs for transaction boundaries
-**Impact**: Incorrect protocol flow analysis
-
-#### Missing Extended Headers
-**Problem**: Not recognizing that all PutData packets have extended headers
-**Solution**: Always parse 4-byte extended header after main header for type 0x41
-**Impact**: Data structure parsing failures
-
-#### Current Direction Confusion
-**Problem**: Misinterpreting negative current values
-**Solution**: Negative current indicates reverse power flow (male→female)
-**Impact**: Incorrect power flow direction analysis
-
-### Edge Case Handling
-
-#### Large PD Captures
-- **Issue**: PD extension data can reach 824 bytes
-- **Solution**: Dynamic buffer allocation based on `next` flag and size field
-- **Validation**: Check total packet size against extended header size field
-
-#### Sample Rate Changes
-- **Issue**: Device can change sample rates dynamically  
-- **Solution**: Parse sample rate field in each ADC packet
-- **Impact**: Timing analysis must account for rate variations
-
-#### Multi-Interface Support
-- **Issue**: Device has multiple USB interfaces with different capabilities
-- **Solution**: Test each interface to determine optimal sampling rate
-- **Recommendation**: Interface 3 (HID) for compatibility, Interface 0 for primary bulk protocol
+- **Command Latency**: 77-85 microseconds
+- **ADC Polling**: ~200ms intervals
+- **PD Capture**: ~40ms when active
+- **Maximum Throughput**: 133 packets/second sustained
 
 ---
 
 ## References and Attribution
 
-### Original Research
-This comprehensive documentation is based on extensive reverse engineering research documented at:
-**[km003c-protocol-research](https://github.com/okhsunrog/km003c-protocol-research)**
-
-### Related Projects and Implementations
-
-#### Rust Implementation
-- **[km003c-rs](https://github.com/okhsunrog/km003c-rs)** - Complete Rust library and applications for KM003C
-  - Cross-platform USB HID communication
-  - Real-time ADC data acquisition
-  - USB Power Delivery message capture
-  - GUI application with live plotting
-  - Python bindings via PyO3/maturin
-
-#### USB PD Protocol Libraries
-- **[usbpdpy](https://github.com/okhsunrog/usbpdpy)** - Python bindings for USB PD message parsing
-- **[usbpd](https://crates.io/crates/usbpd)** - Rust USB PD protocol parsing library
-
-#### Analysis and Visualization Tools
-- **[Firefox Profiler](https://profiler.firefox.com/)** - Power consumption visualization (works with fqueze/usb-power-profiling)
-- **[sigrok/PulseView](https://sigrok.org/wiki/PulseView)** - Logic analyzer software (can work with USB captures)
-
-#### Commercial Software
-- **[ChargerLAB Power-Z Official Software](https://www.power-z.com/software)** - Official Windows application
-- **[KMbox/PC Computer Suite](https://www.power-z.com/)** - Official software suite for POWER-Z devices
-
-#### Hardware Alternatives and Related Devices
-- **[Nordic Power Profiler Kit II (PPK2)](https://www.nordicsemi.com/Products/Development-hardware/Power-Profiler-Kit-2)** - Nordic's power profiling solution
-- **[Joulescope](https://www.joulescope.com/)** - Precision DC energy analyzer
-- **[Total Phase Power Delivery Analyzer](https://www.totalphase.com/products/power-delivery-analyzer/)** - USB PD protocol analyzer
-- **[Ellisys USB Explorer](https://www.ellisys.com/products/uex280/)** - Professional USB protocol analyzer
-
-### Community Contributions
-1. **[chaseleif/km003c](https://github.com/chaseleif/km003c)** - Python implementation and multi-interface analysis
-2. **[LongDirtyAnimAlf/km003c](https://github.com/LongDirtyAnimAlf/km003c)** - Pascal datalogger implementation
-3. **[fqueze/usb-power-profiling](https://github.com/fqueze/usb-power-profiling)** - JavaScript WebUSB implementation
-4. **[Linux Kernel Community](https://kernel.googlesource.com/pub/scm/linux/kernel/git/akpm/mm/+/refs/tags/mm-everything-2023-12-29-21-56/drivers/hwmon/powerz.c)** - Official hwmon driver (drivers/hwmon/powerz.c)
-
-### Official Documentation
-- ChargerLAB KM003C Protocol Documentation (PDF/DOCX)
-- ChargerLAB KM002C&3C API Description (PDF/DOCX)
-- USB Power Delivery Specification v3.0/3.1
-- USB 2.0 Specification
-
 ### Technical References
 - [USB Power Delivery Specification](https://www.usb.org/document-library/usb-power-delivery)
 - [INA228 Datasheet](https://www.ti.com/lit/ds/symlink/ina228.pdf) - Temperature calculation
 - [POWER-Z KM003C Product Page](https://www.power-z.com/products/262)
-- [USB 2.0 Specification](https://www.usb.org/document-library/usb-20-specification)
-- [Linux USB Monitoring](https://www.kernel.org/doc/html/latest/usb/usbmon.html)
+- [USB Transport Specification](usb_transport_specification.md) - Detailed USB interface and URB-level documentation
 
-### Analysis Tools
-- **Wireshark + usbmon**: USB traffic capture and analysis
-- **Polars**: Large-scale data analysis framework
-- **Custom Rust tools**: Protocol parsing and correlation analysis
-- **Python analysis suite**: Data processing and visualization
+### Community Implementations
 
----
+Thanks to the earlier reverse engineering efforts by the community:
+- **[chaseleif/km003c](https://github.com/chaseleif/km003c)** - Python implementation with multi-interface analysis
+- **[LongDirtyAnimAlf/km003c](https://github.com/LongDirtyAnimAlf/km003c)** - Pascal datalogger implementation
+- **[fqueze/usb-power-profiling](https://github.com/fqueze/usb-power-profiling)** - JavaScript WebUSB implementation
 
-## Document Status
-
-- **Version**: 1.0.0
-- **Last Updated**: 2025-01-14
-- **Status**: Comprehensive - All major protocol elements documented
-- **Coverage**: 11,514+ packets analyzed across 7 capture sessions
-- **Validation**: 100% parsing success rate on captured data
-
-*This document represents the most complete protocol specification for the ChargerLAB POWER-Z KM003C device, consolidating findings from multiple reverse engineering efforts, community implementations, and official documentation sources.*
+### Complete Implementation
+- **[km003c-rs](https://github.com/okhsunrog/km003c-rs)** - Full-featured Rust library with Python bindings, implementing the complete protocol documented in this research

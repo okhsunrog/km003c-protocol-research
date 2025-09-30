@@ -1,97 +1,135 @@
-# CLAUDE.md
+# CLAUDE.md (Agent Guide)
 
-Development guidance for the KM003C protocol research project.
+Concise, AI‑oriented guidance for working in this repo. Optimize for correctness, reuse, and speed by using the existing library and tools.
 
-## Environment Setup
+## Environment Quickstart
 
 ```bash
-# Install dependencies
+# Install runtime deps
 uv sync
 
-# Install development dependencies (includes maturin)
+# Dev deps (ruff/maturin/etc.)
 uv sync -E dev
 
-# Build Rust Python extension
+# Build Rust Python extension (km003c_lib)
 just rust-ext
 ```
 
-## Development Commands
+## Core Commands
 
-### Testing and Quality
 ```bash
-# Run all checks
-just test     # Run test suite
-just lint     # Lint code with ruff
-just format   # Format code with ruff
+# Validate before shipping changes
+just test     # Run tests
+just lint     # Ruff lint
+just format   # Ruff format
 
-# Individual commands
-uv run pytest -q                          # Tests only
-uv run mypy km003c_analysis/              # Type checking
-uv run ruff check km003c_analysis scripts # Linting
-uv run ruff format km003c_analysis scripts # Formatting
+# Direct invocations
+uv run pytest -q
+uv run mypy km003c_analysis/
+uv run ruff check km003c_analysis scripts
+uv run ruff format km003c_analysis scripts
+
+# Streamlit app
+just app
 ```
 
-### Applications
-```bash
-just app     # Launch Streamlit web interface
-```
+## AI Quickstart
 
-## Architecture
+Preferred path: use the library for parsing/splitting/tagging; avoid re‑implementing low‑level parsing unless absolutely required.
 
-### Core Components
-- `rust_pcap_converter/` - PCAP to Parquet converter using tshark
-- `km003c_analysis/` - Python analysis library (reusable components):
-  - `core/` - USB transaction processing (splitter, tagger)
-  - `tools/` - Production-ready analysis tools
-    - `pd_sqlite_analyzer.py` - Comprehensive SQLite PD export analyzer
-  - `dashboards/` - Streamlit web interfaces (main app, PD analysis dashboard)
-  - `app.py` - Main entry point for Streamlit GUI
-- `scripts/` - Research analysis scripts:
-  - `analyze_km003c_protocol.py` - Complete KM003C protocol analysis
-  - `parse_pd_wrapped.py` - Wrapped PD format parser
-  - `export_*.py` - Data export utilities
-  - `summarize_pd_messages.py` - PD message summarization
-  - `experiments/` - Temporary validation and testing scripts
-- `km003c_lib` - External Rust crate providing protocol parsing (built via maturin)
-- `notebooks/` - Jupyter notebooks for manual data exploration
-
-### Data Flow
-1. Capture USB traffic as PCAP files
-2. Convert to Parquet with 41 USB protocol fields extracted
-3. Process into transactions and add semantic tags
-4. Analyze via Streamlit web interface or run analysis scripts
-
-### Module Usage
 ```python
-# Core transaction processing (reusable library)
+import polars as pl
+from pathlib import Path
 from km003c_analysis.core import split_usb_transactions, tag_transactions
 
-# Production tools
-from km003c_analysis.tools.pd_sqlite_analyzer import SQLitePDAnalyzer
+DATASET = Path("data/processed/usb_master_dataset.parquet")
+df = pl.read_parquet(DATASET)
 
-# Launch main GUI
-uv run python -m streamlit run km003c_analysis/app.py
+# Work on bulk traffic; split into transactions; add tags
+bulk = df.filter(pl.col("transfer_type") == "0x03")
+tx = split_usb_transactions(bulk)
+tx_tagged = tag_transactions(tx)
 
-# Run production tools
-uv run python -m km003c_analysis.tools.pd_sqlite_analyzer --verbose
-uv run python -m km003c_analysis.tools.pd_sqlite_analyzer --export-json results.json
-
-# Run analysis scripts
-uv run python scripts/analyze_km003c_protocol.py
-uv run python scripts/export_complete_pd_analysis.py
+# Example: focus on IN completions with payload (PutData candidates)
+pd_candidates = tx_tagged.filter(
+    (pl.col("endpoint_address") == "0x81")
+    & (pl.col("urb_type") == "C")
+    & pl.col("payload_hex").is_not_null()
+)
 ```
 
-## Development Notes
+## Common Analysis Recipes
 
-- External Rust crate must be built before running tests that import `km003c_lib`
-- Master dataset: `data/processed/usb_master_dataset.parquet` (11,514 USB packets)
-- **Protocol specification**: `docs/protocol_specification.md` - Complete consolidated protocol
-- Research summary: see `docs/protocol_specification.md` (Research findings integrated)
-- Code organization: `docs/code_organization_strategy.md` - Development methodology
-- Use URB IDs to match Submit/Complete transaction pairs
+- Map GetData masks → PutData categories (use transactions)
+  - Load master dataset, split transactions as above.
+  - For each transaction, parse first OUT Submit with data as GetData; parse IN Complete as PutData and classify segments.
+  - See docs/protocol_specification.md for bitmask semantics and attributes.
 
-## Research Status
+- Extract ADC payloads
+  - Parse PutData logical packets with attribute=1 (ADC) and size=44; use the byte offsets from docs/protocol_specification.md.
 
-✅ **KM003C Protocol Fully Decoded**: Complete specification with production-ready analysis tools
-✅ **USB ↔ SQLite Correlation**: Perfect data correlation validated between capture formats
-✅ **PD Message Integration**: Full USB PD protocol parsing with usbpdpy v0.2.0
+- Parse PD event streams
+  - For PdPacket attribute=16 with size>12: preamble (12B) + repeated 6B event headers + PD wire bytes.
+  - Full details and SQLite parity: docs/pd_sqlite_export_format.md.
+
+- Correlate to SQLite export
+  - Use km003c_analysis.tools.pd_sqlite_analyzer to load and compare PD streams; export to Parquet/JSON if needed.
+
+## Tests You Should Use
+
+- Transaction logic: tests/test_transaction_splitter.py
+- Tagging semantics: tests/test_transaction_tagger.py
+
+Recommended loop:
+```bash
+just test         # Run all tests
+uv run pytest -q  # Quick iteration
+```
+
+## Data + Invariants
+
+- Master Parquet: `data/processed/usb_master_dataset.parquet` (≈11.5k packets).
+- GetData attribute_mask is a 15‑bit bitmask; combine with bitwise OR to request multiple classes.
+  - Bits → attributes: 0x0001 ADC(1), 0x0002 AdcQueue(2), 0x0008 Settings(8), 0x0010 PdPacket(16), 0x0200 Unknown512(512)
+  - Examples: 0x0011 = ADC|PD, 0x0003 = ADC|AdcQueue
+- PutData uses chained logical packets; continue until `next=0`.
+- Response `id` matches request `id` (8‑bit roll‑over).
+- Do NOT group by URB ID (kernel address, reused). Use split_usb_transactions.
+
+## Tools and Entry Points
+
+- Library
+  - `km003c_analysis.core.split_usb_transactions` — robust transaction grouping
+  - `km003c_analysis.core.tag_transactions` — structural tags (BULK_COMMAND_RESPONSE, etc.)
+
+- Tools
+  - `km003c_analysis.tools.pd_sqlite_analyzer` — analyze/convert official SQLite PD exports
+
+- Scripts (examples)
+  - `scripts/analyze_km003c_protocol.py` — end‑to‑end protocol analysis
+  - `scripts/parse_pd_wrapped.py` — PD wrapped event parsing
+  - `scripts/export_complete_pd_analysis.py` — full PD analysis export
+  - `scripts/summarize_pd_messages.py` — quick PD summary
+
+## Documentation Map (read, don’t duplicate)
+
+- Protocol: `docs/protocol_specification.md` — application‑layer headers, bitmasks, ADC payload offsets, flows
+- Transport: `docs/usb_transport_specification.md` — endpoints, URB/ZLP handshakes, timings
+- PD SQLite: `docs/pd_sqlite_export_format.md` — PD preamble/events, SQLite schema and parity with USB
+
+## When to Extend vs. Reuse
+
+- Prefer using existing helpers (splitter/tagger) and tools before writing custom parsers.
+- If adding parsing, keep it small, tested, and colocated near existing patterns (scripts/ or km003c_analysis/tools/).
+
+## Known Gotchas
+
+- URB IDs are not transaction IDs; never group by URB ID.
+- The reserved flag in headers is vendor‑specific and not an indicator of extended headers.
+- AdcQueue (attr 2) frames include a header; sizes vary with sample count.
+
+## Apps
+
+```bash
+just app  # Launch Streamlit dashboards
+```
