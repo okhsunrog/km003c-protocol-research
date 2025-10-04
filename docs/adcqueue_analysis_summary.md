@@ -20,17 +20,20 @@ The extended header's `size` field (20 bytes) refers to **the size of each indiv
 ```
 
 ### 20-Byte Sample Structure
-Each sample in the queue has this format:
+Each sample in the queue has this format (VALIDATED):
 
 | Offset | Size | Type | Field | Units | Description |
 |--------|------|------|-------|-------|-------------|
 | 0:2    | 2    | u16  | Sequence | - | Incrementing sequence number |
-| 2:4    | 2    | u16  | Unknown | - | Marker/constant (typically 60) |
+| 2:4    | 2    | u16  | Marker | - | Constant value (0x3C = 60) |
 | 4:8    | 4    | i32  | V_bus | µV | Bus voltage in microvolts |
-| 8:12   | 4    | i32  | I_bus | µA | Bus current in microamperes |
-| 12:14  | 2    | i16  | Temp | 0.1°C | Temperature (multiply by 0.1 for °C) |
-| 14:16  | 2    | i16  | V_line | mV | USB data line voltage (D+ or CC1) |
-| 16:20  | 4    | u32  | Reserved | - | Always 0 |
+| 8:12   | 4    | i32  | I_bus | µA | Bus current in microamperes (signed) |
+| 12:14  | 2    | u16  | CC1 | mV | CC1 line voltage in millivolts |
+| 14:16  | 2    | u16  | CC2 | mV | CC2 line voltage in millivolts |
+| 16:20  | 4    | -    | Reserved | - | Always 0 (unused fields) |
+
+**Fields NOT included**: Temperature, D+, D- voltages
+(These are only available in ADC packets, not AdcQueue)
 
 ## Comparison: ADC vs AdcQueue
 
@@ -41,8 +44,13 @@ Each sample in the queue has this format:
 | Samples per packet | 1 | 38-40 (up to 48) |
 | Sequence number | No | Yes (incrementing) |
 | Statistics | Min/max/avg included | Instant readings only |
-| Voltage lines | V_D+, V_D-, V_CC1, V_CC2 | 1 line only |
+| Fields | VBUS, IBUS, Temp, D+, D-, CC1, CC2, VDD | VBUS, IBUS, CC1, CC2 only |
+| Temperature | ✓ Included | ✗ Not included |
+| D+/D- lines | ✓ Included | ✗ Not included |
 | Use case | Detailed single measurement | High-rate continuous logging |
+
+**Note**: For temperature and D+/D- data while using AdcQueue, 
+periodically request ADC (mask 0x0001) to get full measurements.
 
 ## Dataset Statistics
 
