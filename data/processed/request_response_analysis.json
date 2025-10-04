@@ -1,0 +1,1250 @@
+{
+  "orig_adc_1000hz.6": {
+    "total_packets": 1240,
+    "transaction_pairs": 299,
+    "mapping_analysis": {
+      "summary": {
+        "0x0000": {
+          "mask_decimal": 0,
+          "mask_binary": "0b000000000000000",
+          "total_occurrences": 3,
+          "unique_response_patterns": 1,
+          "most_common_response": [],
+          "most_common_count": 3
+        },
+        "0x0001": {
+          "mask_decimal": 1,
+          "mask_binary": "0b000000000000001",
+          "total_occurrences": 58,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            1
+          ],
+          "most_common_count": 58
+        },
+        "0x0002": {
+          "mask_decimal": 2,
+          "mask_binary": "0b000000000000010",
+          "total_occurrences": 220,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            2
+          ],
+          "most_common_count": 220
+        },
+        "0x0003": {
+          "mask_decimal": 3,
+          "mask_binary": "0b000000000000011",
+          "total_occurrences": 12,
+          "unique_response_patterns": 2,
+          "most_common_response": [
+            1,
+            2
+          ],
+          "most_common_count": 11
+        },
+        "0x0008": {
+          "mask_decimal": 8,
+          "mask_binary": "0b000000000001000",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            8
+          ],
+          "most_common_count": 1
+        },
+        "0x0080": {
+          "mask_decimal": 128,
+          "mask_binary": "0b000000010000000",
+          "total_occurrences": 4,
+          "unique_response_patterns": 4,
+          "most_common_response": [
+            1056
+          ],
+          "most_common_count": 1
+        },
+        "0x0200": {
+          "mask_decimal": 512,
+          "mask_binary": "0b000001000000000",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            512
+          ],
+          "most_common_count": 1
+        }
+      },
+      "detailed_mapping": {
+        "0x0000": {
+          "[]": 3
+        },
+        "0x0001": {
+          "[1]": 58
+        },
+        "0x0002": {
+          "[2]": 220
+        },
+        "0x0003": {
+          "[1, 2]": 11,
+          "[]": 1
+        },
+        "0x0008": {
+          "[8]": 1
+        },
+        "0x0080": {
+          "[1056]": 1,
+          "[17440]": 1,
+          "[3072]": 1,
+          "[1104]": 1
+        },
+        "0x0200": {
+          "[512]": 1
+        }
+      },
+      "bit_analysis": {
+        "0x0000": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0001": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0002": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": true,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0003": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": true,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0008": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": true,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0080": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0200": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": true
+        }
+      }
+    }
+  },
+  "orig_adc_50hz.6": {
+    "total_packets": 570,
+    "transaction_pairs": 132,
+    "mapping_analysis": {
+      "summary": {
+        "0x0000": {
+          "mask_decimal": 0,
+          "mask_binary": "0b000000000000000",
+          "total_occurrences": 3,
+          "unique_response_patterns": 1,
+          "most_common_response": [],
+          "most_common_count": 3
+        },
+        "0x0001": {
+          "mask_decimal": 1,
+          "mask_binary": "0b000000000000001",
+          "total_occurrences": 58,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            1
+          ],
+          "most_common_count": 58
+        },
+        "0x0002": {
+          "mask_decimal": 2,
+          "mask_binary": "0b000000000000010",
+          "total_occurrences": 61,
+          "unique_response_patterns": 2,
+          "most_common_response": [
+            2
+          ],
+          "most_common_count": 60
+        },
+        "0x0003": {
+          "mask_decimal": 3,
+          "mask_binary": "0b000000000000011",
+          "total_occurrences": 4,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            1,
+            2
+          ],
+          "most_common_count": 4
+        },
+        "0x0008": {
+          "mask_decimal": 8,
+          "mask_binary": "0b000000000001000",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            8
+          ],
+          "most_common_count": 1
+        },
+        "0x0080": {
+          "mask_decimal": 128,
+          "mask_binary": "0b000000010000000",
+          "total_occurrences": 4,
+          "unique_response_patterns": 4,
+          "most_common_response": [
+            1056
+          ],
+          "most_common_count": 1
+        },
+        "0x0200": {
+          "mask_decimal": 512,
+          "mask_binary": "0b000001000000000",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            512
+          ],
+          "most_common_count": 1
+        }
+      },
+      "detailed_mapping": {
+        "0x0000": {
+          "[]": 3
+        },
+        "0x0001": {
+          "[1]": 58
+        },
+        "0x0002": {
+          "[2]": 60,
+          "[]": 1
+        },
+        "0x0003": {
+          "[1, 2]": 4
+        },
+        "0x0008": {
+          "[8]": 1
+        },
+        "0x0080": {
+          "[1056]": 1,
+          "[17440]": 1,
+          "[3072]": 1,
+          "[1104]": 1
+        },
+        "0x0200": {
+          "[512]": 1
+        }
+      },
+      "bit_analysis": {
+        "0x0000": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0001": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0002": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": true,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0003": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": true,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0008": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": true,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0080": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0200": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": true
+        }
+      }
+    }
+  },
+  "orig_adc_record.6": {
+    "total_packets": 420,
+    "transaction_pairs": 94,
+    "mapping_analysis": {
+      "summary": {
+        "0x0000": {
+          "mask_decimal": 0,
+          "mask_binary": "0b000000000000000",
+          "total_occurrences": 4,
+          "unique_response_patterns": 1,
+          "most_common_response": [],
+          "most_common_count": 4
+        },
+        "0x0001": {
+          "mask_decimal": 1,
+          "mask_binary": "0b000000000000001",
+          "total_occurrences": 74,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            1
+          ],
+          "most_common_count": 74
+        },
+        "0x0002": {
+          "mask_decimal": 2,
+          "mask_binary": "0b000000000000010",
+          "total_occurrences": 9,
+          "unique_response_patterns": 2,
+          "most_common_response": [
+            2
+          ],
+          "most_common_count": 8
+        },
+        "0x0003": {
+          "mask_decimal": 3,
+          "mask_binary": "0b000000000000011",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            1,
+            2
+          ],
+          "most_common_count": 1
+        },
+        "0x0008": {
+          "mask_decimal": 8,
+          "mask_binary": "0b000000000001000",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            8
+          ],
+          "most_common_count": 1
+        },
+        "0x0080": {
+          "mask_decimal": 128,
+          "mask_binary": "0b000000010000000",
+          "total_occurrences": 4,
+          "unique_response_patterns": 4,
+          "most_common_response": [
+            1056
+          ],
+          "most_common_count": 1
+        },
+        "0x0200": {
+          "mask_decimal": 512,
+          "mask_binary": "0b000001000000000",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            512
+          ],
+          "most_common_count": 1
+        }
+      },
+      "detailed_mapping": {
+        "0x0000": {
+          "[]": 4
+        },
+        "0x0001": {
+          "[1]": 74
+        },
+        "0x0002": {
+          "[2]": 8,
+          "[]": 1
+        },
+        "0x0003": {
+          "[1, 2]": 1
+        },
+        "0x0008": {
+          "[8]": 1
+        },
+        "0x0080": {
+          "[1056]": 1,
+          "[17440]": 1,
+          "[3072]": 1,
+          "[1104]": 1
+        },
+        "0x0200": {
+          "[512]": 1
+        }
+      },
+      "bit_analysis": {
+        "0x0000": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0001": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0002": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": true,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0003": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": true,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0008": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": true,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0080": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0200": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": true
+        }
+      }
+    }
+  },
+  "orig_new_adcsimple0.12": {
+    "total_packets": 494,
+    "transaction_pairs": 85,
+    "mapping_analysis": {
+      "summary": {
+        "0x0000": {
+          "mask_decimal": 0,
+          "mask_binary": "0b000000000000000",
+          "total_occurrences": 2,
+          "unique_response_patterns": 1,
+          "most_common_response": [],
+          "most_common_count": 2
+        },
+        "0x0001": {
+          "mask_decimal": 1,
+          "mask_binary": "0b000000000000001",
+          "total_occurrences": 77,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            1
+          ],
+          "most_common_count": 77
+        },
+        "0x0008": {
+          "mask_decimal": 8,
+          "mask_binary": "0b000000000001000",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            8
+          ],
+          "most_common_count": 1
+        },
+        "0x0080": {
+          "mask_decimal": 128,
+          "mask_binary": "0b000000010000000",
+          "total_occurrences": 4,
+          "unique_response_patterns": 4,
+          "most_common_response": [
+            1056
+          ],
+          "most_common_count": 1
+        },
+        "0x0200": {
+          "mask_decimal": 512,
+          "mask_binary": "0b000001000000000",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            512
+          ],
+          "most_common_count": 1
+        }
+      },
+      "detailed_mapping": {
+        "0x0000": {
+          "[]": 2
+        },
+        "0x0001": {
+          "[1]": 77
+        },
+        "0x0008": {
+          "[8]": 1
+        },
+        "0x0080": {
+          "[1056]": 1,
+          "[17440]": 1,
+          "[3072]": 1,
+          "[1104]": 1
+        },
+        "0x0200": {
+          "[512]": 1
+        }
+      },
+      "bit_analysis": {
+        "0x0000": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0001": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0008": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": true,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0080": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0200": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": true
+        }
+      }
+    }
+  },
+  "orig_open_close.16": {
+    "total_packets": 152,
+    "transaction_pairs": 27,
+    "mapping_analysis": {
+      "summary": {
+        "0x0000": {
+          "mask_decimal": 0,
+          "mask_binary": "0b000000000000000",
+          "total_occurrences": 2,
+          "unique_response_patterns": 1,
+          "most_common_response": [],
+          "most_common_count": 2
+        },
+        "0x0001": {
+          "mask_decimal": 1,
+          "mask_binary": "0b000000000000001",
+          "total_occurrences": 19,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            1
+          ],
+          "most_common_count": 19
+        },
+        "0x0008": {
+          "mask_decimal": 8,
+          "mask_binary": "0b000000000001000",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            8
+          ],
+          "most_common_count": 1
+        },
+        "0x0080": {
+          "mask_decimal": 128,
+          "mask_binary": "0b000000010000000",
+          "total_occurrences": 4,
+          "unique_response_patterns": 4,
+          "most_common_response": [
+            1056
+          ],
+          "most_common_count": 1
+        },
+        "0x0200": {
+          "mask_decimal": 512,
+          "mask_binary": "0b000001000000000",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            512
+          ],
+          "most_common_count": 1
+        }
+      },
+      "detailed_mapping": {
+        "0x0000": {
+          "[]": 2
+        },
+        "0x0001": {
+          "[1]": 19
+        },
+        "0x0008": {
+          "[8]": 1
+        },
+        "0x0080": {
+          "[1056]": 1,
+          "[17440]": 1,
+          "[3072]": 1,
+          "[1104]": 1
+        },
+        "0x0200": {
+          "[512]": 1
+        }
+      },
+      "bit_analysis": {
+        "0x0000": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0001": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0008": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": true,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0080": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0200": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": true
+        }
+      }
+    }
+  },
+  "orig_with_pd.13": {
+    "total_packets": 2056,
+    "transaction_pairs": 503,
+    "mapping_analysis": {
+      "summary": {
+        "0x0000": {
+          "mask_decimal": 0,
+          "mask_binary": "0b000000000000000",
+          "total_occurrences": 3,
+          "unique_response_patterns": 1,
+          "most_common_response": [],
+          "most_common_count": 3
+        },
+        "0x0001": {
+          "mask_decimal": 1,
+          "mask_binary": "0b000000000000001",
+          "total_occurrences": 129,
+          "unique_response_patterns": 2,
+          "most_common_response": [
+            1
+          ],
+          "most_common_count": 128
+        },
+        "0x0008": {
+          "mask_decimal": 8,
+          "mask_binary": "0b000000000001000",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            8
+          ],
+          "most_common_count": 1
+        },
+        "0x0010": {
+          "mask_decimal": 16,
+          "mask_binary": "0b000000000010000",
+          "total_occurrences": 347,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            16
+          ],
+          "most_common_count": 347
+        },
+        "0x0011": {
+          "mask_decimal": 17,
+          "mask_binary": "0b000000000010001",
+          "total_occurrences": 18,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            1,
+            16
+          ],
+          "most_common_count": 18
+        },
+        "0x0080": {
+          "mask_decimal": 128,
+          "mask_binary": "0b000000010000000",
+          "total_occurrences": 4,
+          "unique_response_patterns": 4,
+          "most_common_response": [
+            1056
+          ],
+          "most_common_count": 1
+        },
+        "0x0200": {
+          "mask_decimal": 512,
+          "mask_binary": "0b000001000000000",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            512
+          ],
+          "most_common_count": 1
+        }
+      },
+      "detailed_mapping": {
+        "0x0000": {
+          "[]": 3
+        },
+        "0x0001": {
+          "[1]": 128,
+          "[]": 1
+        },
+        "0x0008": {
+          "[8]": 1
+        },
+        "0x0010": {
+          "[16]": 347
+        },
+        "0x0011": {
+          "[1, 16]": 18
+        },
+        "0x0080": {
+          "[1056]": 1,
+          "[17440]": 1,
+          "[3072]": 1,
+          "[1104]": 1
+        },
+        "0x0200": {
+          "[512]": 1
+        }
+      },
+      "bit_analysis": {
+        "0x0000": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0001": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0008": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": true,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0010": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": true,
+          "bit_9_unknown512": false
+        },
+        "0x0011": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": true,
+          "bit_9_unknown512": false
+        },
+        "0x0080": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0200": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": true
+        }
+      }
+    }
+  },
+  "pd_capture_new.9": {
+    "total_packets": 6930,
+    "transaction_pairs": 1731,
+    "mapping_analysis": {
+      "summary": {
+        "0x0000": {
+          "mask_decimal": 0,
+          "mask_binary": "0b000000000000000",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [],
+          "most_common_count": 1
+        },
+        "0x0001": {
+          "mask_decimal": 1,
+          "mask_binary": "0b000000000000001",
+          "total_occurrences": 1402,
+          "unique_response_patterns": 2,
+          "most_common_response": [
+            1
+          ],
+          "most_common_count": 1401
+        },
+        "0x0010": {
+          "mask_decimal": 16,
+          "mask_binary": "0b000000000010000",
+          "total_occurrences": 310,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            16
+          ],
+          "most_common_count": 310
+        },
+        "0x0011": {
+          "mask_decimal": 17,
+          "mask_binary": "0b000000000010001",
+          "total_occurrences": 18,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            1,
+            16
+          ],
+          "most_common_count": 18
+        }
+      },
+      "detailed_mapping": {
+        "0x0000": {
+          "[]": 1
+        },
+        "0x0001": {
+          "[1]": 1401,
+          "[]": 1
+        },
+        "0x0010": {
+          "[16]": 310
+        },
+        "0x0011": {
+          "[1, 16]": 18
+        }
+      },
+      "bit_analysis": {
+        "0x0000": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0001": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0010": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": true,
+          "bit_9_unknown512": false
+        },
+        "0x0011": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": true,
+          "bit_9_unknown512": false
+        }
+      }
+    }
+  },
+  "rust_simple_logger.16": {
+    "total_packets": 146,
+    "transaction_pairs": 18,
+    "mapping_analysis": {
+      "summary": {
+        "0x0000": {
+          "mask_decimal": 0,
+          "mask_binary": "0b000000000000000",
+          "total_occurrences": 2,
+          "unique_response_patterns": 1,
+          "most_common_response": [],
+          "most_common_count": 2
+        },
+        "0x0001": {
+          "mask_decimal": 1,
+          "mask_binary": "0b000000000000001",
+          "total_occurrences": 10,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            1
+          ],
+          "most_common_count": 10
+        },
+        "0x0008": {
+          "mask_decimal": 8,
+          "mask_binary": "0b000000000001000",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            8
+          ],
+          "most_common_count": 1
+        },
+        "0x0080": {
+          "mask_decimal": 128,
+          "mask_binary": "0b000000010000000",
+          "total_occurrences": 4,
+          "unique_response_patterns": 4,
+          "most_common_response": [
+            1056
+          ],
+          "most_common_count": 1
+        },
+        "0x0200": {
+          "mask_decimal": 512,
+          "mask_binary": "0b000001000000000",
+          "total_occurrences": 1,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            512
+          ],
+          "most_common_count": 1
+        }
+      },
+      "detailed_mapping": {
+        "0x0000": {
+          "[]": 2
+        },
+        "0x0001": {
+          "[1]": 10
+        },
+        "0x0008": {
+          "[8]": 1
+        },
+        "0x0080": {
+          "[1056]": 1,
+          "[17440]": 1,
+          "[3072]": 1,
+          "[1104]": 1
+        },
+        "0x0200": {
+          "[512]": 1
+        }
+      },
+      "bit_analysis": {
+        "0x0000": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0001": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0008": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": true,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0080": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0200": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": true
+        }
+      }
+    }
+  },
+  "_global": {
+    "total_pairs": 2889,
+    "mapping_analysis": {
+      "summary": {
+        "0x0000": {
+          "mask_decimal": 0,
+          "mask_binary": "0b000000000000000",
+          "total_occurrences": 20,
+          "unique_response_patterns": 1,
+          "most_common_response": [],
+          "most_common_count": 20
+        },
+        "0x0001": {
+          "mask_decimal": 1,
+          "mask_binary": "0b000000000000001",
+          "total_occurrences": 1827,
+          "unique_response_patterns": 2,
+          "most_common_response": [
+            1
+          ],
+          "most_common_count": 1825
+        },
+        "0x0002": {
+          "mask_decimal": 2,
+          "mask_binary": "0b000000000000010",
+          "total_occurrences": 290,
+          "unique_response_patterns": 2,
+          "most_common_response": [
+            2
+          ],
+          "most_common_count": 288
+        },
+        "0x0003": {
+          "mask_decimal": 3,
+          "mask_binary": "0b000000000000011",
+          "total_occurrences": 17,
+          "unique_response_patterns": 2,
+          "most_common_response": [
+            1,
+            2
+          ],
+          "most_common_count": 16
+        },
+        "0x0008": {
+          "mask_decimal": 8,
+          "mask_binary": "0b000000000001000",
+          "total_occurrences": 7,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            8
+          ],
+          "most_common_count": 7
+        },
+        "0x0010": {
+          "mask_decimal": 16,
+          "mask_binary": "0b000000000010000",
+          "total_occurrences": 657,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            16
+          ],
+          "most_common_count": 657
+        },
+        "0x0011": {
+          "mask_decimal": 17,
+          "mask_binary": "0b000000000010001",
+          "total_occurrences": 36,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            1,
+            16
+          ],
+          "most_common_count": 36
+        },
+        "0x0080": {
+          "mask_decimal": 128,
+          "mask_binary": "0b000000010000000",
+          "total_occurrences": 28,
+          "unique_response_patterns": 4,
+          "most_common_response": [
+            1056
+          ],
+          "most_common_count": 7
+        },
+        "0x0200": {
+          "mask_decimal": 512,
+          "mask_binary": "0b000001000000000",
+          "total_occurrences": 7,
+          "unique_response_patterns": 1,
+          "most_common_response": [
+            512
+          ],
+          "most_common_count": 7
+        }
+      },
+      "detailed_mapping": {
+        "0x0000": {
+          "[]": 20
+        },
+        "0x0001": {
+          "[1]": 1825,
+          "[]": 2
+        },
+        "0x0002": {
+          "[2]": 288,
+          "[]": 2
+        },
+        "0x0003": {
+          "[1, 2]": 16,
+          "[]": 1
+        },
+        "0x0008": {
+          "[8]": 7
+        },
+        "0x0010": {
+          "[16]": 657
+        },
+        "0x0011": {
+          "[1, 16]": 36
+        },
+        "0x0080": {
+          "[1056]": 7,
+          "[17440]": 7,
+          "[3072]": 7,
+          "[1104]": 7
+        },
+        "0x0200": {
+          "[512]": 7
+        }
+      },
+      "bit_analysis": {
+        "0x0000": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0001": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0002": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": true,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0003": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": true,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0008": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": true,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0010": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": true,
+          "bit_9_unknown512": false
+        },
+        "0x0011": {
+          "bit_0_adc": true,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": true,
+          "bit_9_unknown512": false
+        },
+        "0x0080": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": false
+        },
+        "0x0200": {
+          "bit_0_adc": false,
+          "bit_1_adcqueue": false,
+          "bit_3_settings": false,
+          "bit_4_pdpacket": false,
+          "bit_9_unknown512": true
+        }
+      }
+    }
+  }
+}

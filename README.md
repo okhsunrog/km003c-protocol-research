@@ -25,6 +25,26 @@ Reverse engineering the ChargerLAB POWER-Z KM003C USB-C power analyzer protocol.
 
 ## Usage
 
+### Linux USB Permissions
+
+For device access and USB packet capture on Linux, install the provided udev rules:
+
+```bash
+# Device access (required for communicating with KM003C)
+sudo cp 71-powerz-km003c.rules /etc/udev/rules.d/
+
+# USB monitoring (required for capturing USB traffic with Wireshark)
+sudo cp 99-usbmon.rules /etc/udev/rules.d/
+
+# Reload rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+**Device access (`71-powerz-km003c.rules`):** Uses the modern `uaccess` tag approach for secure, dynamic access to logged-in users. See the [Arch Wiki on udev](https://wiki.archlinux.org/title/Udev#Allowing_regular_users_to_use_devices) for details.
+
+**USB monitoring (`99-usbmon.rules`):** Grants the `wireshark` group access to `usbmon` devices for USB packet capture. Add your user to the `wireshark` group: `sudo usermod -aG wireshark $USER` (logout/login required).
+
 ### Environment Setup
 ```bash
 uv sync

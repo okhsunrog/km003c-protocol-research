@@ -1,0 +1,93 @@
+{
+  "summary": {
+    "total_pairs": 2836,
+    "perfect_matches": 2835,
+    "mismatches_count": 1,
+    "correlation_percentage": 99.96473906911142
+  },
+  "mismatches": [
+    {
+      "mask": "0x0002",
+      "expected": [
+        2
+      ],
+      "observed": [],
+      "logical_packets": []
+    }
+  ],
+  "by_mask": {
+    "0x0001": {
+      "total": 1824,
+      "expected_attributes": [
+        1
+      ],
+      "observed_attributes": {
+        "[1]": 1824
+      },
+      "mismatch_count": 0
+    },
+    "0x0008": {
+      "total": 7,
+      "expected_attributes": [
+        8
+      ],
+      "observed_attributes": {
+        "[8]": 7
+      },
+      "mismatch_count": 0
+    },
+    "0x0200": {
+      "total": 7,
+      "expected_attributes": [
+        512
+      ],
+      "observed_attributes": {
+        "[512]": 7
+      },
+      "mismatch_count": 0
+    },
+    "0x0010": {
+      "total": 657,
+      "expected_attributes": [
+        16
+      ],
+      "observed_attributes": {
+        "[16]": 657
+      },
+      "mismatch_count": 0
+    },
+    "0x0011": {
+      "total": 36,
+      "expected_attributes": [
+        1,
+        16
+      ],
+      "observed_attributes": {
+        "[1, 16]": 36
+      },
+      "mismatch_count": 0
+    },
+    "0x0002": {
+      "total": 289,
+      "expected_attributes": [
+        2
+      ],
+      "observed_attributes": {
+        "[]": 1,
+        "[2]": 288
+      },
+      "mismatch_count": 1
+    },
+    "0x0003": {
+      "total": 16,
+      "expected_attributes": [
+        1,
+        2
+      ],
+      "observed_attributes": {
+        "[1, 2]": 16
+      },
+      "mismatch_count": 0
+    }
+  }
+}
