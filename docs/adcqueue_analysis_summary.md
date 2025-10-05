@@ -24,21 +24,24 @@ Each sample in AdcQueue has the following structure:
 | 2:4    | 2    | u16  | Marker | - | Constant value (0x3C = 60) |
 | 4:8    | 4    | i32  | VBUS | µV | Bus voltage in microvolts |
 | 8:12   | 4    | i32  | IBUS | µA | Bus current in microamperes (signed) |
-| 12:14  | 2    | u16  | CC1 | mV | CC1 line voltage in millivolts |
-| 14:16  | 2    | u16  | CC2 | mV | CC2 line voltage in millivolts |
-| 16:20  | 4    | -    | Reserved | - | Always 0 in all observed traffic |
+| 12:14  | 2    | u16  | CC1 | ×0.1mV | CC1 line voltage (divide by 10000 for volts) |
+| 14:16  | 2    | u16  | CC2 | ×0.1mV | CC2 line voltage (divide by 10000 for volts) |
+| 16:18  | 2    | u16  | D+ | ×0.1mV | USB D+ line voltage (divide by 10000 for volts) |
+| 18:20  | 2    | u16  | D- | ×0.1mV | USB D- line voltage (divide by 10000 for volts) |
 
-**Validated on 8,798 samples from real device captures.**
+**Validated on 16,609 samples from real device captures (modern firmware).**
+
+**Example values** (pd_adcqueue_new.11):
+- VBUS: 9.225V, IBUS: -1.537A, CC1: 1.660V, CC2: 0.029V, D+: 0.598V, D-: 0.598V
 
 ### Fields NOT Included
 
 ⚠️ AdcQueue does **NOT** contain:
-- **Temperature** (not in 20-byte structure)
-- **D+ voltage** (USB data lines)
-- **D- voltage** (USB data lines)
+- **Temperature** (always request ADC for temp)
 - Statistics (min/max/avg)
+- VDD (internal voltage)
 
-For these fields, use regular ADC packets (attribute 0x0001).
+**Note**: In old firmware/captures, D+/D- fields may be zero if inactive.
 
 ---
 
@@ -180,9 +183,9 @@ Effect: Device stops sampling/buffering, returns to normal ADC mode
 | **Packet size** | 52 bytes total | 100-960 bytes |
 | **Samples** | 1 per request | 5-48 per request |
 | **Sequence** | No | Yes (for gap detection) |
-| **Fields** | VBUS, IBUS, Temp, D+, D-, CC1, CC2, VDD, stats | VBUS, IBUS, CC1, CC2 only |
+| **Fields** | VBUS, IBUS, Temp, D+, D-, CC1, CC2, VDD, stats | VBUS, IBUS, CC1, CC2, D+, D- |
 | **Temperature** | ✓ | ✗ |
-| **USB data lines** | ✓ (D+, D-) | ✗ |
+| **USB data lines** | ✓ (D+, D-) | ✓ (D+, D-) |
 | **Statistics** | ✓ (min/max/avg) | ✗ |
 | **Use case** | Status monitoring | Continuous graphing |
 | **Typical interval** | 200 ms | 40-100 ms |
@@ -197,11 +200,11 @@ The official Windows application displays 7 fields on the graph:
 - VBUS, IBUS, D+, D-, CC1, CC2, Temperature
 
 **How it works**:
-- **AdcQueue** provides high-rate VBUS, IBUS, CC1, CC2 (~1000 SPS)
-- **ADC** provides Temperature, D+, D- periodically (~5 Hz)
+- **AdcQueue** provides high-rate VBUS, IBUS, CC1, CC2, D+, D- (~1000 SPS)
+- **ADC** provides Temperature periodically (~5 Hz)
 - Application **merges** both streams for complete graph
 
-This explains why Temperature/D+/D- are not in AdcQueue - they're fetched separately via ADC requests.
+**Note**: Only Temperature is missing from AdcQueue. All voltage lines (VBUS, IBUS, CC1, CC2, D+, D-) are included in modern firmware.
 
 ---
 
@@ -222,11 +225,13 @@ pub struct AdcQueueSampleRaw {
 
 pub struct AdcQueueSample {
     pub sequence: u16,
-    pub vbus_v: f64,
-    pub ibus_a: f64,
-    pub power_w: f64,  // Calculated
-    pub cc1_v: f64,
-    pub cc2_v: f64,
+    pub vbus_v: f64,   // Volts
+    pub ibus_a: f64,   // Amperes (signed)
+    pub power_w: f64,  // Watts (calculated)
+    pub cc1_v: f64,    // Volts (CC1 line)
+    pub cc2_v: f64,    // Volts (CC2 line)
+    pub vdp_v: f64,    // Volts (USB D+ line)
+    pub vdm_v: f64,    // Volts (USB D- line)
 }
 
 pub struct AdcQueueData {
