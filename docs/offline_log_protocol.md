@@ -180,6 +180,51 @@ From reading_logs0.11:
 
 ---
 
+## Log Metadata (Unknown512 / Attribute 0x0200)
+
+**Discovered**: GetData with attribute 0x0200 returns log metadata!
+
+### Structure (48 bytes payload)
+
+```
+[0:16]   Log filename (null-terminated ASCII string)
+         Example: "A01.d"
+         
+[16:18]  Unknown bytes (0x450A in example)
+
+[18:20]  Data point count (u16 little-endian)
+         Example: 521 samples ✓
+         
+[20:22]  Duration or rate? (u16)
+         Example: 10000 (could be 10000ms = 10 seconds?)
+         
+[22:24]  Flags (u16)
+         Example: 0
+         
+[24:28]  Estimated size? (u32)
+         Example: 5200 bytes
+         
+[28:48]  Additional metadata (20 bytes)
+         Contains checksums or encrypted data
+```
+
+**Usage**: Request `GetData(attr=0x0200)` to enumerate logs before downloading.
+
+---
+
+## Device Information
+
+**Firmware version**: 1.9.9 (captured session)  
+**Hardware version**: 2.1 (captured session)
+
+**Note**: Version numbers not yet located in USB protocol. May be in:
+- Head (0x40) packet (encrypted)
+- Unknown26 response (encrypted)
+- Settings response in specific offsets
+- Or retrieved via separate command
+
+---
+
 ## Research Questions
 
 ### 1. Unknown68 Payload Purpose
