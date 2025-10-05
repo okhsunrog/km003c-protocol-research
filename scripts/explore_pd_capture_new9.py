@@ -20,6 +20,21 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from km003c_analysis.core import split_usb_transactions, tag_transactions
+from km003c_lib import parse_packet, parse_raw_packet
+try:
+    from scripts.km003c_helpers import (
+        get_packet_type,
+        get_adc_data,
+        get_pd_status,
+        get_pd_events,
+    )
+except Exception:
+    from km003c_helpers import (
+        get_packet_type,
+        get_adc_data,
+        get_pd_status,
+        get_pd_events,
+    )
 
 
 def explore_pd_capture_new9():
@@ -77,58 +92,42 @@ def explore_pd_capture_new9():
     for row in payload_df.iter_rows(named=True):
         payload_hex = row["payload_hex"]
         payload_bytes = bytes.fromhex(payload_hex)
-        payload_len = len(payload_bytes)
-
-        # Skip very short payloads
-        if payload_len < 8:
-            continue
-
-        # Parse KM003C headers if possible
         try:
-            # Try to parse main header (first 4 bytes) and extended header (next 4 bytes)
-            if payload_len >= 8:
-                main_header = int.from_bytes(payload_bytes[0:4], 'little')
-                ext_header = int.from_bytes(payload_bytes[4:8], 'little')
-
-                # Extract fields from headers
-                msg_type = main_header & 0x7F
-                extend = (main_header >> 7) & 1
-                msg_id = (main_header >> 8) & 0xFF
-                obj_count = (main_header >> 22) & 0x3FF
-
-                attribute = ext_header & 0x7FFF
-                next_bit = (ext_header >> 15) & 1
-                chunk = (ext_header >> 16) & 0x3F
-                size_bytes = (ext_header >> 22) & 0x3FF
-
-                # Focus on PutData responses (type 65 / 0x41)
-                if msg_type == 65:  # PutData
-                    entry = {
-                        "transaction_id": row["transaction_id"],
-                        "timestamp": row["timestamp"],
-                        "payload_hex": payload_hex,
-                        "payload_len": payload_len,
-                        "msg_type": msg_type,
-                        "msg_id": msg_id,
-                        "attribute": attribute,
-                        "next": next_bit,
-                        "chunk": chunk,
-                        "size_bytes": size_bytes,
-                        "obj_count": obj_count,
-                        "endpoint": row["endpoint_address"],
-                    }
-
-                    # Categorize based on previous findings
-                    if attribute == 1 and next_bit == 1:
-                        # ADC+PD combined (should be 68 bytes total)
-                        adc_pd_combined.append(entry)
-                    elif attribute == 16:
-                        # PD-only response
-                        pd_only_responses.append(entry)
-
-                    pd_candidates.append(entry)
-
-        except Exception as e:
+            pkt = parse_packet(payload_bytes)
+            if get_packet_type(pkt) != "DataResponse":
+                continue
+            raw = parse_raw_packet(payload_bytes)
+            if not (isinstance(raw, dict) and "Data" in raw):
+                continue
+            lps = raw["Data"].get("logical_packets", []) or []
+            if not lps:
+                continue
+            first = lps[0]
+            entry = {
+                "transaction_id": row["transaction_id"],
+                "timestamp": row["timestamp"],
+                "payload_hex": payload_hex,
+                "payload_len": len(payload_bytes),
+                "msg_type": 65,
+                "msg_id": raw["Data"]["header"].get("id"),
+                "attribute": first.get("attribute"),
+                "next": first.get("next"),
+                "chunk": first.get("chunk"),
+                "size_bytes": first.get("size"),
+                "obj_count": raw["Data"]["header"].get("obj_count_words"),
+                "endpoint": row["endpoint_address"],
+            }
+            pd_candidates.append(entry)
+            has_adc = any(lp.get("attribute") == 1 for lp in lps)
+            has_pd = any(lp.get("attribute") == 16 for lp in lps)
+            if has_adc and has_pd:
+                adc_pd_combined.append(entry)
+            elif has_pd and not has_adc:
+                pd_lp = next((lp for lp in lps if lp.get("attribute") == 16), {})
+                entry_pd = dict(entry)
+                entry_pd["size_bytes"] = pd_lp.get("size")
+                pd_only_responses.append(entry_pd)
+        except Exception:
             continue
 
     print(f"PutData packets found: {len(pd_candidates)}")
@@ -154,31 +153,28 @@ def explore_pd_capture_new9():
             # - Followed by PD payload (12 bytes typical)
 
             payload_bytes = bytes.fromhex(packet["payload_hex"])
-
-            if len(payload_bytes) >= 52:  # 8 headers + 44 ADC
-                # Look for nested PD header at offset 52
-                if len(payload_bytes) >= 56:  # Room for PD extended header
-                    pd_ext_header = int.from_bytes(payload_bytes[52:56], 'little')
-                    pd_attribute = pd_ext_header & 0x7FFF
-                    pd_next = (pd_ext_header >> 15) & 1
-                    pd_size = (pd_ext_header >> 22) & 0x3FF
-
-                    print(f"Nested PD header found:")
-                    print(f"  PD attribute: {pd_attribute}")
-                    print(f"  PD next: {pd_next}")
-                    print(f"  PD size: {pd_size}")
-
-                    # Extract PD payload
-                    if len(payload_bytes) >= 56 + pd_size:
-                        pd_payload = payload_bytes[56:56+pd_size]
-                        print(f"  PD payload ({len(pd_payload)} bytes): {pd_payload.hex()}")
-
-                        # Try to parse as PD message
-                        try:
-                            pd_msg = usbpdpy.parse_pd_message(pd_payload)
-                            print(f"  ✅ PD message parsed: {pd_msg.header.message_type}")
-                        except Exception as e:
-                            print(f"  ❌ PD parse failed: {e}")
+            try:
+                pkt = parse_packet(payload_bytes)
+                if get_packet_type(pkt) != "DataResponse":
+                    continue
+                pdev = get_pd_events(pkt)
+                if pdev is None:
+                    print("No PdEventStream present")
+                    continue
+                events = getattr(pdev, "events", [])
+                for ev in events:
+                    wd = getattr(ev, "wire_data", None)
+                    if wd is None:
+                        continue
+                    wb = bytes(wd)
+                    print(f"  PD wire ({len(wb)} bytes): {wb.hex()}")
+                    try:
+                        pd_msg = usbpdpy.parse_pd_message(wb)
+                        print(f"  ✅ PD message parsed: {pd_msg.header.message_type}")
+                    except Exception as e:
+                        print(f"  ❌ PD parse failed: {e}")
+            except Exception:
+                continue
 
             print()
 
@@ -206,25 +202,29 @@ def explore_pd_capture_new9():
                 print(f"  Total length: {packet['payload_len']} bytes")
 
                 payload_bytes = bytes.fromhex(packet["payload_hex"])
-
-                # PD payload should start after headers (8 bytes)
-                if len(payload_bytes) > 8:
-                    pd_payload_candidate = payload_bytes[8:8+size]
-                    print(f"  PD candidate ({len(pd_payload_candidate)} bytes): {pd_payload_candidate.hex()}")
-
-                    # Try different parsing approaches for larger payloads
-                    if size > 12:
-                        print(f"  Large payload - trying wrapped event parsing...")
-                        # Try the wrapped event format parsing like SQLite
-                        # Skip preamble and look for event headers
-
-                    else:
-                        # Simple PD status format (12 bytes)
-                        try:
-                            pd_msg = usbpdpy.parse_pd_message(pd_payload_candidate)
-                            print(f"  ✅ PD message parsed: {pd_msg.header.message_type}")
-                        except Exception as e:
-                            print(f"  ❌ PD parse failed: {e}")
+                try:
+                    pkt = parse_packet(payload_bytes)
+                    if get_packet_type(pkt) != "DataResponse":
+                        continue
+                    pdev = get_pd_events(pkt)
+                    pdst = get_pd_status(pkt)
+                    if pdst is not None:
+                        print("  PD status present (12 bytes)")
+                    if pdev is not None:
+                        events = getattr(pdev, "events", [])
+                        for ev in events:
+                            wd = getattr(ev, "wire_data", None)
+                            if wd is None:
+                                continue
+                            wb = bytes(wd)
+                            print(f"  PD wire ({len(wb)} bytes): {wb.hex()}")
+                            try:
+                                pd_msg = usbpdpy.parse_pd_message(wb)
+                                print(f"    ✅ {pd_msg.header.message_type}")
+                            except Exception as e:
+                                print(f"    ❌ Parse failed: {e}")
+                except Exception:
+                    continue
 
     print()
     print("=== SUMMARY ===")

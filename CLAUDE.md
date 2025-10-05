@@ -41,6 +41,8 @@ Preferred path: use the library for parsing/splitting/tagging; avoid re‑implem
 import polars as pl
 from pathlib import Path
 from km003c_analysis.core import split_usb_transactions, tag_transactions
+from km003c_lib import parse_packet, parse_raw_packet
+from scripts.km003c_helpers import get_packet_type, get_adc_data, get_pd_status, get_pd_events
 
 DATASET = Path("data/processed/usb_master_dataset.parquet")
 df = pl.read_parquet(DATASET)
@@ -56,6 +58,33 @@ pd_candidates = tx_tagged.filter(
     & (pl.col("urb_type") == "C")
     & pl.col("payload_hex").is_not_null()
 )
+```
+
+### Parsing Protocol Correctly
+
+- Use `km003c_lib` for all KM003C protocol parsing. Avoid manual bit/byte parsing in Python. This ensures consistent attribute masks and header semantics across scripts.
+- Control header bits (wire): `type:7 | reserved_flag:1 | id:8 | (unused):1 | att:15`. The `att` field is a 15‑bit value that directly equals the attribute (ADC=0x0001, AdcQueue=0x0002, Settings=0x0008, PdPacket=0x0010). Do not apply extra shifts.
+ - Byte layout gotcha: `att` starts at bit 17 of the 32‑bit little‑endian header. For `att=0x0001` (ADC), the third byte often shows `0x02`. This is expected; do not reinterpret it as `0x0002`. Prefer `km003c_lib` to avoid such mistakes.
+- `reserved_flag` is vendor‑specific and is not an extended header indicator. PutData (0x41) always carries extended logical packets.
+- Extended header (per logical packet): `att:15 | next:1 | chunk:6 | size:10`.
+
+Recommended patterns:
+- High‑level: `parse_packet()` then use helpers: `get_packet_type`, `get_adc_data`, `get_pd_status`, `get_pd_events`.
+- Low‑level: `parse_raw_packet()` to inspect `header` and `logical_packets` in the `"Data"` variant.
+
+Example:
+```python
+pkt = parse_packet(packet_bytes)
+if get_packet_type(pkt) == "DataResponse":
+    adc = get_adc_data(pkt)
+    pdst = get_pd_status(pkt)
+    pdev = get_pd_events(pkt)
+
+raw = parse_raw_packet(packet_bytes)
+if isinstance(raw, dict) and "Data" in raw:
+    hdr = raw["Data"]["header"]
+    for lp in raw["Data"]["logical_packets"]:
+        attr = lp.get("attribute")
 ```
 
 ## Common Analysis Recipes

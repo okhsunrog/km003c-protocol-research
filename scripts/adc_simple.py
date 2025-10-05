@@ -12,7 +12,7 @@ For multi-sample streaming (AdcQueue), see test_adcqueue.py.
 
 import usb.core
 import usb.util
-from km003c_lib import VID, PID, parse_packet
+from km003c_lib import VID, PID, parse_packet, create_packet, CMD_GET_DATA, ATT_ADC, ATT_ADC_QUEUE
 from km003c_helpers import get_adc_data
 
 
@@ -26,9 +26,9 @@ ENDPOINT_OUT = 0x05
 ENDPOINT_IN = 0x85
 
 # Packet header constants
-PACKET_TYPE_GETDATA = 0x0C
-ATTRIBUTE_ADC = 0x0001
-ATTRIBUTE_ADCQUEUE = 0x0002  # AdcQueue attribute - used in the example code
+PACKET_TYPE_GETDATA = CMD_GET_DATA
+ATTRIBUTE_ADC = ATT_ADC
+ATTRIBUTE_ADCQUEUE = ATT_ADC_QUEUE  # AdcQueue attribute - used in the example code
 
 
 class KM003C:
@@ -68,27 +68,9 @@ class KM003C:
         return tid
 
     def _create_getdata_packet(self, attribute_mask):
-        """
-        Create a GetData control packet.
-
-        Format (4 bytes):
-        - Byte 0: packet_type (7 bits) | reserved_flag (1 bit)
-        - Byte 1: id (8 bits)
-        - Bytes 2-3: attribute (15 bits) | unused (1 bit)
-        """
+        """Create a GetData control packet using the Rust helper."""
         tid = self._next_transaction_id()
-
-        # Packet type 0x0C (GetData), no reserved flag
-        byte0 = PACKET_TYPE_GETDATA & 0x7F
-
-        # Transaction ID
-        byte1 = tid
-
-        # Attribute mask in little-endian (lower 15 bits used)
-        byte2 = attribute_mask & 0xFF
-        byte3 = (attribute_mask >> 8) & 0x7F  # Upper 7 bits, bit 15 is unused
-
-        return bytes([byte0, byte1, byte2, byte3])
+        return create_packet(CMD_GET_DATA, tid, attribute_mask)
 
     def _send(self, data):
         """Send data to the device via bulk OUT endpoint."""

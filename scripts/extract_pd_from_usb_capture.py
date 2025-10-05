@@ -20,6 +20,19 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from km003c_analysis.core import split_usb_transactions, tag_transactions
+from km003c_lib import parse_packet
+try:
+    from scripts.km003c_helpers import (
+        get_packet_type,
+        get_pd_status,
+        get_pd_events,
+    )
+except Exception:
+    from km003c_helpers import (
+        get_packet_type,
+        get_pd_status,
+        get_pd_events,
+    )
 
 
 def parse_wrapped_pd_events(payload_bytes, offset=0):
@@ -108,110 +121,50 @@ def extract_pd_messages_from_capture():
     for row in payload_df.iter_rows(named=True):
         payload_hex = row["payload_hex"]
         payload_bytes = bytes.fromhex(payload_hex)
-        payload_len = len(payload_bytes)
-
-        # Try parsing KM003C headers
         try:
-            if payload_len >= 8:
-                main_header = int.from_bytes(payload_bytes[0:4], 'little')
-                ext_header = int.from_bytes(payload_bytes[4:8], 'little')
+            pkt = parse_packet(payload_bytes)
+            if get_packet_type(pkt) != "DataResponse":
+                continue
+            pdst = get_pd_status(pkt)
+            pdev = get_pd_events(pkt)
+            if pdev is None and pdst is None:
+                continue
 
-                msg_type = main_header & 0x7F
-                attribute = ext_header & 0x7FFF
-                size_bytes = (ext_header >> 22) & 0x3FF
+            print(f"--- Transaction {row['transaction_id']} at {row['timestamp']:.6f}s ---")
+            if pdst is not None:
+                print("PD Status present (12 bytes)")
 
-                # Focus on PutData with PD attribute (16) and larger sizes
-                if msg_type == 65 and attribute == 16 and size_bytes > 12:
-                    print(f"--- Transaction {row['transaction_id']} at {row['timestamp']:.6f}s ---")
-                    print(f"Payload length: {payload_len} bytes, PD size: {size_bytes} bytes")
-
-                    # Extract the PD portion (after 8-byte headers)
-                    pd_section = payload_bytes[8:8+size_bytes]
-                    print(f"PD section ({len(pd_section)} bytes): {pd_section.hex()}")
-
-                    # Try wrapped event parsing
-                    events = parse_wrapped_pd_events(pd_section)
-                    print(f"Parsed {len(events)} wrapped events")
-
-                    # Also look for known patterns directly in the payload
-                    known_patterns = [
-                        "a1612c9101082cd102002cc103002cb10400454106003c21dcc0",  # Source_Capabilities
-                        "a1632c9101082cd102002cc103002cb10400454106003c21dcc0",  # Source_Capabilities (variant)
-                        "8210dc700323",  # Request
-                        "4102", "2101", "a305", "4104", "a607", "4106"  # GoodCRC, Accept, PS_RDY
-                    ]
-
-                    pd_hex = pd_section.hex()
-                    found_direct_patterns = []
-                    for pattern in known_patterns:
-                        if pattern in pd_hex:
-                            start_idx = pd_hex.find(pattern)
-                            found_direct_patterns.append({
-                                "pattern": pattern,
-                                "offset": start_idx // 2
-                            })
-
-                    if found_direct_patterns:
-                        print(f"  Found {len(found_direct_patterns)} known PD patterns:")
-                        for p in found_direct_patterns:
-                            pattern_bytes = bytes.fromhex(p["pattern"])
-                            try:
-                                pd_msg = usbpdpy.parse_pd_message(pattern_bytes)
-                                print(f"    ✅ {pd_msg.header.message_type} at offset {p['offset']}: {p['pattern']}")
-
-                                # Track message details
-                                msg_info = {
-                                    "transaction_id": row['transaction_id'],
-                                    "timestamp": row['timestamp'],
-                                    "message_type": pd_msg.header.message_type,
-                                    "wire_hex": p['pattern'],
-                                    "wire_len": len(pattern_bytes),
-                                    "message": pd_msg,
-                                    "offset": p['offset']
-                                }
-                                pd_messages_found.append(msg_info)
-
-                                # Special handling for Source_Capabilities
-                                if pd_msg.header.message_type == "Source_Capabilities":
-                                    source_capabilities_found.append(msg_info)
-                                    print(f"      📋 Found Source_Capabilities with {len(pd_msg.data_objects)} PDOs")
-
-                            except Exception as e:
-                                print(f"    ❓ Pattern at offset {p['offset']}: {p['pattern']} ({e})")
-
-                    for i, event in enumerate(events):
-                        print(f"  Event {i+1}: {event['wire_len']} bytes - {event['wire_hex']}")
-
-                        # Try to parse as PD message
-                        try:
-                            pd_msg = usbpdpy.parse_pd_message(event['wire_bytes'])
-                            print(f"    ✅ {pd_msg.header.message_type}")
-
-                            # Track message details (if not already found via direct pattern matching)
-                            wire_hex = event['wire_hex']
-                            if not any(p['pattern'] == wire_hex for p in found_direct_patterns):
-                                msg_info = {
-                                    "transaction_id": row['transaction_id'],
-                                    "timestamp": row['timestamp'],
-                                    "event_timestamp": event['timestamp'],
-                                    "message_type": pd_msg.header.message_type,
-                                    "wire_hex": wire_hex,
-                                    "wire_len": event['wire_len'],
-                                    "message": pd_msg
-                                }
-                                pd_messages_found.append(msg_info)
-
-                                # Special handling for Source_Capabilities
-                                if pd_msg.header.message_type == "Source_Capabilities":
-                                    source_capabilities_found.append(msg_info)
-                                    print(f"    📋 Found Source_Capabilities with {len(pd_msg.data_objects)} PDOs")
-
-                        except Exception as e:
-                            print(f"    ❌ Parse failed: {e}")
-
-                    print()
-
-        except Exception as e:
+            if pdev is not None:
+                # Extract PD messages from event stream
+                events = getattr(pdev, "events", [])
+                print(f"Parsed {len(events)} events from PdEventStream")
+                for e in events:
+                    wire_data = getattr(e, "wire_data", None)
+                    if wire_data is None:
+                        continue
+                    try:
+                        wire_bytes = bytes(wire_data)
+                    except Exception:
+                        continue
+                    try:
+                        pd_msg = usbpdpy.parse_pd_message(wire_bytes)
+                        print(f"    ✅ {pd_msg.header.message_type}")
+                        msg_info = {
+                            "transaction_id": row['transaction_id'],
+                            "timestamp": row['timestamp'],
+                            "message_type": pd_msg.header.message_type,
+                            "wire_hex": wire_bytes.hex(),
+                            "wire_len": len(wire_bytes),
+                            "message": pd_msg,
+                        }
+                        pd_messages_found.append(msg_info)
+                        if pd_msg.header.message_type == "Source_Capabilities":
+                            source_capabilities_found.append(msg_info)
+                            print(f"      📋 Found Source_Capabilities with {len(pd_msg.data_objects)} PDOs")
+                    except Exception as e:
+                        print(f"    ❌ Parse failed: {e}")
+            print()
+        except Exception:
             continue
 
     print("=== EXTRACTION RESULTS ===")

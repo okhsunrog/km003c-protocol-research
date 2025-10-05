@@ -31,6 +31,21 @@ except ImportError:
     print("⚠️  km003c_lib not available - will use simplified analysis")
     KM003C_LIB_AVAILABLE = False
 
+try:
+    from scripts.km003c_helpers import (
+        get_packet_type,
+        get_adc_data,
+        get_pd_status,
+        get_pd_events,
+    )
+except Exception:
+    from km003c_helpers import (
+        get_packet_type,
+        get_adc_data,
+        get_pd_status,
+        get_pd_events,
+    )
+
 
 @dataclass
 class PdAnalysisResult:
@@ -158,49 +173,96 @@ def analyze_km003c_protocol() -> None:
     
     print(f"Found {len(all_payloads)} application payloads")
     
-    # Analyze payload patterns to find PD data
-    print("\nSearching for PD messages in payloads...")
-    
-    # Look for potential PD messages in payloads
-    # PD messages are typically embedded in longer KM003C packets
+    # Analyze payloads to find PD data using km003c_lib
+    print("\nExtracting PD messages via km003c_lib...")
+
+    def _extract_pd_wires(pdev) -> List[bytes]:
+        wires: List[bytes] = []
+        try:
+            events = getattr(pdev, "events", None)
+            if not events:
+                return wires
+            for e in events:
+                # pyi style
+                event_type = getattr(e, "event_type", None)
+                wire_data = getattr(e, "wire_data", None)
+                if event_type == "pd_message" and wire_data is not None:
+                    try:
+                        wires.append(bytes(wire_data))
+                        continue
+                    except Exception:
+                        pass
+                # alt repr
+                if isinstance(e, dict):
+                    wd = e.get("wire_data")
+                    if wd is not None:
+                        try:
+                            wires.append(bytes(wd))
+                        except Exception:
+                            pass
+        except Exception:
+            return wires
+        return wires
+
     pd_candidates = []
-    
     for payload in all_payloads:
         hex_data = payload["payload_hex"]
-        payload_len = len(hex_data) // 2
-        
-        # Skip headers and look for PD-like data
-        # Try different offsets where PD data might be embedded
-        for offset_bytes in [8, 12, 16, 52, 56]:  # Common KM003C header sizes
-            offset_hex = offset_bytes * 2
-            if len(hex_data) > offset_hex + 4:  # At least 2 bytes for PD header
-                pd_candidate = hex_data[offset_hex:]
-                
-                # Try to parse as PD message
-                if len(pd_candidate) >= 4:  # Minimum PD message
-                    pd_result = parse_pd_from_hex(pd_candidate, current_source_capabilities)
-                    
-                    if pd_result.parse_success:
-                        pd_result_info = {
+        try:
+            pkt = parse_packet(bytes.fromhex(hex_data))
+            if get_packet_type(pkt) != "DataResponse":
+                continue
+            pdst = get_pd_status(pkt)
+            pdev = get_pd_events(pkt)
+            if pdst is None and pdev is None:
+                continue
+            # Store pd candidates uniformly for downstream reporting
+            if pdst is not None:
+                pd_candidates.append({
+                    **payload,
+                    "pd_offset_bytes": None,
+                    "pd_hex": None,
+                    "pd_result": PdAnalysisResult(
+                        message_type="PdStatus",
+                        pdos=[],
+                        rdos=[],
+                        raw_hex="",
+                        parse_success=True,
+                    ),
+                })
+            if pdev is not None:
+                # Try usbpdpy to compute success ratio and update state
+                wires = _extract_pd_wires(pdev)
+                for w in wires:
+                    try:
+                        msg = usbpdpy.parse_pd_message(w)
+                        if msg.header.message_type == "Source_Capabilities":
+                            current_source_capabilities = msg.data_objects
+                        pd_candidates.append({
                             **payload,
-                            "pd_offset_bytes": offset_bytes,
-                            "pd_hex": pd_candidate,
-                            "pd_result": pd_result,
-                        }
-                        pd_candidates.append(pd_result_info)
-                        
-                        # Update Source Capabilities state
-                        if pd_result.message_type == "Source_Capabilities":
-                            try:
-                                wire_bytes = bytes.fromhex(pd_candidate)
-                                msg = usbpdpy.parse_pd_message(wire_bytes)
-                                current_source_capabilities = msg.data_objects
-                            except:
-                                pass
-                        
-                        break  # Found PD at this offset, don't try others
-    
-    print(f"Found {len(pd_candidates)} embedded PD messages")
+                            "pd_offset_bytes": None,
+                            "pd_hex": w.hex(),
+                            "pd_result": PdAnalysisResult(
+                                message_type=msg.header.message_type,
+                                pdos=[
+                                    {
+                                        'pdo_type': p.pdo_type,
+                                        'voltage_v': p.voltage_v,
+                                        'max_current_a': p.max_current_a,
+                                        'max_power_w': p.max_power_w,
+                                        'unconstrained_power': p.unconstrained_power,
+                                    } for p in getattr(msg, 'data_objects', [])
+                                ],
+                                rdos=[],
+                                raw_hex=w.hex(),
+                                parse_success=True,
+                            ),
+                        })
+                    except Exception:
+                        continue
+        except Exception:
+            continue
+
+    print(f"Found {len(pd_candidates)} PD signals")
     
     # PD Message Analysis
     if pd_candidates:

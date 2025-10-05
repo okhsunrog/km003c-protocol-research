@@ -1,53 +1,36 @@
 #!/usr/bin/env python3
 """
-Temporary KM003C parser for ADC-only, ADC+PD, and PD-only packets.
+KM003C response analysis using the Rust parser (km003c_lib).
 
-Parses PutData (0x41) responses in the dataset and verifies:
-- ADC-only (attribute=1, next=0) → 44-byte ADC payload
-- ADC+PD chains (attribute=1, next=1) → nested PD segment
-  - PD status (12B) → parsed as status
-  - PD event stream (>12B) → preamble + 6B events → parse PD wire via usbpdpy
-- PD-only (attribute=16)
-  - size=12 → status-like block (not PD wire)
-  - size>12 → preamble + 6B events → parse PD wire via usbpdpy
+This script scans PutData (0x41) responses and classifies payload chains via
+the high-level km003c_lib.parse_packet() API instead of manual bit/byte math.
 
-Prints stats and ensures all extracted PD wire messages parse with usbpdpy.
+It verifies:
+- ADC-only chains (Adc only)
+- ADC + PD chains (Adc + PdStatus and/or PdEvents)
+- PD-only chains (PdStatus and/or PdEvents with no Adc)
+
+For PdEvents, it attempts to parse every PD wire message with usbpdpy to report
+parse success ratio.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Any
 
 import polars as pl
 import usbpdpy
 from pathlib import Path
 
-
-@dataclass
-class MainExt:
-    msg_type: int
-    msg_id: int
-    obj_count: int
-    attribute: int
-    next_bit: int
-    chunk: int
-    size_bytes: int
-
-
-def parse_headers(b: bytes) -> Optional[MainExt]:
-    if len(b) < 8:
-        return None
-    main = int.from_bytes(b[0:4], "little")
-    ext = int.from_bytes(b[4:8], "little")
-    msg_type = main & 0x7F
-    msg_id = (main >> 8) & 0xFF
-    obj_count = (main >> 22) & 0x3FF
-    attribute = ext & 0x7FFF
-    next_bit = (ext >> 15) & 1
-    chunk = (ext >> 16) & 0x3F
-    size_bytes = (ext >> 22) & 0x3FF
-    return MainExt(msg_type, msg_id, obj_count, attribute, next_bit, chunk, size_bytes)
+# Use the Rust protocol parser
+from km003c_lib import parse_packet
+from scripts.km003c_helpers import (
+    get_packet_type,
+    get_adc_data,
+    get_pd_status,
+    get_pd_events,
+)
 
 
 def parse_pd_status_12(b: bytes) -> Dict[str, int]:
@@ -73,44 +56,42 @@ def parse_pd_preamble_12(b: bytes) -> Dict[str, int]:
     }
 
 
-def parse_pd_event_stream(pd_payload: bytes) -> List[Dict[str, object]]:
-    """Parse preamble + repeated events, return list of events with parsed PD message if any.
+def _extract_pd_messages_from_stream(pdev: Any) -> List[bytes]:
+    """Extract raw PD wire messages (bytes) from a PdEventStream object.
 
-    Returns a list of dicts: {timestamp, sop, wire_len, wire_bytes, parsed_type?}
+    Falls back gracefully if the event objects don't expose wire_data.
     """
-    events: List[Dict[str, object]] = []
-    if len(pd_payload) <= 12:
-        return events
-    # Preamble is present but we don't need values here; skip 12B
-    i = 12
-    n = len(pd_payload)
-    while i + 6 <= n:
-        size_flag = pd_payload[i]
-        wire_len = (size_flag & 0x3F) - 5
-        if wire_len < 2 or (i + 6 + wire_len) > n:
-            break
-        ts = int.from_bytes(pd_payload[i + 1 : i + 5], "little")
-        sop = pd_payload[i + 5]
-        wire = pd_payload[i + 6 : i + 6 + wire_len]
-        i += 6 + wire_len
-
-        parsed_type = None
-        try:
-            msg = usbpdpy.parse_pd_message(wire)
-            parsed_type = msg.header.message_type
-        except Exception:
-            parsed_type = None
-
-        events.append(
-            {
-                "timestamp": ts,
-                "sop": sop,
-                "wire_len": wire_len,
-                "wire": wire,
-                "parsed_type": parsed_type,
-            }
-        )
-    return events
+    messages: List[bytes] = []
+    try:
+        events = getattr(pdev, "events", None)
+        if not events:
+            return messages
+        for e in events:
+            # Prefer pyi-compatible fields if available
+            event_type = getattr(e, "event_type", None)
+            if event_type == "pd_message":
+                wire_data = getattr(e, "wire_data", None)
+                if wire_data is not None:
+                    try:
+                        messages.append(bytes(wire_data))
+                        continue
+                    except Exception:
+                        pass
+            # Fallback: try direct attributes (sop, wire_data) or dict-like
+            if isinstance(e, dict):
+                wd = e.get("wire_data")
+                if wd is not None:
+                    try:
+                        messages.append(bytes(wd))
+                    except Exception:
+                        pass
+            else:
+                wd = getattr(e, "wire_data", None)
+                if isinstance(wd, (bytes, bytearray)):
+                    messages.append(bytes(wd))
+    except Exception:
+        return messages
+    return messages
 
 
 def main() -> None:
@@ -140,68 +121,44 @@ def main() -> None:
     for row in resp.iter_rows(named=True):
         b = bytes.fromhex(row["payload_hex"])  # type: ignore[index]
         try:
-            me = parse_headers(b)
-            if not me:
-                continue
-            if me.msg_type != 0x41:
+            pkt = parse_packet(b)
+            if get_packet_type(pkt) != "DataResponse":
                 continue
 
-            if me.attribute == 1:  # ADC segment present
-                # always expect 44-byte ADC
-                if len(b) < 8 + 44:
-                    stats["errors"] += 1
-                    continue
-                # ADC-only
-                if me.next_bit == 0:
-                    stats["adc_only_ok"] += 1
-                else:
-                    # ADC + chained segment (PD or others)
-                    off = 8 + 44
-                    if len(b) < off + 4:
-                        stats["errors"] += 1
-                        continue
-                    pd_ext = parse_headers(b[off - 8 : off - 8 + 8])  # reuse parse on nested header window
-                    # Above is a trick; simpler: directly read PD ext
-                    pd_ext_raw = int.from_bytes(b[off : off + 4], "little")
-                    pd_attr = pd_ext_raw & 0x7FFF
-                    pd_size = (pd_ext_raw >> 22) & 0x3FF
-                    # Only handle ADC+PD here; ignore other chained attributes (e.g., AdcQueue)
-                    if pd_attr != 16:
-                        # Not counted as error; just skip (out of current scope)
-                        continue
-                    if len(b) < off + 4 + pd_size:
-                        stats["errors"] += 1
-                        continue
-                    pd_payload = b[off + 4 : off + 4 + pd_size]
-                    if pd_size == 12:
-                        # PD status
-                        _ = parse_pd_status_12(pd_payload)
-                        stats["adc_pd_status"] += 1
-                    elif pd_size > 12:
-                        # PD event stream
-                        evs = parse_pd_event_stream(pd_payload)
-                        stats["adc_pd_event"] += 1
-                        stats["pd_events_total"] += len(evs)
-                        ok = sum(1 for e in evs if e.get("parsed_type"))
-                        stats["pd_events_parsed_ok"] += ok
-                        stats["pd_events_parse_fail"] += (len(evs) - ok)
-                    stats["adc_pd_ok"] += 1
+            adc = get_adc_data(pkt)
+            pdst = get_pd_status(pkt)
+            pdev = get_pd_events(pkt)
 
-            elif me.attribute == 16:  # PD-only
-                if len(b) < 8 + me.size_bytes:
-                    stats["errors"] += 1
-                    continue
-                pd_payload = b[8 : 8 + me.size_bytes]
-                if me.size_bytes == 12:
-                    # status-like block
-                    stats["pd_only_status"] += 1
-                elif me.size_bytes > 12:
-                    stats["pd_only_event_payloads"] += 1
-                    evs = parse_pd_event_stream(pd_payload)
-                    stats["pd_events_total"] += len(evs)
-                    ok = sum(1 for e in evs if e.get("parsed_type"))
-                    stats["pd_events_parsed_ok"] += ok
-                    stats["pd_events_parse_fail"] += (len(evs) - ok)
+            if adc is not None and pdst is None and pdev is None:
+                stats["adc_only_ok"] += 1
+                continue
+
+            if adc is not None and (pdst is not None or pdev is not None):
+                stats["adc_pd_ok"] += 1
+                if pdst is not None:
+                    stats["adc_pd_status"] += 1
+                if pdev is not None:
+                    stats["adc_pd_event"] += 1
+
+            if adc is None and pdst is not None and pdev is None:
+                stats["pd_only_status"] += 1
+
+            if adc is None and pdev is not None:
+                stats["pd_only_event_payloads"] += 1
+
+            # Validate PD messages via usbpdpy
+            if pdev is not None:
+                wires = _extract_pd_messages_from_stream(pdev)
+                stats["pd_events_total"] += len(wires)
+                ok = 0
+                for w in wires:
+                    try:
+                        _ = usbpdpy.parse_pd_message(w)
+                        ok += 1
+                    except Exception:
+                        pass
+                stats["pd_events_parsed_ok"] += ok
+                stats["pd_events_parse_fail"] += (len(wires) - ok)
 
         except Exception:
             stats["errors"] += 1
