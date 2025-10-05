@@ -72,57 +72,102 @@ For these fields, use regular ADC packets (attribute 0x0001).
 
 | File | Mode | Effective Rate | Samples/Packet | Request Interval |
 |------|------|---------------|----------------|------------------|
-| orig_adc_1000hz.6 | 1000 Hz | 956 SPS | 40 | 42 ms |
-| orig_adc_50hz.6 | 50 Hz | 47 SPS | 5-6 | 109 ms |
+| orig_adc_1000hz.6 | 1000 SPS | 956 SPS | 40 | 42 ms |
+| orig_adc_50hz.6 | 50 SPS | 47 SPS | 5-6 | 109 ms |
+| pd_adcqueue_new.11 | Multiple rates | 1.8 / 9.6 / 47.5 / 666 SPS | 2-41 | Variable |
 
 ### How Sampling Rate Works
 
-1. **Device-side configuration**: Sampling rate is configured on the device (not visible in USB traffic, possibly stored in flash or set via initialization)
+**Discovered**: Sample rate is configured via **command 0x0E** (Start Graph) using the "attribute" field as a **rate index** (not a bitmask!).
 
-2. **Internal buffering**: Device continuously samples at configured rate (50 Hz, 1000 Hz, etc.) into an internal circular buffer
+**Rate Index Encoding**:
+```
+0x0E command format: [0x0E, transaction_ID, rate_index_low, rate_index_high]
 
-3. **Host polling**: Application periodically requests AdcQueue data:
-   - Buffer accumulates samples between requests
-   - Device sends all buffered samples in one USB transfer
-   - More samples = longer buffer accumulation time
+Rate index values:
+  0 = 1 SPS      (1 sample per second)
+  1 = 10 SPS     (10 samples per second)
+  2 = 50 SPS     (50 samples per second)
+  3 = 1000 SPS   (1000 samples per second)
+  4 = 10000 SPS  (legacy, not supported in modern firmware)
+```
 
-4. **Efficiency**: One USB request fetches 40 samples (1000 Hz mode) vs making 40 individual ADC requests
+**Validated from pd_adcqueue_new.11** (4 different rates captured):
+- `0E XX 00 00` (rate=0) → 1.8 SPS effective, 2 samples/packet
+- `0E XX 02 00` (rate=1) → 9.6 SPS effective, 2.1 samples/packet
+- `0E XX 04 00` (rate=2) → 47.5 SPS effective, 5.4 samples/packet
+- `0E XX 06 00` (rate=3) → 666 SPS effective, 41.1 samples/packet
+
+**Device behavior**:
+1. Command 0x0E sets internal sampling rate
+2. Device continuously samples at configured rate into circular buffer
+3. Host polls with AdcQueue requests (mask 0x0002)
+4. Device sends all buffered samples since last request
+5. More samples = longer accumulation time between host requests
 
 ---
 
 ## Control Commands
 
-### Graph Mode Control
+### Start Graph Mode with Sample Rate
 
-**Start graph/streaming mode**:
-```
-Command: 0x0E (Unknown14)
-Format:  [0x0E, ID, attr_mask_low, attr_mask_high]
-Example: 0E 1C 06 00  (ID=28, attr_mask=0x0003 = ADC+AdcQueue)
-Response: 0x05 (Accept)
-Effect: Device begins buffering samples for AdcQueue
+**Command: 0x0E (Start Graph)**
+
+```c
+Format:  [0x0E, transaction_ID, rate_index_low, rate_index_high]
+
+// Little-endian encoding in CtrlHeader:
+struct {
+    uint32_t type   : 7;   // 0x0E
+    uint32_t extend : 1;   // 0
+    uint32_t id     : 8;   // Transaction ID
+    uint32_t unused : 1;   // 0
+    uint32_t rate   : 15;  // Rate index (0-3)
+}
 ```
 
-**Stop graph/streaming mode**:
+**Rate index values**:
+- `0` = 1 SPS
+- `1` = 10 SPS
+- `2` = 50 SPS
+- `3` = 1000 SPS
+
+**Examples**:
 ```
-Command: 0x0F (Unknown15)
+0E 37 00 00  → ID=55,  rate=0 (1 SPS)
+0E 77 02 00  → ID=119, rate=1 (10 SPS)
+0E BC 04 00  → ID=188, rate=2 (50 SPS)
+0E 39 06 00  → ID=57,  rate=3 (1000 SPS)
+```
+
+**Response**: `0x05` (Accept)
+
+**Effect**: Device configures internal sampling rate and begins buffering samples
+
+### Stop Graph Mode
+
+**Command: 0x0F (Stop Graph)**
+
+```
 Format:  [0x0F, ID, 0x00, 0x00]
-Example: 0F 25 00 00  (ID=37, no attributes)
+Example: 0F 25 00 00  (ID=37)
 Response: 0x05 (Accept)
-Effect: Device stops AdcQueue buffering, returns to normal ADC mode
+Effect: Device stops sampling/buffering, returns to normal ADC mode
 ```
 
-### Typical Workflow
+### Complete Workflow
 
-1. **Initialization** (Connect, Unknown68×4, Unknown76, Settings)
-2. **Normal ADC polling** (~200 ms intervals, mask 0x0001)
-3. User selects sample rate in application UI
-4. User clicks "Start Graph"
-5. → **Command 0x0E** sent (with appropriate attr_mask)
-6. → **AdcQueue requests** begin (mask 0x0002, fast polling 40-100ms)
-7. User clicks "Stop Graph"
-8. → **Command 0x0F** sent
-9. → Return to **normal ADC polling**
+1. **Initialization**: Connect, Unknown68×4, Unknown76, Settings
+2. **Normal ADC polling**: ~200 ms intervals (mask 0x0001)
+3. **User selects rate in UI**: 1/10/50/1000 SPS
+4. **User clicks "Start Graph"**
+5. → Device sends **0x0E + rate_index**
+6. → Device receives Accept
+7. → **AdcQueue requests begin** (mask 0x0002)
+8. → Device buffers at selected rate, host polls periodically
+9. **User clicks "Stop Graph"**
+10. → Device sends **0x0F**
+11. → Return to normal ADC polling
 
 ---
 
@@ -227,60 +272,6 @@ loop {
 
 ---
 
-## Testing Recommendations
-
-### Test 1: Multiple Sample Rates in One Capture
-
-**Procedure**:
-1. Start Wireshark USB capture
-2. Open official app
-3. For each rate (1 SPS, 10 SPS, 50 SPS, 1000 SPS):
-   - Select rate in UI
-   - Click "Start Graph"
-   - Wait 5-10 seconds
-   - Click "Stop Graph"
-   - Wait 2 seconds
-4. Stop capture
-
-**Expected observations**:
-- Command 0x0E before each graph start
-- Command 0x0F after each graph stop
-- Different AdcQueue packet sizes/intervals per rate
-- Possible rate configuration command between stops and starts
-
-### Test 2: Rate Configuration Search
-
-**Procedure**:
-1. Start capture
-2. Open app
-3. Change sample rate dropdown (WITHOUT starting graph)
-4. Start graph
-5. Stop capture
-
-**Goal**: Find if/how sample rate selection sends USB commands
-
-### Test 3: Temperature + Graph
-
-**Procedure**:
-1. Capture session with graph running (any rate)
-2. Analyze request pattern:
-   - Count AdcQueue requests (0x0002)
-   - Count ADC requests (0x0001)
-   - Measure intervals
-
-**Expected**: Application alternates AdcQueue (fast) and ADC (slow) to get temperature data for graph overlay.
-
-### Test 4: Long Buffer Test
-
-**Procedure**:
-1. Start graph at 1000 Hz
-2. Stop requests for several seconds (pause in code)
-3. Resume - observe if buffer overflows or device behavior
-
-**Goal**: Understand buffer size limits and overflow behavior
-
----
-
 ## Dataset Statistics
 
 From `usb_master_dataset.parquet`:
@@ -295,17 +286,18 @@ From `usb_master_dataset.parquet`:
 **Files analyzed**:
 - `orig_adc_1000hz.6`: 220 AdcQueue packets, 8,798 samples, 956 SPS effective
 - `orig_adc_50hz.6`: 60 AdcQueue packets, 320 samples, 47 SPS effective
+- `pd_adcqueue_new.11`: Multiple rates tested in single capture (1/10/50/1000 SPS)
 
 ---
 
-## Known Issues & Limitations
+## Protocol Details
 
-### 1. Sample Rate Configuration Not Found
+### 1. Sample Rate Configuration ✅ SOLVED
 
-Sample rate setting mechanism is not visible in USB traffic. Possibilities:
-- Stored in device flash memory
-- Set via initialization commands (Unknown68/76 with encrypted payload)
-- Auto-detected based on first AdcQueue request timing
+Sample rate is set via **command 0x0E** using the "attribute" field as a rate index:
+- Not a bitmask attribute like in GetData commands
+- Direct index into rate table: 0=1SPS, 1=10SPS, 2=50SPS, 3=1000SPS
+- Validated on pd_adcqueue_new.11 with 4 different rates
 
 ### 2. Extended Header Size Field Ambiguity
 
@@ -336,9 +328,9 @@ For complete data, applications must:
 
 ⏳ **TODO**:
 - Python bindings for AdcQueue
-- Command 0x0E/0x0F wrappers (start/stop graph)
-- Sample rate configuration discovery
+- Command 0x0E/0x0F helper methods in KM003C device
 - Settings (0x0008) parsing
+- AdcQueue10k (0x004) support if needed for legacy devices
 
 ### Python Analysis
 
