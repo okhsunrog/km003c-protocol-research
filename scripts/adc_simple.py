@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
 """
-Simple ADC data reader for POWER-Z KM003C using pyusb.
+Simple ADC data reader for POWER-Z KM003C.
 
-Based on the Rust km003c-rs/km003c-cli/src/bin/adc_simple.rs example.
-Uses pyusb for USB communication and km003c_lib for protocol parsing.
+Demonstrates basic device communication using:
+- pyusb for USB communication
+- km003c_lib (Rust bindings) for protocol parsing
+
+This is a minimal example showing how to request and parse single ADC samples.
+For multi-sample streaming (AdcQueue), see test_adcqueue.py.
 """
 
 import usb.core
 import usb.util
 from km003c_lib import VID, PID, parse_packet
-import struct
 
 
-# USB endpoints
-# Interface 0: 0x01/0x81 (~1000 samples/sec)
-# Interface 1: 0x05/0x85 (~500 samples/sec)
-# Interface 3: 0x03/0x83 (~1000 samples/sec)
-INTERFACE_NUM = 1
+# USB Interface Selection
+# Based on km003c-lib/src/device.rs documentation:
+# - Interface 0: Bulk 0x01/0x81 (Vendor-specific, fastest ~0.6ms latency)
+# - Interface 3: Interrupt 0x05/0x85 (HID, most compatible ~3.8ms latency)
+# Using Interface 3 (HID) for compatibility (no kernel driver conflicts)
+INTERFACE_NUM = 3
 ENDPOINT_OUT = 0x05
 ENDPOINT_IN = 0x85
 

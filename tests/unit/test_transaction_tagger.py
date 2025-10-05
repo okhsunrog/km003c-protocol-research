@@ -5,12 +5,15 @@ import sys
 from typing import List, Tuple
 
 # Add project root to path to allow direct import of the package
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from km003c_analysis.usb_transaction_splitter import split_usb_transactions
-from km003c_analysis.transaction_tagger import tag_transactions
+from km003c_analysis.core.usb_transaction_splitter import split_usb_transactions
+from km003c_analysis.core.transaction_tagger import tag_transactions
 
-PROJECT_ROOT = Path(__file__).parent.parent
+# Mark all tests in this module as unit tests
+pytestmark = pytest.mark.unit
+
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 DATASET_PATH = PROJECT_ROOT / "data/processed/usb_master_dataset.parquet"
 
 

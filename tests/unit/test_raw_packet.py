@@ -1,4 +1,8 @@
+import pytest
 from km003c_lib import RawPacket, parse_raw_packet
+
+# Mark all tests in this module as unit tests
+pytestmark = pytest.mark.unit
 
 
 def test_parse_raw_packet_basic():
@@ -18,44 +22,25 @@ def test_parse_raw_packet_basic():
 
 
 def test_parse_raw_packet_extended():
-    """Test that parse_raw_packet correctly identifies extended packets."""
-    # Extended packet data (PutData 0x41 always carries an extended header)
-    data = bytes(
-        [
-            0x41,
-            0x00,
-            0x00,
-            0x00,  # DataHeader (0x41 = PutData)
-            0x01,
-            0x00,
-            0x08,
-            0x00,  # Extended header (attribute=1/ADC, size=8)
-            0x00,
-            0x01,
-            0x02,
-            0x03,
-            0x04,
-            0x05,
-            0x06,
-            0x07,  # Payload data (16 bytes total)
-            0x08,
-            0x09,
-            0x0A,
-            0x0B,
-            0x0C,
-            0x0D,
-            0x0E,
-            0x0F,
-        ]
-    )
+    """Test that parse_raw_packet correctly parses extended header fields."""
+    # Real ADC response packet (PutData with extended header)
+    # From orig_open_close.16 dataset
+    adc_response_hex = "410a82020100000b5c0f0000faffffffa00f0000f2ffffff04100000500000007e0d7b7ed40471014201837e0080780025002100"
+    data = bytes.fromhex(adc_response_hex)
 
     result = parse_raw_packet(data)
 
     assert isinstance(result, RawPacket)
+    assert result.packet_type == "PutData"
+    assert result.packet_type_id == 0x41
+    assert result.id == 0x0A
     assert result.has_extended_header is True
-    assert len(result.raw_bytes) == 24
-    # Payload excludes the 4-byte extended header; 24 total - 8 header = 16
-    assert len(result.payload) == 16
+    
+    # Check extended header fields are correctly parsed
+    assert result.ext_attribute_id == 1  # ATT_ADC
+    assert result.ext_next == False  # Last logical packet
+    assert result.ext_chunk == 0
+    assert result.ext_size == 44  # ADC payload size
 
 
 def test_raw_packet_attributes():

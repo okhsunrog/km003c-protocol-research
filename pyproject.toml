@@ -75,3 +75,23 @@ exclude = ["notebooks/*.ipynb", "tests/*.py"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.pytest.ini_options]
+# Test discovery
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Markers
+markers = [
+    "unit: Unit tests (no hardware required, fast)",
+    "integration: Integration tests (require real KM003C device, slow)",
+]
+
+# Default: run only unit tests (fast, no device)
+addopts = "-v -m unit"
+
+# Logging
+log_cli = false
+log_cli_level = "INFO"

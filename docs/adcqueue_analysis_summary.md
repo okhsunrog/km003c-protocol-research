@@ -1,8 +1,47 @@
 # AdcQueue Protocol Analysis
 
-**Date**: 2025-10-04  
-**Status**: ✅ Fully understood and implemented in km003c-rs  
-**Validation**: Tested on real USB captures with multiple sampling rates
+**Date**: 2025-10-05  
+**Status**: ✅ Fully understood and validated on real hardware  
+**Validation**: Tested on real KM003C device + analyzed USB captures with multiple sampling rates
+
+---
+
+## Quick Start: How to Use AdcQueue
+
+**MINIMAL sequence (validated on real hardware):**
+
+1. **USB reset** - Reset device to clean state
+2. **Wait 1.5 seconds** - Device needs time to fully initialize after reset
+3. **Start Graph** - Send `0x0E` command with rate parameter (rate_index: 0/1/2/3 → 1/10/50/1000 SPS)
+4. **Wait ~1 second** - Allow device to accumulate samples in buffer
+5. **Request AdcQueue** - Send GetData with attribute `0x0002` repeatedly  
+6. **Stop Graph** - Send `0x0F` command when done
+
+**Example (50 SPS):**
+```python
+# After USB reset
+device.reset()
+time.sleep(1.5)  # CRITICAL: Wait for device to fully initialize
+
+# Start graph mode at 50 SPS (rate_index=2)
+device.send([0x0E, 0x01, 0x04, 0x00])   # Start Graph, rate=2 (encoded as 0x04 in bytes)
+time.sleep(1.0)                          # Wait for ~50 samples to accumulate
+
+# Request AdcQueue data (attribute 0x0002, encoded as 0x0400 in bytes 2-3)
+device.send([0x0C, 0x02, 0x04, 0x00])   # GetData attribute 0x0002
+response = device.read()                 # Returns 1008 bytes = 50 samples
+
+# Continue requesting (every 200ms gets ~10 new samples)
+device.send([0x0C, 0x03, 0x04, 0x00])   
+response = device.read()                 # Returns 208 bytes = 10 samples
+
+# Stop when done
+device.send([0x0F, 0x04, 0x00, 0x00])   # Stop Graph
+```
+
+**Working test script:** See `scripts/test_adcqueue.py` for complete minimal implementation
+
+**Key insight:** The Connect, Unknown68, Unknown76, GetData commands seen in official app captures are **NOT required** for AdcQueue functionality. They appear to be general session initialization that the app always does, but AdcQueue works without them.
 
 ---
 
@@ -10,7 +49,7 @@
 
 **AdcQueue** (attribute 0x0002) provides high-rate streaming of power measurements by buffering multiple samples device-side and transmitting them in batches.
 
-Unlike ADC packets (single sample with statistics), AdcQueue packets contain 5-48 buffered samples optimized for continuous data logging and graphing.
+Unlike ADC packets (single sample with statistics), AdcQueue packets contain 5-50 buffered samples optimized for continuous data logging and graphing.
 
 ---
 
@@ -81,25 +120,27 @@ Each sample in AdcQueue has the following structure:
 
 ### How Sampling Rate Works
 
-**Discovered**: Sample rate is configured via **command 0x0E** (Start Graph) using the "attribute" field as a **rate index** (not a bitmask!).
+**Discovered**: Sample rate is configured via **command 0x0E** (Start Graph) using the "attribute" field to specify a **rate index**.
 
-**Rate Index Encoding**:
+**Rate Index Encoding** (stored in bits 17-31 of the 4-byte command):
 ```
-0x0E command format: [0x0E, transaction_ID, rate_index_low, rate_index_high]
+Command format: [0x0E, transaction_ID, byte2, byte3]
 
-Rate index values:
-  0 = 1 SPS      (1 sample per second)
-  1 = 10 SPS     (10 samples per second)
-  2 = 50 SPS     (50 samples per second)
-  3 = 1000 SPS   (1000 samples per second)
-  4 = 10000 SPS  (legacy, not supported in modern firmware)
+The rate index is encoded in the upper bits:
+  Byte sequence → Rate Index → Sample Rate
+  [0x0E, ID, 0x00, 0x00] → 0 → 1 SPS      (1 sample per second)
+  [0x0E, ID, 0x02, 0x00] → 1 → 10 SPS     (10 samples per second)
+  [0x0E, ID, 0x04, 0x00] → 2 → 50 SPS     (50 samples per second)
+  [0x0E, ID, 0x06, 0x00] → 3 → 1000 SPS   (1000 samples per second)
 ```
 
-**Validated from pd_adcqueue_new.11** (4 different rates captured):
-- `0E XX 00 00` (rate=0) → 1.8 SPS effective, 2 samples/packet
-- `0E XX 02 00` (rate=1) → 9.6 SPS effective, 2.1 samples/packet
-- `0E XX 04 00` (rate=2) → 47.5 SPS effective, 5.4 samples/packet
-- `0E XX 06 00` (rate=3) → 666 SPS effective, 41.1 samples/packet
+**Note on byte encoding:** Due to the bitfield structure (attribute in bits 17-31), the rate index N appears as `(N*2)` in byte 2. This is an implementation detail of the 32-bit little-endian header format.
+
+**Validated from captures:**
+- `0E XX 00 00` (rate=0) → 1 SPS mode
+- `0E XX 02 00` (rate=1) → 10 SPS mode
+- `0E XX 04 00` (rate=2) → 50 SPS mode (✓ tested on real hardware)
+- `0E XX 06 00` (rate=3) → 1000 SPS mode
 
 **Device behavior**:
 1. Command 0x0E sets internal sampling rate
@@ -160,17 +201,29 @@ Effect: Device stops sampling/buffering, returns to normal ADC mode
 
 ### Complete Workflow
 
-1. **Initialization**: Connect, Unknown68×4, Unknown76, Settings
-2. **Normal ADC polling**: ~200 ms intervals (mask 0x0001)
-3. **User selects rate in UI**: 1/10/50/1000 SPS
-4. **User clicks "Start Graph"**
-5. → Device sends **0x0E + rate_index**
-6. → Device receives Accept
-7. → **AdcQueue requests begin** (mask 0x0002)
-8. → Device buffers at selected rate, host polls periodically
-9. **User clicks "Stop Graph"**
-10. → Device sends **0x0F**
-11. → Return to normal ADC polling
+**Minimal sequence (validated on real hardware):**
+
+1. **USB reset** → Wait 1.5 seconds for device initialization
+2. **Start Graph** (0x0E) → Device responds with Accept (0x05)
+3. **Wait ~1 second** → Device accumulates samples
+4. **Request AdcQueue** (0x0C, attr 0x0002) → Returns multi-sample data
+5. **Poll repeatedly** → Every 200ms returns new samples
+6. **Stop Graph** (0x0F) → Device stops buffering
+
+**Official app sequence (includes extra commands):**
+1. Connect, Unknown68×4, Unknown76, GetData PD/Unknown *(not required for AdcQueue)*
+2. Normal ADC polling ~200ms (attribute 0x0001)
+3. User selects rate → UI shows 1/10/50/1000 SPS
+4. User clicks "Start Graph" → App sends 0x0E with rate
+5. AdcQueue polling begins → App requests attribute 0x0002
+6. User clicks "Stop Graph" → App sends 0x0F
+
+**Key findings:**
+- ✅ **No initialization commands required** after USB reset + 1.5s wait
+- ✅ Connect, Unknown68, Unknown76 commands are **optional** (app protocol overhead)
+- ✅ Request attribute `0x0002` (encoded as bytes `0x0400`) for AdcQueue data
+- ✅ Attribute `0x0004` (ATT_ADC_QUEUE_10K) documented but **never used** (0/20,862 packets)
+- ⚠️ **Critical**: Must wait 1.5s after USB reset (0.5s insufficient)
 
 ---
 
@@ -297,29 +350,55 @@ From `usb_master_dataset.parquet`:
 
 ## Protocol Details
 
-### 1. Sample Rate Configuration ✅ SOLVED
+### 1. Attribute 0x0002 vs 0x0004 (ATT_ADC_QUEUE_10K) ✅ CLARIFIED
+
+According to official documentation, three AdcQueue attributes exist:
+- `0x0001` (ATT_ADC): Single ADC sample
+- `0x0002` (ATT_ADC_QUEUE): AdcQueue buffered samples
+- `0x0004` (ATT_ADC_QUEUE_10K): 10K SPS variant
+
+**However, analysis of 20,862 packets shows:**
+- ✗ Attribute `0x0004` is **NEVER used** (0 requests, 0 responses across all captures)
+- ✓ All sampling rates (1, 10, 50, 1000 SPS) use attribute `0x0002`
+- ✓ Even the 1000 SPS captures use `0x0002`, not `0x0004`
+
+**Conclusion:** ATT_ADC_QUEUE_10K (0x0004) was likely planned for a 10,000 SPS mode that was never implemented. Use attribute `0x0002` for all AdcQueue operations.
+
+### 2. Sample Rate Configuration ✅ SOLVED
 
 Sample rate is set via **command 0x0E** using the "attribute" field as a rate index:
 - Not a bitmask attribute like in GetData commands
-- Direct index into rate table: 0=1SPS, 1=10SPS, 2=50SPS, 3=1000SPS
-- Validated on pd_adcqueue_new.11 with 4 different rates
+- Rate indices: 0=1SPS, 1=10SPS, 2=50SPS, 3=1000SPS
+- Validated on real hardware at 50 SPS
 
-### 2. Extended Header Size Field Ambiguity
+### 3. Extended Header Size Field Ambiguity
 
 The extended header `size=20` field is **per-sample size**, not total payload:
 - Can be confusing for parsers expecting total size
-- Must calculate num_samples = payload_length / 20
+- Must calculate num_samples = (payload_length - 8) / 20
 
-### 3. Missing Fields in AdcQueue
+### 4. Missing Fields in AdcQueue
 
 For complete data, applications must:
 - Request AdcQueue for VBUS/IBUS/CC (high rate)
-- Request ADC periodically for Temperature/D+/D- (low rate)
+- Request ADC periodically for Temperature (low rate)
 - Merge data streams client-side
+
+**Note:** Modern firmware includes D+/D- in AdcQueue samples
 
 ---
 
 ## Implementation Status
+
+### Hardware Validation (2025-10-05)
+
+✅ **Verified on real KM003C device**:
+- Minimal sequence works: Reset → Stop → Start → Request
+- 50 SPS mode confirmed (graph icon appears on device screen)
+- Multi-sample data retrieval successful (10 samples per 200ms at 50 SPS)
+- First request after Start Graph returns ~50 accumulated samples
+- No initialization commands required
+- Test scripts: `scripts/test_exact_init_sequence.py`, `scripts/test_verify_minimal.py`
 
 ### km003c-rs Library
 
@@ -329,20 +408,21 @@ For complete data, applications must:
 - Sequence number tracking
 - Dropped sample detection
 - Integration into PayloadData enum
+- GraphSampleRate enum (Sps1/10/50/1000)
 - Tests passing
 
-⏳ **TODO**:
-- Python bindings for AdcQueue
-- Command 0x0E/0x0F helper methods in KM003C device
-- Settings (0x0008) parsing
-- AdcQueue10k (0x004) support if needed for legacy devices
+📝 **Notes**:
+- AdcQueue10k (0x004) is documented but unused - can be marked as unimplemented
+- Python bindings exist but need AdcQueue-specific examples
+- Settings (0x0008) parsing is separate feature
 
-### Python Analysis
+### Python Analysis & Test Scripts
 
-✅ **Scripts**:
-- Manual AdcQueue parsing examples
-- Sample rate analysis from captures
-- Control command identification
+✅ **Working examples**:
+- `scripts/test_exact_init_sequence.py` - Full initialization + AdcQueue test
+- `scripts/test_verify_minimal.py` - Minimal sequence validation
+- `scripts/test_minimal_adcqueue.py` - Systematic testing of init requirements
+- Manual AdcQueue parsing examples in analysis scripts
 
 ---
 
@@ -381,17 +461,28 @@ Temperature from ADC: 24.6°C (not in AdcQueue)
 
 ### For Application Developers
 
-1. **Use AdcQueue for graphs**: Request with mask 0x0002 during active graphing
-2. **Mix with ADC**: Periodically request ADC (0x0001) for temperature and D+/D- data
-3. **Monitor sequence numbers**: Use to detect buffer overflows or dropped samples
-4. **Send control commands**:
-   - 0x0E to start streaming
-   - 0x0F to stop streaming
-5. **Buffer management**: Expect 5-48 samples per packet, allocate appropriately
+**Minimal implementation:**
+1. **Reset device** via USB reset
+2. **Send Stop Graph** (0x0F) to ensure clean state
+3. **Send Start Graph** (0x0E) with desired rate index (0-3)
+4. **Wait** for samples to accumulate (~1 second recommended)
+5. **Request AdcQueue** (GetData with attribute 0x0002) repeatedly
+6. **Send Stop Graph** (0x0F) when finished
+
+**Optional enhancements:**
+- Mix with ADC: Periodically request ADC (0x0001) for temperature
+- Monitor sequence numbers: Detect buffer overflows or dropped samples
+- Buffer management: Expect 5-50 samples per packet
+
+**Common mistakes to avoid:**
+- ❌ Don't request attribute 0x0004 (not implemented)
+- ❌ Don't assume initialization commands are required (they're not)
+- ❌ Don't request AdcQueue immediately after Start Graph (wait for accumulation)
+- ❌ Don't forget to send Stop Graph on exit
 
 ### For Protocol Research
 
-1. **Capture rate transitions**: Record session changing rates multiple times
-2. **Find rate configuration**: Focus on commands between rate changes
-3. **Test buffer limits**: Long captures to find max buffer size
-4. **Analyze Unknown commands**: Unknown68, Unknown76, Unknown(14/15) need reverse engineering
+1. ✅ **AdcQueue fully documented** - minimal sequence confirmed on hardware
+2. ✅ **Rate configuration understood** - 0x0E command with rate index
+3. ✅ **Attribute 0x0004 clarified** - documented but never used
+4. 🔍 **Unknown commands remain**: Unknown68, Unknown76 purpose still unclear (likely device-specific init)
