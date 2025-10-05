@@ -38,7 +38,7 @@ class RequestHeader:
     packet_type: int  # Should be 0x0C for GetData
     reserved_flag: bool
     transaction_id: int
-    attribute_mask: int  # 15-bit bitmask
+    attribute_mask: int  # 15-bit bitmask (wire: same values as extended header)
     raw_hex: str
 
 
@@ -76,106 +76,96 @@ class TransactionPair:
 
 
 def parse_getdata_header(hex_data: str) -> Optional[RequestHeader]:
-    """Parse GetData header (4 bytes, little-endian)"""
-    if len(hex_data) < 8:  # Need at least 4 bytes (8 hex chars)
+    """Parse GetData header using km003c_lib."""
+    if not KM003C_LIB_AVAILABLE:
         return None
-    
+    if len(hex_data) < 8:
+        return None
+
     try:
-        # Parse 4 bytes as little-endian uint32
-        header_bytes = bytes.fromhex(hex_data[:8])
-        header_u32 = int.from_bytes(header_bytes, byteorder='little')
-        
-        # Extract fields according to protocol spec
-        packet_type = header_u32 & 0x7F  # bits 0-6
-        reserved_flag = bool((header_u32 >> 7) & 0x1)  # bit 7
-        transaction_id = (header_u32 >> 8) & 0xFF  # bits 8-15
-        # bit 16 is unused
-        attribute_mask = (header_u32 >> 17) & 0x7FFF  # bits 17-31 (15-bit)
-        
+        data = bytes.fromhex(hex_data)
+        raw = parse_raw_packet(data)
+        pkt = parse_packet(data)
+        if not (isinstance(raw, dict) and "Ctrl" in raw):
+            return None
+        header = raw["Ctrl"]["header"]
+        if "GetData" not in pkt:
+            return None
+        attr_mask = pkt["GetData"].get("attribute_mask")
         return RequestHeader(
-            packet_type=packet_type,
-            reserved_flag=reserved_flag,
-            transaction_id=transaction_id,
-            attribute_mask=attribute_mask,
-            raw_hex=hex_data[:8]
+            packet_type=header.get("packet_type"),
+            reserved_flag=header.get("reserved_flag"),
+            transaction_id=header.get("id"),
+            attribute_mask=attr_mask if attr_mask is not None else 0,
+            raw_hex=hex_data[:8],
         )
     except Exception as e:
-        print(f"Error parsing GetData header: {e}")
+        print(f"Error parsing GetData header via km003c_lib: {e}")
         return None
 
 
 def parse_putdata_header(hex_data: str) -> Optional[ResponseHeader]:
-    """Parse PutData main header (4 bytes, little-endian)"""
-    if len(hex_data) < 8:  # Need at least 4 bytes (8 hex chars)
+    """Parse PutData main header using km003c_lib."""
+    if not KM003C_LIB_AVAILABLE:
         return None
-    
+    if len(hex_data) < 8:
+        return None
+
     try:
-        # Parse 4 bytes as little-endian uint32
-        header_bytes = bytes.fromhex(hex_data[:8])
-        header_u32 = int.from_bytes(header_bytes, byteorder='little')
-        
-        # Extract fields according to protocol spec
-        packet_type = header_u32 & 0x7F  # bits 0-6
-        reserved_flag = bool((header_u32 >> 7) & 0x1)  # bit 7
-        transaction_id = (header_u32 >> 8) & 0xFF  # bits 8-15
-        # bits 16-21 unused
-        obj_count_words = (header_u32 >> 22) & 0x3FF  # bits 22-31 (10-bit)
-        
+        data = bytes.fromhex(hex_data)
+        raw = parse_raw_packet(data)
+        if not (isinstance(raw, dict) and "Data" in raw):
+            return None
+        header = raw["Data"]["header"]
         return ResponseHeader(
-            packet_type=packet_type,
-            reserved_flag=reserved_flag,
-            transaction_id=transaction_id,
-            obj_count_words=obj_count_words,
-            raw_hex=hex_data[:8]
+            packet_type=header.get("packet_type"),
+            reserved_flag=header.get("reserved_flag"),
+            transaction_id=header.get("id"),
+            obj_count_words=header.get("obj_count_words"),
+            raw_hex=hex_data[:8],
         )
     except Exception as e:
-        print(f"Error parsing PutData header: {e}")
+        print(f"Error parsing PutData header via km003c_lib: {e}")
         return None
 
 
-def parse_logical_packets(hex_data: str, start_offset: int = 8) -> List[LogicalPacket]:
-    """Parse chained logical packets from PutData payload"""
-    logical_packets = []
-    offset = start_offset  # Skip main header (4 bytes = 8 hex chars)
-    
-    while offset < len(hex_data):
-        if len(hex_data) - offset < 8:  # Need at least 4 bytes for extended header
-            break
-        
-        try:
-            # Parse extended header (4 bytes, little-endian)
-            ext_header_bytes = bytes.fromhex(hex_data[offset:offset+8])
-            ext_header_u32 = int.from_bytes(ext_header_bytes, byteorder='little')
-            
-            # Extract fields
-            attribute = ext_header_u32 & 0x7FFF  # bits 0-14 (15-bit)
-            next_flag = bool((ext_header_u32 >> 15) & 0x1)  # bit 15
-            chunk = (ext_header_u32 >> 16) & 0x3F  # bits 16-21 (6-bit)
-            size_bytes = (ext_header_u32 >> 22) & 0x3FF  # bits 22-31 (10-bit)
-            
-            # Extract payload
-            offset += 8  # Move past extended header
-            payload_hex = hex_data[offset:offset + size_bytes * 2]
-            
-            logical_packets.append(LogicalPacket(
-                attribute=attribute,
-                next_flag=next_flag,
-                chunk=chunk,
-                size_bytes=size_bytes,
-                payload_hex=payload_hex
-            ))
-            
-            # Move to next logical packet
-            offset += size_bytes * 2
-            
-            # If next_flag is False, this is the last packet
-            if not next_flag:
-                break
-                
-        except Exception as e:
-            print(f"Error parsing logical packet at offset {offset}: {e}")
-            break
-    
+def parse_logical_packets(hex_data: str) -> List[LogicalPacket]:
+    """Extract chained logical packets from km003c_lib RawPacket."""
+    if not KM003C_LIB_AVAILABLE:
+        return []
+    logical_packets: List[LogicalPacket] = []
+    try:
+        data = bytes.fromhex(hex_data)
+        raw = parse_raw_packet(data)
+        if not (isinstance(raw, dict) and "Data" in raw):
+            return []
+        for lp in raw["Data"].get("logical_packets", []) or []:
+            # lp can be a dict or a PyO3 class with attributes
+            if isinstance(lp, dict):
+                attr = lp.get("attribute")
+                nxt = lp.get("next")
+                chk = lp.get("chunk")
+                sz = lp.get("size")
+                payload = lp.get("payload", b"")
+            else:
+                # Fallback to attribute access
+                attr = getattr(lp, "attribute", None)
+                nxt = getattr(lp, "next", None)
+                chk = getattr(lp, "chunk", None)
+                sz = getattr(lp, "size", None)
+                payload = getattr(lp, "payload", b"")
+            payload_hex = payload.hex() if isinstance(payload, (bytes, bytearray)) else ""
+            logical_packets.append(
+                LogicalPacket(
+                    attribute=int(attr) if attr is not None else 0,
+                    next_flag=bool(nxt) if nxt is not None else False,
+                    chunk=int(chk) if chk is not None else 0,
+                    size_bytes=int(sz) if sz is not None else 0,
+                    payload_hex=payload_hex,
+                )
+            )
+    except Exception as e:
+        print(f"Error extracting logical packets via km003c_lib: {e}")
     return logical_packets
 
 

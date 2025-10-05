@@ -46,11 +46,19 @@ def test_parse_raw_packet_extended():
     assert len(logical_packets) >= 1
 
     first_lp = logical_packets[0]
-    assert first_lp["attribute"] == 1  # ATT_ADC
-    assert first_lp["next"] is False  # Last logical packet
-    assert first_lp["chunk"] == 0
-    assert first_lp["size"] == 44  # ADC payload size
-    assert len(first_lp["payload"]) == 44
+    # logical_packets may contain dicts or PyO3 LogicalPacket objects
+    def lp_get(obj, key, default=None):
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
+    assert lp_get(first_lp, "attribute") == 1  # ATT_ADC
+    assert lp_get(first_lp, "next") is False  # Last logical packet
+    assert lp_get(first_lp, "chunk") == 0
+    assert lp_get(first_lp, "size") == 44  # ADC payload size
+    payload = lp_get(first_lp, "payload") or b""
+    assert isinstance(payload, (bytes, bytearray))
+    assert len(payload) == 44
 
 
 def test_raw_packet_attributes():
