@@ -1,5 +1,5 @@
 import pytest
-from km003c_lib import RawPacket, parse_raw_packet
+from km003c_lib import parse_raw_packet
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
@@ -7,18 +7,20 @@ pytestmark = pytest.mark.unit
 
 def test_parse_raw_packet_basic():
     """Test that parse_raw_packet works with basic packet data."""
-    # Simple packet data
+    # Simple packet data (Sync command)
     data = bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08])
 
     result = parse_raw_packet(data)
 
-    assert isinstance(result, RawPacket)
-    assert result.packet_type == "Sync"
-    assert result.id == 2
-    # New API: has_extended_header replaces old is_extended
-    assert result.has_extended_header is False
-    assert len(result.raw_bytes) == 8
-    assert len(result.payload) == 4
+    # RawPacket is now a dict-like enum with "Ctrl", "SimpleData", or "Data" keys
+    assert isinstance(result, dict)
+    assert "Ctrl" in result  # Sync is a control packet
+
+    ctrl = result["Ctrl"]
+    assert ctrl["header"]["packet_type"] == 1  # Sync = 0x01
+    assert ctrl["header"]["id"] == 2
+    assert ctrl["header"]["reserved_flag"] is False
+    assert len(ctrl["payload"]) == 4
 
 
 def test_parse_raw_packet_extended():
@@ -30,33 +32,46 @@ def test_parse_raw_packet_extended():
 
     result = parse_raw_packet(data)
 
-    assert isinstance(result, RawPacket)
-    assert result.packet_type == "PutData"
-    assert result.packet_type_id == 0x41
-    assert result.id == 0x0A
-    assert result.has_extended_header is True
-    
-    # Check extended header fields are correctly parsed
-    assert result.ext_attribute_id == 1  # ATT_ADC
-    assert result.ext_next == False  # Last logical packet
-    assert result.ext_chunk == 0
-    assert result.ext_size == 44  # ADC payload size
+    assert isinstance(result, dict)
+    assert "Data" in result  # PutData with logical packets
+
+    data_pkt = result["Data"]
+    assert data_pkt["header"]["packet_type"] == 0x41  # PutData
+    assert data_pkt["header"]["id"] == 0x0A
+    # Per wire format, extend/reserved bit here is 0 in this sample
+    assert data_pkt["header"]["reserved_flag"] is False
+
+    # Check logical packets (extended headers)
+    logical_packets = data_pkt["logical_packets"]
+    assert len(logical_packets) >= 1
+
+    first_lp = logical_packets[0]
+    assert first_lp["attribute"] == 1  # ATT_ADC
+    assert first_lp["next"] is False  # Last logical packet
+    assert first_lp["chunk"] == 0
+    assert first_lp["size"] == 44  # ADC payload size
+    assert len(first_lp["payload"]) == 44
 
 
 def test_raw_packet_attributes():
-    """Test that RawPacket has all expected attributes."""
+    """Test that RawPacket has all expected structure."""
     data = bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08])
     result = parse_raw_packet(data)
 
-    # Check that all expected attributes exist
-    assert hasattr(result, "packet_type")
-    assert hasattr(result, "packet_type_id")
-    assert hasattr(result, "id")
-    assert hasattr(result, "has_extended_header")
-    assert hasattr(result, "attribute")
-    assert hasattr(result, "attribute_id")
-    assert hasattr(result, "payload")
-    assert hasattr(result, "raw_bytes")
+    # RawPacket is a dict with variant keys
+    assert isinstance(result, dict)
+    assert "Ctrl" in result
+
+    ctrl = result["Ctrl"]
+    # Check that header and payload exist
+    assert "header" in ctrl
+    assert "payload" in ctrl
+
+    header = ctrl["header"]
+    assert "packet_type" in header
+    assert "id" in header
+    assert "reserved_flag" in header
+    assert "attribute" in header
 
 
 def test_raw_packet_repr():
@@ -64,8 +79,7 @@ def test_raw_packet_repr():
     data = bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08])
     result = parse_raw_packet(data)
 
+    # RawPacket dict should have string representation
     repr_str = repr(result)
-    assert "RawPacket" in repr_str
-    assert "Sync" in repr_str
-    assert "2" in repr_str  # ID
-    assert "8 bytes" in repr_str
+    assert "Ctrl" in repr_str
+    assert "header" in repr_str

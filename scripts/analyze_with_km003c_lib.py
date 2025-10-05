@@ -37,6 +37,13 @@ except ImportError as e:
 
 # Python library imports
 from km003c_analysis.core import split_usb_transactions
+from km003c_helpers import (
+    get_packet_type,
+    get_adc_data,
+    get_adcqueue_data,
+    get_pd_status,
+    get_pd_events,
+)
 
 
 def analyze_with_rust_lib():
@@ -99,7 +106,9 @@ def analyze_with_rust_lib():
             packet = parse_packet(payload_bytes)
             
             stats["parse_success"] += 1
-            stats["packet_types"][raw_packet.packet_type] += 1
+            pkt_type = get_packet_type(packet)
+            if pkt_type is not None:
+                stats["packet_types"][pkt_type] += 1
             
             # Analyze by endpoint
             is_request = row["endpoint_address"] == "0x01"
@@ -107,74 +116,91 @@ def analyze_with_rust_lib():
             
             if is_request:
                 # Request analysis
-                if packet.packet_type == "GetData":
-                    # Extract attribute set from raw payload
-                    if raw_packet.attribute_id is not None:
-                        mask = raw_packet.attribute_id
+                if get_packet_type(packet) == "GetData":
+                    # Extract attribute set from parsed packet
+                    mask = packet["GetData"].get("attribute_mask")
+                    if mask is not None:
                         stats["attributes_in_requests"][f"0x{mask:04X}"] += 1
-                        
-                        # Store for correlation
-                        pending_requests[raw_packet.id] = {
-                            "mask": mask,
-                            "mask_hex": f"0x{mask:04X}",
-                            "timestamp": row["timestamp"],
-                            "transaction_id": row["transaction_id"],
-                        }
+                        # Store for correlation using RawPacket header ID
+                        req_id = None
+                        if isinstance(raw_packet, dict) and "Ctrl" in raw_packet:
+                            req_id = raw_packet["Ctrl"].get("header", {}).get("id")
+                        if req_id is not None:
+                            pending_requests[req_id] = {
+                                "mask": mask,
+                                "mask_hex": f"0x{mask:04X}",
+                                "timestamp": row["timestamp"],
+                                "transaction_id": row["transaction_id"],
+                            }
             
             elif is_response:
                 # Response analysis
-                if packet.packet_type == "DataResponse":
-                    # Analyze chained logical packets
-                    if raw_packet.has_extended_header:
-                        # Count logical packets by attribute
-                        # Note: raw_packet only shows first logical packet's attribute
-                        # We need to check the actual packet data structure
-                        
+                if get_packet_type(packet) == "DataResponse":
+                    # Analyze chained logical packets (Data variant)
+                    if isinstance(raw_packet, dict) and "Data" in raw_packet:
+                        # Collect attributes seen in the response
                         response_attrs = []
-                        
-                        # Extract from high-level packet
-                        if packet.adc_data is not None:
+
+                        # Extract from high-level parsed packet
+                        adc = get_adc_data(packet)
+                        if adc is not None:
                             response_attrs.append(1)  # ADC attribute
-                            stats["adc_data_samples"].append({
-                                "vbus_v": packet.adc_data.vbus_v,
-                                "ibus_a": packet.adc_data.ibus_a,
-                                "power_w": packet.adc_data.power_w,
-                                "temp_c": packet.adc_data.temp_c,
-                            })
-                        
-                        if packet.pd_status is not None:
+                            stats["adc_data_samples"].append(
+                                {
+                                    "vbus_v": adc.vbus_v,
+                                    "ibus_a": adc.ibus_a,
+                                    "power_w": adc.power_w,
+                                    "temp_c": adc.temp_c,
+                                }
+                            )
+
+                        adcq = get_adcqueue_data(packet)
+                        if adcq is not None:
+                            response_attrs.append(2)  # AdcQueue attribute
+
+                        pdst = get_pd_status(packet)
+                        if pdst is not None:
                             response_attrs.append(16)  # PdPacket attribute
-                            stats["pd_status_samples"].append({
-                                "timestamp": packet.pd_status.timestamp,
-                                "vbus_v": packet.pd_status.vbus_v,
-                                "ibus_a": packet.pd_status.ibus_a,
-                            })
-                        
-                        if packet.pd_events is not None:
+                            stats["pd_status_samples"].append(
+                                {
+                                    "timestamp": pdst.timestamp,
+                                    "vbus_v": pdst.vbus_v,
+                                    "ibus_a": pdst.ibus_a,
+                                }
+                            )
+
+                        pdev = get_pd_events(packet)
+                        if pdev is not None:
                             response_attrs.append(16)  # PdPacket attribute (events)
-                            stats["pd_events_count"] += len(packet.pd_events.events)
-                        
+                            try:
+                                stats["pd_events_count"] += len(pdev.events)
+                            except Exception:
+                                pass
+
                         # Record response attributes
                         if response_attrs:
                             attrs_key = str(sorted(set(response_attrs)))
                             stats["attributes_in_responses"][attrs_key] += 1
-                            
+
                             # Chain length analysis
                             chain_len = len(set(response_attrs))
                             stats["chained_packets_stats"][f"{chain_len}_packets"] += 1
-                        
-                        # Correlate with request
-                        if raw_packet.id in pending_requests:
-                            req_info = pending_requests.pop(raw_packet.id)
+
+                        # Correlate with request by matching RawPacket IDs
+                        resp_id = raw_packet["Data"].get("header", {}).get("id")
+                        if resp_id in pending_requests:
+                            req_info = pending_requests.pop(resp_id)
                             latency_us = (row["timestamp"] - req_info["timestamp"]) * 1_000_000
-                            
-                            stats["request_response_pairs"].append({
-                                "request_mask": req_info["mask"],
-                                "request_mask_hex": req_info["mask_hex"],
-                                "response_attributes": response_attrs,
-                                "latency_us": latency_us,
-                                "transaction_id": req_info["transaction_id"],
-                            })
+
+                            stats["request_response_pairs"].append(
+                                {
+                                    "request_mask": req_info["mask"],
+                                    "request_mask_hex": req_info["mask_hex"],
+                                    "response_attributes": response_attrs,
+                                    "latency_us": latency_us,
+                                    "transaction_id": req_info["transaction_id"],
+                                }
+                            )
         
         except Exception as e:
             stats["parse_errors"] += 1

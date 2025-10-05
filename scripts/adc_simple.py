@@ -13,6 +13,7 @@ For multi-sample streaming (AdcQueue), see test_adcqueue.py.
 import usb.core
 import usb.util
 from km003c_lib import VID, PID, parse_packet
+from km003c_helpers import get_adc_data
 
 
 # USB Interface Selection
@@ -111,11 +112,12 @@ class KM003C:
         # Parse using the Rust library bindings
         parsed_packet = parse_packet(bytes(response))
 
-        # Extract ADC data
-        if parsed_packet.adc_data is None:
+        # Extract ADC data using helper function
+        adc_data = get_adc_data(parsed_packet)
+        if adc_data is None:
             raise ValueError("No ADC data in response")
 
-        return parsed_packet.adc_data
+        return adc_data
 
     def close(self):
         """Release the device interface and reattach kernel drivers."""

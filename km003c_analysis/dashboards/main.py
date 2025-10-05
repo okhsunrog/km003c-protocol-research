@@ -19,6 +19,22 @@ from ..core.transaction_tagger import tag_transactions
 
 # Import the proper Rust library for packet parsing
 from km003c_lib import parse_packet, parse_raw_packet
+try:
+    # When running from project root
+    from scripts.km003c_helpers import (
+        get_packet_type,
+        get_adc_data,
+        get_pd_status,
+        get_pd_events,
+    )
+except Exception:
+    # Fallback if scripts isn't on sys.path
+    from km003c_helpers import (
+        get_packet_type,
+        get_adc_data,
+        get_pd_status,
+        get_pd_events,
+    )
 
 
 def extract_transaction_payloads(transaction_frames: pl.DataFrame) -> dict[str, Any]:
@@ -97,45 +113,49 @@ def parse_packet_preview(hex_data: str) -> dict[str, Any]:
         # Use the proper Rust library to parse the packet
         parsed_packet = parse_packet(packet_bytes)
 
-        # Extract information based on the packet type
-        packet_type = parsed_packet.packet_type
+        # Extract information based on the packet type (dict-based API)
+        pkt_type = get_packet_type(parsed_packet)
 
-        if packet_type == "CmdGetSimpleAdcData":
+        if pkt_type == "GetData":
+            mask = parsed_packet["GetData"].get("attribute_mask")
             return {
-                "type": "ADC_REQUEST",
-                "preview": f"GetAdcData ({len(packet_bytes)} bytes)",
-                "details": {"packet_type": packet_type, "raw_packet": parsed_packet},
+                "type": "GET_DATA_REQUEST",
+                "preview": f"GetData mask=0x{mask:04X} ({len(packet_bytes)} bytes)" if mask is not None else f"GetData ({len(packet_bytes)} bytes)",
+                "details": {"packet_type": pkt_type, "attribute_mask": mask},
                 "parsed_packet": parsed_packet,
             }
-        elif packet_type == "SimpleAdcData":
-            adc_preview = "ADC Data"
-            if parsed_packet.adc_data:
-                adc = parsed_packet.adc_data
-                # Show key values for table preview (using absolute current)
-                adc_preview = (
-                    f"{adc.vbus_v:.3f}V, {abs(adc.ibus_a):.3f}A, {adc.temp_c:.1f}°C"
-                )
+        elif pkt_type == "DataResponse":
+            adc = get_adc_data(parsed_packet)
+            if adc is not None:
+                adc_preview = f"{adc.vbus_v:.3f}V, {abs(adc.ibus_a):.3f}A, {adc.temp_c:.1f}°C"
+                return {
+                    "type": "ADC_RESPONSE",
+                    "preview": adc_preview,
+                    "details": {"packet_type": pkt_type, "adc_data": adc},
+                    "parsed_packet": parsed_packet,
+                }
+            # Non-ADC DataResponse
             return {
-                "type": "ADC_RESPONSE",
-                "preview": adc_preview,
-                "details": {
-                    "packet_type": packet_type,
-                    "adc_data": parsed_packet.adc_data,
-                    "raw_packet": parsed_packet,
-                },
+                "type": "DATA_RESPONSE",
+                "preview": f"DataResponse ({len(packet_bytes)} bytes)",
+                "details": {"packet_type": pkt_type},
                 "parsed_packet": parsed_packet,
             }
-        elif packet_type == "Generic":
+        else:
             # For generic packets, try to parse as raw packet for more details
             try:
                 raw_packet = parse_raw_packet(packet_bytes)
+                # Determine variant and header basics
+                variant = next(iter(raw_packet.keys())) if isinstance(raw_packet, dict) and raw_packet else "UNKNOWN"
+                header = raw_packet[variant]["header"] if isinstance(raw_packet, dict) and variant in raw_packet else {}
                 return {
                     "type": "GENERIC",
-                    "preview": f"{raw_packet.packet_type} ({len(packet_bytes)} bytes)",
+                    "preview": f"{variant} ({len(packet_bytes)} bytes)",
                     "details": {
-                        "packet_type": raw_packet.packet_type,
-                        "id": raw_packet.id,
-                        "has_extended_header": raw_packet.has_extended_header,
+                        "variant": variant,
+                        "packet_type": header.get("packet_type"),
+                        "id": header.get("id"),
+                        "reserved_flag": header.get("reserved_flag"),
                         "raw_packet": raw_packet,
                     },
                     "raw_packet": raw_packet,
@@ -145,16 +165,9 @@ def parse_packet_preview(hex_data: str) -> dict[str, Any]:
                 return {
                     "type": "GENERIC",
                     "preview": f"Generic packet ({len(packet_bytes)} bytes)",
-                    "details": {"packet_type": packet_type},
+                    "details": {"packet_type": pkt_type},
                     "parsed_packet": parsed_packet,
                 }
-        else:
-            return {
-                "type": "OTHER",
-                "preview": f"{packet_type} ({len(packet_bytes)} bytes)",
-                "details": {"packet_type": packet_type},
-                "parsed_packet": parsed_packet,
-            }
 
     except Exception as e:
         return {
@@ -508,15 +521,23 @@ def main() -> None:
                         raw_packet = parse_raw_packet(packet_bytes)
                         with st.expander("⚙️ Raw Packet Details", expanded=False):
                             st.text(str(raw_packet))
-
-                            if raw_packet.has_extended_header:
-                                st.text("Extended Header Fields:")
-                                st.text(
-                                    f"  Attribute ID: {raw_packet.ext_attribute_id}"
-                                )
-                                st.text(f"  Next: {raw_packet.ext_next}")
-                                st.text(f"  Chunk: {raw_packet.ext_chunk}")
-                                st.text(f"  Size: {raw_packet.ext_size}")
+                            if isinstance(raw_packet, dict):
+                                variant = next(iter(raw_packet.keys())) if raw_packet else "UNKNOWN"
+                                header = raw_packet[variant].get("header", {}) if variant in raw_packet else {}
+                                st.text(f"Variant: {variant}")
+                                st.text(f"Packet Type: {header.get('packet_type')}")
+                                st.text(f"ID: {header.get('id')}")
+                                st.text(f"Reserved Flag: {header.get('reserved_flag')}")
+                                # Extended header details for Data variant
+                                if variant == "Data":
+                                    lps = raw_packet["Data"].get("logical_packets", [])
+                                    if lps:
+                                        lp0 = lps[0]
+                                        st.text("Extended Header Fields (first logical packet):")
+                                        st.text(f"  Attribute: {lp0.get('attribute')}")
+                                        st.text(f"  Next: {lp0.get('next')}")
+                                        st.text(f"  Chunk: {lp0.get('chunk')}")
+                                        st.text(f"  Size: {lp0.get('size')}")
                     except Exception:
                         pass
 
@@ -542,22 +563,24 @@ def main() -> None:
                         packet_bytes = bytes.fromhex(payload_data["response_data"])
                         raw_packet = parse_raw_packet(packet_bytes)
 
-                        # Show key packet details
+                        # Show key packet details based on dict variant
                         col_r1, col_r2, col_r3 = st.columns(3)
-                        with col_r1:
-                            st.text(f"Packet Type: {raw_packet.packet_type}")
-                            st.text(f"ID: {raw_packet.id}")
-                        with col_r2:
-                            st.text(
-                                f"Extended Header: {raw_packet.has_extended_header}"
-                            )
-                            st.text(f"Reserved Flag: {raw_packet.reserved_flag}")
-                        with col_r3:
-                            if raw_packet.attribute:
-                                st.text(f"Attribute: {raw_packet.attribute}")
-                            if raw_packet.has_extended_header and raw_packet.ext_size:
-                                st.text(f"Ext Size: {raw_packet.ext_size}")
-
+                        if isinstance(raw_packet, dict) and raw_packet:
+                            variant = next(iter(raw_packet.keys()))
+                            header = raw_packet[variant].get("header", {})
+                            with col_r1:
+                                st.text(f"Variant: {variant}")
+                                st.text(f"Packet Type: {header.get('packet_type')}")
+                                st.text(f"ID: {header.get('id')}")
+                            with col_r2:
+                                st.text(f"Reserved Flag: {header.get('reserved_flag')}")
+                                st.text(f"Extended Header: {variant == 'Data'}")
+                            with col_r3:
+                                if variant == "Data":
+                                    lps = raw_packet["Data"].get("logical_packets", [])
+                                    if lps:
+                                        st.text(f"Attribute: {lps[0].get('attribute')}")
+                                        st.text(f"Ext Size: {lps[0].get('size')}")
                     except Exception as e:
                         st.text(f"Raw packet parsing failed: {str(e)}")
 
@@ -605,15 +628,22 @@ def main() -> None:
                         raw_packet = parse_raw_packet(packet_bytes)
                         with st.expander("⚙️ Raw Packet Details", expanded=False):
                             st.text(str(raw_packet))
-
-                            if raw_packet.has_extended_header:
-                                st.text("Extended Header Fields:")
-                                st.text(
-                                    f"  Attribute ID: {raw_packet.ext_attribute_id}"
-                                )
-                                st.text(f"  Next: {raw_packet.ext_next}")
-                                st.text(f"  Chunk: {raw_packet.ext_chunk}")
-                                st.text(f"  Size: {raw_packet.ext_size}")
+                            if isinstance(raw_packet, dict):
+                                variant = next(iter(raw_packet.keys())) if raw_packet else "UNKNOWN"
+                                header = raw_packet[variant].get("header", {}) if variant in raw_packet else {}
+                                st.text(f"Variant: {variant}")
+                                st.text(f"Packet Type: {header.get('packet_type')}")
+                                st.text(f"ID: {header.get('id')}")
+                                st.text(f"Reserved Flag: {header.get('reserved_flag')}")
+                                if variant == "Data":
+                                    lps = raw_packet["Data"].get("logical_packets", [])
+                                    if lps:
+                                        lp0 = lps[0]
+                                        st.text("Extended Header Fields (first logical packet):")
+                                        st.text(f"  Attribute: {lp0.get('attribute')}")
+                                        st.text(f"  Next: {lp0.get('next')}")
+                                        st.text(f"  Chunk: {lp0.get('chunk')}")
+                                        st.text(f"  Size: {lp0.get('size')}")
                     except Exception:
                         pass
 
@@ -656,20 +686,15 @@ def main() -> None:
                     try:
                         packet_bytes = bytes.fromhex(row["response_hex"])
                         parsed_packet = parse_packet(packet_bytes)
-
-                        if (
-                            parsed_packet.packet_type == "SimpleAdcData"
-                            and parsed_packet.adc_data
-                        ):
-                            adc = parsed_packet.adc_data
+                        pkt_type = get_packet_type(parsed_packet)
+                        adc = get_adc_data(parsed_packet) if pkt_type == "DataResponse" else None
+                        if adc is not None:
                             adc_data.append(
                                 {
                                     "time": row["start_time"],
                                     "transaction_id": row["transaction_id"],
                                     "vbus_v": adc.vbus_v,
-                                    "ibus_a": abs(
-                                        adc.ibus_a
-                                    ),  # Use absolute current for plot
+                                    "ibus_a": abs(adc.ibus_a),  # Use absolute current for plot
                                     "power_w": adc.power_w,
                                     "temp_c": adc.temp_c,
                                     "cc1_v": adc.cc1_v,

@@ -34,59 +34,29 @@ def extract_all_logical_packets_from_raw(payload_hex: str) -> List[Dict[str, Any
     try:
         payload_bytes = bytes.fromhex(payload_hex)
         raw_packet = parse_raw_packet(payload_bytes)
-        
-        # Проверяем что это PutData с extended headers
-        if raw_packet.packet_type != "PutData":
+
+        # Новый dict-based API: Data/ SimpleData/ Ctrl варианты
+        # Для PutData (с расширенными заголовками) ожидаем вариант "Data"
+        if not (isinstance(raw_packet, dict) and "Data" in raw_packet):
             return []
-        
-        if not raw_packet.has_extended_header:
-            return []
-        
-        # Теперь нужно извлечь ВСЕ logical packets вручную
-        # parse_raw_packet показывает только первый logical packet в Python API
-        # Нужно парсить вручную из raw_bytes
-        
+
+        data_pkt = raw_packet["Data"]
+        lps = data_pkt.get("logical_packets", [])
+
+        # Преобразуем к унифицированной структуре с payload_hex для совместимости
         logical_packets = []
-        
-        # Skip main header (4 bytes)
-        offset = 4
-        data = payload_bytes
-        
-        while offset < len(data):
-            if len(data) - offset < 4:
-                break
-            
-            # Parse extended header (4 bytes, little-endian)
-            ext_header_bytes = data[offset:offset+4]
-            ext_header_u32 = int.from_bytes(ext_header_bytes, byteorder='little')
-            
-            # Extract fields
-            attribute = ext_header_u32 & 0x7FFF  # bits 0-14
-            next_flag = bool((ext_header_u32 >> 15) & 0x1)  # bit 15
-            chunk = (ext_header_u32 >> 16) & 0x3F  # bits 16-21
-            size_bytes = (ext_header_u32 >> 22) & 0x3FF  # bits 22-31
-            
-            offset += 4  # Skip extended header
-            
-            # Extract payload
-            if offset + size_bytes > len(data):
-                print(f"⚠️  Warning: size_bytes={size_bytes} exceeds remaining data")
-                break
-            
-            payload_data = data[offset:offset + size_bytes]
-            offset += size_bytes
-            
-            logical_packets.append({
-                "attribute": attribute,
-                "next": next_flag,
-                "chunk": chunk,
-                "size": size_bytes,
-                "payload_hex": payload_data.hex(),
-            })
-            
-            if not next_flag:
-                break
-        
+        for lp in lps:
+            payload = lp.get("payload", b"")
+            logical_packets.append(
+                {
+                    "attribute": lp.get("attribute"),
+                    "next": lp.get("next"),
+                    "chunk": lp.get("chunk"),
+                    "size": lp.get("size"),
+                    "payload_hex": payload.hex() if isinstance(payload, (bytes, bytearray)) else "",
+                }
+            )
+
         return logical_packets
         
     except Exception as e:
@@ -157,30 +127,35 @@ def validate_bitmask_correlation():
             is_request = row["endpoint_address"] == "0x01"
             is_response = row["endpoint_address"] == "0x81"
             
-            if is_request and raw_packet.packet_type == "GetData":
-                # Extract attribute mask
-                if raw_packet.attribute_id is not None:
-                    mask = raw_packet.attribute_id
-                    
-                    # Calculate expected attributes from mask
-                    expected_attrs = set()
-                    for bit_pos, attr_id in BIT_TO_ATTRIBUTE.items():
-                        if mask & (1 << bit_pos):
-                            expected_attrs.add(attr_id)
-                    
-                    pending_requests[raw_packet.id] = {
-                        "mask": mask,
-                        "mask_hex": f"0x{mask:04X}",
-                        "expected_attributes": expected_attrs,
-                        "timestamp": row["timestamp"],
-                    }
+            if is_request and isinstance(raw_packet, dict) and "Ctrl" in raw_packet:
+                ctrl = raw_packet["Ctrl"]
+                header = ctrl.get("header", {})
+                # 0x0C - GetData
+                if header.get("packet_type") == 0x0C:
+                    mask = header.get("attribute")
+                    if mask is not None:
+                        # Calculate expected attributes from mask
+                        expected_attrs = set()
+                        for bit_pos, attr_id in BIT_TO_ATTRIBUTE.items():
+                            if mask & (1 << bit_pos):
+                                expected_attrs.add(attr_id)
+
+                        pending_requests[header.get("id")] = {
+                            "mask": mask,
+                            "mask_hex": f"0x{mask:04X}",
+                            "expected_attributes": expected_attrs,
+                            "timestamp": row["timestamp"],
+                        }
             
-            elif is_response and raw_packet.packet_type == "PutData":
+            elif is_response and isinstance(raw_packet, dict) and "Data" in raw_packet:
                 # Extract ALL logical packets
                 logical_packets = extract_all_logical_packets_from_raw(row["payload_hex"])
-                
-                if raw_packet.id in pending_requests:
-                    req = pending_requests.pop(raw_packet.id)
+
+                data_hdr = raw_packet["Data"]["header"]
+                resp_id = data_hdr.get("id")
+
+                if resp_id in pending_requests:
+                    req = pending_requests.pop(resp_id)
                     
                     # Get observed attributes from logical packets
                     observed_attrs = set(lp["attribute"] for lp in logical_packets)

@@ -1,8 +1,7 @@
 """
 Tests for the km003c_lib packet parsing functionality.
 
-Tests the updated parse_packet function that returns the complete Packet enum
-instead of just ADC data.
+Tests the updated parse_packet function that returns dict-like Packet enum.
 """
 
 import sys
@@ -20,7 +19,58 @@ from km003c_lib import parse_packet  # noqa: E402
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
 
-# Import the updated parse_packet function and related classes
+
+# Helper functions to extract data from new dict-based Packet API
+def get_packet_type(packet):
+    """Extract packet type from dict-based Packet."""
+    if isinstance(packet, dict):
+        # Return the variant key
+        return list(packet.keys())[0]
+    return None
+
+
+def get_adc_data(packet):
+    """Extract ADC data from DataResponse packet."""
+    if "DataResponse" not in packet:
+        return None
+    payloads = packet["DataResponse"]["payloads"]
+    for payload in payloads:
+        if "Adc" in payload:
+            return payload["Adc"]
+    return None
+
+
+def get_adcqueue_data(packet):
+    """Extract AdcQueue data from DataResponse packet."""
+    if "DataResponse" not in packet:
+        return None
+    payloads = packet["DataResponse"]["payloads"]
+    for payload in payloads:
+        if "AdcQueue" in payload:
+            return payload["AdcQueue"]
+    return None
+
+
+def get_pd_status(packet):
+    """Extract PD status from DataResponse packet."""
+    if "DataResponse" not in packet:
+        return None
+    payloads = packet["DataResponse"]["payloads"]
+    for payload in payloads:
+        if "PdStatus" in payload:
+            return payload["PdStatus"]
+    return None
+
+
+def get_pd_events(packet):
+    """Extract PD events from DataResponse packet."""
+    if "DataResponse" not in packet:
+        return None
+    payloads = packet["DataResponse"]["payloads"]
+    for payload in payloads:
+        if "PdEvents" in payload:
+            return payload["PdEvents"]
+    return None
 
 
 class TestPacketParsing:
@@ -34,13 +84,15 @@ class TestPacketParsing:
 
         result = parse_packet(adc_packet_bytes)
 
-        assert result.packet_type == "DataResponse"
-        assert result.adc_data is not None
-        assert result.pd_status is None
-        assert result.pd_events is None
+        packet_type = get_packet_type(result)
+        assert packet_type == "DataResponse"
+
+        adc = get_adc_data(result)
+        assert adc is not None
+        assert get_pd_status(result) is None
+        assert get_pd_events(result) is None
 
         # Check ADC data values
-        adc = result.adc_data
         assert adc.vbus_v == pytest.approx(0.004, abs=0.001)  # ~0.004V
         assert adc.ibus_a == pytest.approx(-0.000, abs=0.001)  # ~0A
         assert adc.power_w == pytest.approx(-0.000, abs=0.001)  # ~0W
@@ -54,11 +106,12 @@ class TestPacketParsing:
 
         result = parse_packet(adc_request_bytes)
 
-        assert result.packet_type == "GetData"
-        assert result.adc_data is None
-        assert result.adcqueue_data is None
-        assert result.pd_status is None
-        assert result.raw_payload is not None  # Contains attribute mask
+        packet_type = get_packet_type(result)
+        assert packet_type == "GetData"
+
+        # GetData has attribute_mask field (wire ATT_ADC = 0x0001)
+        assert "attribute_mask" in result["GetData"]
+        assert result["GetData"]["attribute_mask"] == 0x0001
 
     def test_parse_generic_control_command(self):
         """Test parsing of Connect command."""
@@ -68,11 +121,10 @@ class TestPacketParsing:
 
         result = parse_packet(control_command_bytes)
 
-        assert result.packet_type == "Connect"
-        assert result.adc_data is None
-        assert result.adcqueue_data is None
-        assert result.pd_status is None
-        assert result.raw_payload is None  # Connect has no payload
+        packet_type = get_packet_type(result)
+        assert packet_type == "Connect"
+        # Connect is empty variant: {"Connect": None}
+        assert result["Connect"] is None
 
     def test_parse_generic_data_command(self):
         """Test parsing of generic data commands with payloads."""
@@ -84,26 +136,25 @@ class TestPacketParsing:
 
         result = parse_packet(extended_command_bytes)
 
-        assert result.packet_type == "Generic"
-        assert result.adc_data is None
-        assert result.adcqueue_data is None
-        assert result.pd_status is None
-        assert result.raw_payload is not None
-        assert len(result.raw_payload) == 32  # 32-byte payload
+        packet_type = get_packet_type(result)
+        assert packet_type == "Generic"
+
+        # Generic contains a RawPacket
+        raw_packet = result["Generic"]
+        assert isinstance(raw_packet, dict)
 
     def test_parse_other_get_data_command(self):
         """Test parsing of GetData commands with non-ADC attributes."""
         # GetData command with PD attribute (0x0010)
-        other_getdata_hex = "0c071000"  # packet_type=0x0C, id=0x07, attribute=0x0010
+        # For PD (0x0010), byte2 must be 0x20 due to the reserved bit after id
+        other_getdata_hex = "0c072000"  # packet_type=0x0C, id=0x07, attribute=0x0010
         other_getdata_bytes = bytes.fromhex(other_getdata_hex)
 
         result = parse_packet(other_getdata_bytes)
 
-        assert result.packet_type == "GetData"  # All GetData commands recognized
-        assert result.adc_data is None
-        assert result.adcqueue_data is None
-        assert result.pd_status is None
-        assert result.raw_payload is not None  # Contains attribute mask
+        packet_type = get_packet_type(result)
+        assert packet_type == "GetData"
+        assert result["GetData"]["attribute_mask"] == 0x0010
 
     def test_parse_multiple_adc_transactions(self):
         """Test parsing of sequential ADC request/response pairs."""
@@ -117,7 +168,7 @@ class TestPacketParsing:
         for hex_data, expected_type in test_cases:
             packet_bytes = bytes.fromhex(hex_data)
             result = parse_packet(packet_bytes)
-            assert result.packet_type == expected_type
+            assert get_packet_type(result) == expected_type
 
     def test_parse_invalid_packet_too_short(self):
         """Test parsing of invalid packets (too short)."""
@@ -156,8 +207,9 @@ class TestPacketParsing:
             packet_bytes = bytes.fromhex(hex_data)
             result = parse_packet(packet_bytes)
 
-            assert result.packet_type == "DataResponse"
-            assert result.adc_data is not None
+            packet_type = get_packet_type(result)
+            assert packet_type == "DataResponse"
+            assert get_adc_data(result) is not None
 
             # Transaction ID should be in the second byte of the packet
             actual_id = packet_bytes[1]
@@ -172,10 +224,7 @@ class TestPacketParsing:
         result = parse_packet(adc_packet_bytes)
         repr_str = str(result)
 
-        assert "Packet::DataResponse" in repr_str
-        assert "AdcData" in repr_str
-        assert "vbus=" in repr_str
-        assert "temp=" in repr_str
+        assert "DataResponse" in repr_str
 
     def test_adc_data_realistic_values(self):
         """Test that parsed ADC values are within realistic ranges."""
@@ -183,7 +232,7 @@ class TestPacketParsing:
         adc_packet_bytes = bytes.fromhex(adc_packet_hex)
 
         result = parse_packet(adc_packet_bytes)
-        adc = result.adc_data
+        adc = get_adc_data(result)
 
         # Test realistic ranges for USB power measurements
         assert -1.0 <= adc.vbus_v <= 30.0  # USB voltage range
@@ -221,7 +270,7 @@ class TestPacketClassification:
         for hex_data, expected_type, description in test_cases:
             packet_bytes = bytes.fromhex(hex_data)
             result = parse_packet(packet_bytes)
-            assert result.packet_type == expected_type, (
+            assert get_packet_type(result) == expected_type, (
                 f"Failed for {description}: {hex_data}"
             )
 
@@ -232,7 +281,7 @@ class TestPacketClassification:
         for hex_data in getdata_requests:
             packet_bytes = bytes.fromhex(hex_data)
             result = parse_packet(packet_bytes)
-            assert result.packet_type == "GetData"
+            assert get_packet_type(result) == "GetData"
 
         # Multiple extended commands should all be Generic
         extended_commands = [
@@ -242,102 +291,109 @@ class TestPacketClassification:
         for hex_data in extended_commands:
             packet_bytes = bytes.fromhex(hex_data)
             result = parse_packet(packet_bytes)
-            assert result.packet_type == "Generic"
+            assert get_packet_type(result) == "Generic"
 
 
 class TestChainedLogicalPackets:
     """Test parsing of chained logical packets (multiple payloads in one packet)."""
-    
+
     def test_adc_plus_pd_status(self):
         """Test ADC + PdStatus chained packet (68 bytes total)."""
         import polars as pl
-        
+
         dataset_path = Path(__file__).parent.parent / "data/processed/usb_master_dataset.parquet"
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
-        
+
         df = pl.read_parquet(dataset_path)
         session = df.filter(pl.col('source_file') == 'pd_capture_new.9')
         bulk = session.filter(pl.col('transfer_type') == '0x03')
-        
+
         # Find ADC+PD packet (68 bytes = 4 main + 4 ext + 44 ADC + 4 ext + 12 PD)
         responses = bulk.filter(
             (pl.col('endpoint_address') == '0x81') &
             (pl.col('urb_type') == 'C') &
             (pl.col('data_length') == 68)
         )
-        
+
         assert len(responses) > 0, "No ADC+PD packets found"
-        
+
         row = responses.row(0, named=True)
         payload = bytes.fromhex(row['payload_hex'])
         packet = parse_packet(payload)
-        
+
         # Should have BOTH ADC and PD status
-        assert packet.packet_type == "DataResponse"
-        assert packet.adc_data is not None, "ADC data missing in chained packet"
-        assert packet.pd_status is not None, "PD status missing in chained packet"
-        assert packet.adcqueue_data is None
-        
+        packet_type = get_packet_type(packet)
+        assert packet_type == "DataResponse"
+
+        adc_data = get_adc_data(packet)
+        pd_status = get_pd_status(packet)
+
+        assert adc_data is not None, "ADC data missing in chained packet"
+        assert pd_status is not None, "PD status missing in chained packet"
+
         # Both should have valid data
-        assert 0.0 <= packet.adc_data.vbus_v <= 50.0
-        assert 0.0 <= packet.pd_status.vbus_v <= 50.0
-        
-        print(f"✓ Chained ADC+PD: ADC={packet.adc_data.vbus_v:.3f}V, PD={packet.pd_status.vbus_v:.3f}V")
-    
+        assert 0.0 <= adc_data.vbus_v <= 50.0
+        assert 0.0 <= pd_status.vbus_v <= 50.0
+
+        print(f"✓ Chained ADC+PD: ADC={adc_data.vbus_v:.3f}V, PD={pd_status.vbus_v:.3f}V")
+
     def test_adc_plus_adcqueue(self):
         """Test ADC + AdcQueue chained packet."""
         import polars as pl
-        
+
         dataset_path = Path(__file__).parent.parent / "data/processed/usb_master_dataset.parquet"
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
-        
+
         df = pl.read_parquet(dataset_path)
         session = df.filter(pl.col('source_file') == 'orig_adc_record.6')
         bulk = session.filter(pl.col('transfer_type') == '0x03')
-        
+
         responses = bulk.filter(
             (pl.col('endpoint_address') == '0x81') &
             (pl.col('urb_type') == 'C') &
             pl.col('payload_hex').is_not_null()
         )
-        
+
         # Find ADC+AdcQueue packet
         found = False
         for row in responses.iter_rows(named=True):
             payload = bytes.fromhex(row['payload_hex'])
             try:
                 packet = parse_packet(payload)
-                if packet.adc_data and packet.adcqueue_data:
+                adc_data = get_adc_data(packet)
+                adcqueue_data = get_adcqueue_data(packet)
+
+                if adc_data and adcqueue_data:
                     found = True
-                    
+
                     # Should have BOTH ADC and AdcQueue
-                    assert packet.packet_type == "DataResponse"
-                    assert len(packet.adcqueue_data.samples) >= 1
-                    
-                    print(f"✓ Chained ADC+AdcQueue: ADC={packet.adc_data.vbus_v:.3f}V, Queue={len(packet.adcqueue_data.samples)} samples")
+                    assert get_packet_type(packet) == "DataResponse"
+                    assert len(adcqueue_data.samples) >= 1
+
+                    print(f"✓ Chained ADC+AdcQueue: ADC={adc_data.vbus_v:.3f}V, Queue={len(adcqueue_data.samples)} samples")
                     break
             except:
                 continue
-        
+
         assert found, "No ADC+AdcQueue chained packets found in dataset"
 
 
 class TestAdcQueueParsing:
     """Test AdcQueue multi-sample parsing against real dataset."""
-    
+
     def test_parse_adcqueue_from_dataset(self):
         """Test parsing AdcQueue responses from actual USB captures."""
         import polars as pl
-        
+
         # Load dataset
         dataset_path = Path(__file__).parent.parent / "data/processed/usb_master_dataset.parquet"
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
-        
+
         df = pl.read_parquet(dataset_path)
-        
+
         # Filter for AdcQueue responses from orig_adc_1000hz.6
         session = df.filter(pl.col('source_file') == 'orig_adc_1000hz.6')
         bulk = session.filter(pl.col('transfer_type') == '0x03')
@@ -346,67 +402,69 @@ class TestAdcQueueParsing:
             (pl.col('urb_type') == 'C') &
             pl.col('payload_hex').is_not_null()
         )
-        
+
         adcqueue_count = 0
         adc_count = 0
-        
+
         for row in responses.iter_rows(named=True):
             payload_hex = row['payload_hex']
             if not payload_hex or len(payload_hex) < 16:
                 continue
-            
+
             payload = bytes.fromhex(payload_hex)
-            
+
             try:
                 packet = parse_packet(payload)
-                
-                if packet.adcqueue_data:
+                adcqueue_data = get_adcqueue_data(packet)
+                adc_data = get_adc_data(packet)
+
+                if adcqueue_data:
                     adcqueue_count += 1
-                    samples = packet.adcqueue_data.samples
-                    
+                    samples = adcqueue_data.samples
+
                     # Validate AdcQueue structure
                     assert len(samples) > 0, "AdcQueue has no samples"
                     assert 5 <= len(samples) <= 50, f"Unexpected sample count: {len(samples)}"
-                    
+
                     # Validate first sample fields
                     first = samples[0]
                     assert isinstance(first.sequence, int)
                     assert isinstance(first.vbus_v, float)
                     assert isinstance(first.ibus_a, float)
                     assert isinstance(first.power_w, float)
-                    
+
                     # Sanity check values
                     assert -1.0 <= first.vbus_v <= 50.0
                     assert -10.0 <= first.ibus_a <= 10.0
-                    
+
                     # Test has_dropped_samples method
-                    assert isinstance(packet.adcqueue_data.has_dropped_samples(), bool)
-                    
+                    assert isinstance(adcqueue_data.has_dropped_samples(), bool)
+
                     # Test sequence_range method
-                    seq_range = packet.adcqueue_data.sequence_range()
+                    seq_range = adcqueue_data.sequence_range()
                     if seq_range:
                         assert seq_range[0] <= seq_range[1] or (seq_range[0] > 60000 and seq_range[1] < 1000)  # Handle wrap
-                    
-                elif packet.adc_data:
+
+                elif adc_data:
                     adc_count += 1
             except Exception as e:
                 # Some packets might not parse (that's OK for this test)
                 pass
-        
+
         # Should have found AdcQueue data in this capture
         assert adcqueue_count > 0, f"No AdcQueue packets found (found {adc_count} ADC packets)"
         assert adcqueue_count >= 200, f"Expected >=200 AdcQueue packets, found {adcqueue_count}"
         print(f"✓ Parsed {adcqueue_count} AdcQueue packets and {adc_count} ADC packets")
-    
+
     def test_adcqueue_sample_structure(self):
         """Test AdcQueue sample has all expected fields using dataset."""
         import polars as pl
-        
+
         # Load a real AdcQueue packet from dataset
         dataset_path = Path(__file__).parent.parent / "data/processed/usb_master_dataset.parquet"
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
-        
+
         df = pl.read_parquet(dataset_path)
         session = df.filter(pl.col('source_file') == 'orig_adc_1000hz.6')
         bulk = session.filter(pl.col('transfer_type') == '0x03')
@@ -416,19 +474,21 @@ class TestAdcQueueParsing:
             pl.col('payload_hex').is_not_null() &
             (pl.col('frame_number') >= 1004)
         )
-        
+
         # Find first valid AdcQueue packet
         for row in responses.head(10).iter_rows(named=True):
             payload = bytes.fromhex(row['payload_hex'])
             try:
                 packet = parse_packet(payload)
-                if packet.adcqueue_data and len(packet.adcqueue_data.samples) >= 10:
+                adcqueue_data = get_adcqueue_data(packet)
+
+                if adcqueue_data and len(adcqueue_data.samples) >= 10:
                     # Found a valid one!
-                    assert packet.packet_type == "DataResponse"
-                    
-                    samples = packet.adcqueue_data.samples
+                    assert get_packet_type(packet) == "DataResponse"
+
+                    samples = adcqueue_data.samples
                     assert len(samples) >= 10  # At least 10 samples
-                    
+
                     # Check first sample has all fields
                     first = samples[0]
                     assert hasattr(first, 'sequence')
@@ -439,15 +499,15 @@ class TestAdcQueueParsing:
                     assert hasattr(first, 'cc2_v')
                     assert hasattr(first, 'vdp_v')
                     assert hasattr(first, 'vdm_v')
-                    
+
                     # Test repr works
                     assert 'AdcQueueSample' in repr(first)
-                    assert 'AdcQueueData' in repr(packet.adcqueue_data)
-                    
+                    assert 'AdcQueueData' in repr(adcqueue_data)
+
                     return  # Test passed
             except Exception as e:
                 continue
-        
+
         pytest.fail("Could not find a valid AdcQueue packet in dataset")
 
 
