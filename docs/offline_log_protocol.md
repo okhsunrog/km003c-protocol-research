@@ -126,11 +126,25 @@ Chunk 2 (type=78):  4e ed bf 16 0e d8 21 92 6f 60 39 ce 5d 7c bf 5d...
 Chunk 3 (type=118): 76 4f cf ad 0a 89 a1 f4 ce eb ec 13 7b 3d e4 df...
 ```
 
+**Analysis results**:
+- Data is **fully encrypted** (no readable voltage/current patterns found)
+- Scanned all offset combinations: no valid i32 voltage/current pairs
+- High entropy throughout all 7629 bytes
+- Expected unencrypted: 521 samples × 8 bytes = 4168 bytes
+
 **Hypothesis**: 
-- Log data is encrypted/compressed before USB transfer
-- Unknown68 exchange provides decryption key or authentication
-- Three chunks = three segments of log file
-- Packet types (52/78/118) might indicate chunk number or file type
+- Unknown68 32-byte request contains encryption key or algorithm selector
+- Data encrypted with AES or proprietary cipher
+- Three chunks (52/78/118) are sequential parts of encrypted log
+- Total encrypted size (7629B) > unencrypted (4168B) suggests:
+  - Additional metadata/headers encrypted together
+  - Padding for encryption block alignment
+  - Or compression applied before encryption
+
+**Known from user**:
+- Recording: ~5-9V voltage, 2A → 0.1A current decrease
+- 521 samples at 10s intervals
+- Expected format: 4 bytes VBUS (i32 µV) + 4 bytes IBUS (i32 µA)
 
 ---
 
