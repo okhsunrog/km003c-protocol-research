@@ -84,11 +84,20 @@ Example: c4 47 01 01 0000109890200000ffffffff2f0ab013
   [4:19] 16-byte response data
 ```
 
-**Response data fields** (tentative):
-- Bytes 4-7: Could be file size or offset (0x00001098 = 4248 bytes?)
-- Bytes 8-11: Could be timestamp (0x90200000)
-- Bytes 12-15: 0xFFFFFFFF (marker?)
-- Bytes 16-19: CRC or hash?
+**Response data fields** (decoded):
+```
+Bytes 4-7:   Unknown/flags (varies)
+Bytes 8-11:  Total log size in bytes (0x00002090 = 8336 bytes) ✓
+Bytes 12-15: 0xFFFFFFFF (constant marker)
+Bytes 16-19: CRC32 or hash of log data
+```
+
+**Validation**: ID=71 response before data transfer:
+- Field2 = 8336 bytes
+- Actual chunks: 3 × 2544 = 7632 bytes
+- Close match (overhead for headers/padding?)
+
+**ASCII visualization**: No readable text in encrypted chunks (high entropy throughout)
 
 ---
 
