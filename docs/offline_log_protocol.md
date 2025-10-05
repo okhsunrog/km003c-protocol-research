@@ -195,8 +195,8 @@ From reading_logs0.11:
 [18:20]  Data point count (u16 little-endian)
          Example: 521 samples ✓
          
-[20:22]  Duration or rate? (u16)
-         Example: 10000 (could be 10000ms = 10 seconds?)
+[20:22]  Recording interval in milliseconds (u16)
+         Example: 10000 = 10 seconds ✓ (confirmed via device settings)
          
 [22:24]  Flags (u16)
          Example: 0
@@ -209,6 +209,10 @@ From reading_logs0.11:
 ```
 
 **Usage**: Request `GetData(attr=0x0200)` to enumerate logs before downloading.
+
+**Calculation**: With 521 data points at 10 second intervals:
+- Total recording time: 521 × 10s = 5210 seconds ≈ 87 minutes
+- Data per sample: ~15 bytes (5200 bytes / 521 ≈ 10 bytes + overhead)
 
 ---
 
