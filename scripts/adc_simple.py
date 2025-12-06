@@ -82,10 +82,8 @@ class KM003C:
 
     def request_adc_data(self):
         """Request ADC data from the device."""
-        # Create and send GetData packet requesting AdcQueue attribute
-        # Note: Using AdcQueue (0x0002) on interface 1 works, while ADC (0x0001)
-        # on interface 0 doesn't respond. This matches the example code.
-        packet = self._create_getdata_packet(ATTRIBUTE_ADCQUEUE)
+        # Create and send GetData packet requesting ADC attribute (single sample)
+        packet = self._create_getdata_packet(ATTRIBUTE_ADC)
         self._send(packet)
 
         # Receive response
