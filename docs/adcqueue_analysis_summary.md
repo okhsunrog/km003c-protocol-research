@@ -41,7 +41,7 @@ device.send([0x0F, 0x04, 0x00, 0x00])   # Stop Graph
 
 **Working test script:** See `scripts/test_adcqueue.py` for complete minimal implementation
 
-**Key insight:** The Connect, Unknown68, Unknown76, GetData commands seen in official app captures are **NOT required** for AdcQueue functionality. They appear to be general session initialization that the app always does, but AdcQueue works without them.
+**Key insight:** Unknown76 (0x4C) is **required** for AdcQueue streaming - without it, StartGraph succeeds but returns 0 samples. However, Unknown76 content doesn't matter - any 32-byte payload works. Connect and Unknown68 are optional for basic streaming.
 
 ---
 
@@ -219,8 +219,9 @@ Effect: Device stops sampling/buffering, returns to normal ADC mode
 6. User clicks "Stop Graph" → App sends 0x0F
 
 **Key findings:**
-- ✅ **No initialization commands required** after USB reset + 1.5s wait
-- ✅ Connect, Unknown68, Unknown76 commands are **optional** (app protocol overhead)
+- ✅ **Minimal initialization required** after USB reset + 1.5s wait
+- ✅ Unknown76 (0x4C) **is required** for AdcQueue streaming (any 32-byte payload works)
+- ✅ Connect, Unknown68 commands are **optional** for basic AdcQueue
 - ✅ Request attribute `0x0002` (encoded as bytes `0x0400`) for AdcQueue data
 - ✅ Attribute `0x0004` (ATT_ADC_QUEUE_10K) documented but **never used** (0/20,862 packets)
 - ⚠️ **Critical**: Must wait 1.5s after USB reset (0.5s insufficient)

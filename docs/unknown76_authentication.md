@@ -227,17 +227,28 @@ unknown76_minimal = bytes([0x4C, 0x02, 0x00, 0x02]) + bytes(32)
 5. StopGraph (0x0F)    -> Stop streaming
 ```
 
-## Unknown68 (0x44) - Not Required
+## Unknown68 (0x44) - Memory Download (Not Required for AdcQueue)
 
-There is also an Unknown68 command sequence (4 packets) that shares a similar structure but is **not required** for AdcQueue:
+Unknown68 is **not required** for AdcQueue streaming but is used for other features:
 
-| Field | Value |
-|-------|-------|
-| Type | `0x44` (68 decimal) |
-| Attribute | `0x0101` |
-| Host Key | `d18b539a39c407d5c063d91102e36a9e` (shared across all 4 commands) |
+**Purpose:** Memory download/read command for accessing device data at specific addresses.
 
-Unknown68 responses are unreliable (often timeout). Its purpose is unknown but may relate to extended features or device registration.
+**Fully reversed:** See [offline_log_protocol.md](offline_log_protocol.md) for complete protocol documentation.
+
+**Key Details:**
+- AES-128 ECB encrypted request payload
+- Key: `Lh2yfB7n6X7d9a5Z` (key index 0)
+- Request: 36 bytes (4B header + 32B encrypted payload with address/size/CRC32)
+- Response: 20 bytes (4B header + 16B plaintext echo with data CRC32)
+
+**Known Memory Addresses:**
+| Address | Response Type | Description |
+|---------|---------------|-------------|
+| 0x420 | 0x1A | Device info block 1 (64 bytes) |
+| 0x4420 | 0x3A | Device info block 2 (64 bytes) |
+| 0x3000C00 | 0x40 | Calibration data (64 bytes) |
+| 0x40010450 | 0x75 | Unknown (12 bytes) |
+| 0x98100000 | 0x34/4E/76/68 | Offline ADC log data (encrypted chunks) |
 
 ## Interface Compatibility
 

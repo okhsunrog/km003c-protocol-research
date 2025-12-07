@@ -78,7 +78,7 @@ The first 32 bits of every message encode a common header with type‑specific l
       • 0x0002 → AdcQueue (extended attribute 2)
       • 0x0008 → Settings (extended attribute 8)
       • 0x0010 → PdPacket (extended attribute 16)
-      • 0x0200 → Unknown512 (extended attribute 512)
+      • 0x0200 → LogMetadata (extended attribute 512) - offline log info
     - Observed combinations (bitwise OR):
       • 0x0011 (0x0001 | 0x0010) → ADC + PD
       • 0x0003 (0x0001 | 0x0002) → ADC + AdcQueue
@@ -468,10 +468,14 @@ Empirical relation: `obj_count_words ≈ (total_message_length / 4) − 3` for s
 - **Settings (8)**: Device configuration
 - **PdPacket (16)**: USB Power Delivery messages
 
-**Unknown Elements** (discovered through analysis):
-- **Control packet types**: Unknown26, Unknown44, Unknown58
-- **Data packet types**: Unknown68, Unknown76, Unknown117
-- **Attributes**: Unknown512, Unknown1609, Unknown11046, Unknown26817
+**Reversed Elements** (fully documented):
+- **Unknown68 (0x44)**: Memory download command (AES-128 ECB encrypted requests)
+- **Unknown76 (0x4C)**: Streaming authentication (required for AdcQueue)
+- **LogMetadata (0x0200)**: Offline log info (name, sample count, interval)
+
+**Partially Known Elements**:
+- **Unknown26, Unknown44, Unknown58, Unknown117**: Memory data response types for Unknown68
+- **Attributes**: Unknown1609, Unknown11046, Unknown26817
 
 **Parsing Success Rate**: 100% (2,934/2,934 bulk frames parsed successfully)
 

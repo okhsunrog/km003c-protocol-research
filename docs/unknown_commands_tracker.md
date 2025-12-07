@@ -8,7 +8,7 @@ This document tracks the status of all command types and attributes in the KM003
 |------|-----|------|--------|--------------|-------|
 | 0x00 | ? | Unknown | fw_update | Bootloader? |
 | 0x01 | Sync | Unknown | fw_update | Bootloader sync? |
-| 0x02 | Connect | **Implemented** | all normal captures | Required for AdcQueue |
+| 0x02 | Connect | **Implemented** | all normal captures | Session start (optional for AdcQueue) |
 | 0x03 | Disconnect | **Implemented** | adc_*, open_close, pd_adcqueue, with_pd | |
 | 0x04 | Reset | Unknown | fw_update | Device-level reset? |
 | 0x05 | Accept | **Implemented** | all captures | Response to commands |
@@ -349,6 +349,16 @@ Bits 22-31: size (10 bits)
 |---------|-------------|
 | 0x140184b60 | AES key string (64 chars, key at offset 0x16) |
 | 0x140277089 | Transaction ID counter (incremented per packet) |
+
+### AES Keys Summary
+
+| Key | Usage | Command | Notes |
+|-----|-------|---------|-------|
+| `Lh2yfB7n6X7d9a5Z` | Encryption | Unknown68 (0x44) | Memory download requests and data chunk decryption |
+| `Fa0b4tA25f4R038a` | Encryption | Unknown76 (0x4C) | Streaming auth challenge encryption |
+| `FX0b4tA25f4R038a` | Decryption | Unknown76 (0x4C) | Streaming auth response verification (byte[1]='X') |
+
+All keys use AES-128 ECB mode.
 
 ---
 
