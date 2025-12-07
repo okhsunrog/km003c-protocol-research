@@ -601,6 +601,91 @@ All keys use AES-128 ECB mode.
 
 ---
 
+## Device Firmware Implementation (Ghidra Analysis)
+
+### Main Command Dispatcher: FUN_0004eaf0 @ 0x0004eaf0
+
+The firmware's USB command processor uses a switch statement on `command_type & 0x7F`:
+
+| Command | Hex | Firmware Handler | Address | Notes |
+|---------|-----|------------------|---------|-------|
+| Connect | 0x02 | Inline | - | Returns Accept (0x05) |
+| GetData | 0x0C | FUN_0004286c | 0x0004286c | Builds ADC/PD/Settings responses |
+| Unknown | 0x0D | FUN_00042c4a | 0x00042c4a | Data command |
+| StartGraph | 0x0E | Inline | - | Starts streaming |
+| StopGraph | 0x0F | Inline | - | Stops streaming |
+| PdEnable | 0x10 | Inline | - | Enable PD monitoring |
+| PdDisable | 0x11 | Inline | - | Disable PD monitoring |
+| Unknown68 | 0x44 | FUN_00042cac | 0x00042cac | Memory read with validation |
+| Unknown72 | 0x48 | FUN_00042df4 | 0x00042df4 | Unknown purpose |
+| FlashWrite | 0x4A | Inline | - | Requires auth level > 0 |
+| Unknown75 | 0x4B | FUN_00042cac | 0x00042cac | Memory read + 0x98000000 offset |
+| Unknown76 | 0x4C | FUN_00000fb0 | 0x00000fb0 | Authentication (AES encrypt) |
+
+### Hardware Crypto Functions
+
+| Function | Address | Purpose | Control Bit |
+|----------|---------|---------|-------------|
+| FUN_00000fb0 | 0x00000fb0 | AES Encrypt | uRam42100004 = 1 |
+| FUN_00001090 | 0x00001090 | AES Decrypt/Read | uRam42100004 = 0 |
+
+Both use hardware AES peripheral:
+- **0x40008010**: AES input data register
+- **0x40008020**: AES key register
+
+### Authentication System (DAT_20004041)
+
+The firmware maintains an authentication level at address 0x20004041:
+
+| Level | Value | Access Granted |
+|-------|-------|----------------|
+| None | 0 | Basic ADC/PD only, GetData mask limited to 0x19 |
+| Device | 1 | Flash write, extended attributes |
+| Calibration | 2 | Factory/calibration commands (0x4D) |
+
+**How authentication is set (case 0x4C):**
+```c
+// Check against hardware device ID at 0x40010450-0x40010458
+if (decrypted == device_id) {
+    DAT_20004041 = 1;
+}
+// Or check against calibration data at 0x03000c00
+else if (decrypted == calibration_data) {
+    DAT_20004041 = 2;
+}
+```
+
+### Memory Read Access Control (FUN_00042cac)
+
+**Firmware validation (must pass all):**
+```c
+if ((param_3 == -1) &&           // Magic constant 0xFFFFFFFF
+    (param_2 < 0x3d0901) &&      // Size < ~4MB
+    (param_1 < 0x983d0901)) {    // Address < ~2.5GB
+    // Allow read
+} else {
+    // Send REJECT (0x06)
+}
+```
+
+**Response types by outcome:**
+| Response | Hex | Cause |
+|----------|-----|-------|
+| REJECT | 0x06 | Firmware validation failed |
+| NOT_READABLE | 0x27 | Hardware bus fault (protected memory) |
+| DATA | 0x1A, 0x2C, 0x3A, 0x75 | Successful read |
+
+### AES Keys (Verified Working)
+
+| Index | Key | Usage |
+|-------|-----|-------|
+| 0 | `Lh2yfB7n6X7d9a5Z` | Memory download (0x44) |
+| 1 | `Ea0b4tA25f4R038a` | Base for auth keys (0x4C) |
+
+**Note:** The decrypted firmware binary shows `...9a4Z` at 0x0006e8cc, but the actual device uses `...9a5Z`. The firmware may be patched during flashing or the key is transformed at runtime.
+
+---
+
 ## Contributing
 
 When analyzing a new unknown command:

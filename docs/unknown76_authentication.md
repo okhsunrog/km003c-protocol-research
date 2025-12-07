@@ -170,6 +170,96 @@ The official ChargerLAB software:
 - Verifies device response to confirm genuine hardware
 - But the device enables streaming even without valid challenge
 
+## Firmware Implementation (FUN_0004eaf0 case 0x4C)
+
+The authentication handler is in the main USB dispatcher at **0x0004eaf0**:
+
+### Handler Flow
+
+```c
+case 0x4c:
+    // 1. Set AES key prefix to 0x6146 ("aF" - part of "Fa0b4tA25f4R038a")
+    _DAT_20000748 = 0x6146;
+
+    // 2. Encrypt the input challenge (FUN_00000fb0 uses hardware AES at 0x40008010)
+    iVar2 = FUN_00000fb0(input_buffer, size, &key, &output);
+    if (iVar2 != 0) goto REJECT;
+
+    // 3. Copy result and verify against device-specific values
+    FUN_000003cc(&local_38, &DAT_20010b00, 0x20);
+
+    // 4. Check if decrypted matches hardware device ID (0x40010450-0x40010458)
+    if ((local_30 == _DAT_40010450) &&
+        (local_2c == _DAT_40010454) &&
+        (local_28 == _DAT_40010458)) {
+        DAT_20004041 = 1;  // Authentication level 1
+    }
+    else {
+        // 5. Or check against calibration data (0x03000c00/0x03000d80)
+        if (matches_calibration_data) {
+            DAT_20004041 = 2;  // Authentication level 2
+        }
+    }
+
+    // 6. Build response with auth level
+    _DAT_20010b00 = CONCAT22((DAT_20004041 & 3) << 1, 0x4c) | 0x2010000;
+
+    // 7. Modify key (prepend 0x58 = 'X') for decryption key variant
+    _DAT_20000748 = CONCAT11(0x58, DAT_20000748);  // 'a' -> 'X'
+
+    // 8. Encrypt response using modified key
+    FUN_00001090(&local_38, 0x20, &DAT_20000748, &DAT_20010b04);
+```
+
+### Key Addresses
+
+| Address | Purpose |
+|---------|---------|
+| FUN_00000fb0 | AES encrypt (hardware crypto, uRam42100004=1) |
+| FUN_00001090 | AES decrypt (hardware crypto, uRam42100004=0) |
+| 0x40008010 | Hardware AES input register |
+| 0x40008020 | Hardware AES key register |
+| DAT_20004041 | Authentication level (0=none, 1=device, 2=calibration) |
+| 0x40010450 | Hardware device ID (12 bytes) |
+| 0x03000c00 | Calibration data table |
+
+### Key Transformation
+
+The firmware confirms the Mtools.exe reverse engineering:
+- Encryption key base: `0x6146` → `Fa0b4tA25f4R038a`
+- For decryption: byte[1] changed from `0x61` ('a') to `0x58` ('X')
+- Decryption key: `FX0b4tA25f4R038a`
+
+This matches the observed behavior where the device returns the challenge encrypted with a slightly different key.
+
+### Authentication Flag Usage (DAT_20004041)
+
+The authentication level is checked in other command handlers:
+
+```c
+// In case 0x4a (Flash Write) - requires auth level > 0
+if (((DAT_20004041 == 0) || (0x100 < size)) ||
+    ((0x3ff000 < size + address || ((address & 0xfff80000) != 0x300000))))
+    goto REJECT;
+
+// In FUN_0004286c (GetData handler) - affects attribute mask
+if (auth_level == 0) {
+    param_2 = param_2 & 0x19;  // Limit to basic attributes
+}
+
+// In case 0x4d - requires auth level 2
+if (DAT_20004041 == 2) {
+    // Allow operation
+} else {
+    goto REJECT;
+}
+```
+
+**Authentication levels:**
+- **0**: Unauthenticated - basic ADC/PD data only
+- **1**: Device-authenticated - flash write, extended attributes
+- **2**: Calibration-authenticated - factory/calibration commands
+
 ## Practical Usage
 
 ### Python Example (Full Authentication)

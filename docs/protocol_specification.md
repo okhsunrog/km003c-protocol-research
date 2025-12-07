@@ -477,6 +477,30 @@ Empirical relation: `obj_count_words ≈ (total_message_length / 4) − 3` for s
 - **Unknown26, Unknown44, Unknown58, Unknown117**: Memory data response types for Unknown68
 - **Attributes**: Unknown1609, Unknown11046, Unknown26817
 
+### Firmware Command Dispatcher (FUN_0004eaf0)
+
+The main USB command processor is located at **0x0004eaf0** in the firmware. It uses a switch statement on `command_type & 0x7F` to dispatch to specific handlers:
+
+| Command | Hex | Handler Function | Address | Purpose |
+|---------|-----|------------------|---------|---------|
+| Connect | 0x02 | Inline | - | Connection handshake |
+| GetData | 0x0C | FUN_0004286c | 0x0004286c | ADC/PD/Settings data |
+| Unknown | 0x0D | FUN_00042c4a | 0x00042c4a | Data command |
+| StartGraph | 0x0E | - | - | Start streaming |
+| StopGraph | 0x0F | - | - | Stop streaming |
+| PdEnable | 0x10 | - | - | Enable PD monitoring |
+| PdDisable | 0x11 | - | - | Disable PD monitoring |
+| Unknown68 | 0x44 | FUN_00042cac | 0x00042cac | Memory read |
+| Unknown72 | 0x48 | FUN_00042df4 | 0x00042df4 | Unknown |
+| FlashWrite | 0x4A | Inline | - | Flash write (validated) |
+| Unknown75 | 0x4B | FUN_00042cac | 0x00042cac | Memory read +0x98000000 |
+| Unknown76 | 0x4C | FUN_00000fb0 | 0x00000fb0 | Authentication |
+
+**Response mechanism:**
+- Response buffer: `DAT_20010b00` (0x20010b00 in RAM)
+- Send function: `FUN_0004f080(buffer, size, timeout)`
+- Response type byte set at offset 0 (e.g., 0x06, 0x27, 0x41, 0xC4)
+
 **Parsing Success Rate**: 100% (2,934/2,934 bulk frames parsed successfully)
 
 ### Performance Characteristics
@@ -505,3 +529,70 @@ Thanks to the earlier reverse engineering efforts by the community:
 
 ### Complete Implementation
 - **[km003c-rs](https://github.com/okhsunrog/km003c-rs)** - Full-featured Rust library with Python bindings, implementing the complete protocol documented in this research
+
+---
+
+## Unknown68 (0x44) Memory Read - Firmware Implementation
+
+### Access Control Architecture
+
+The firmware implements a **two-stage access control** mechanism for memory reads:
+
+#### Stage 1: Firmware Validation (FUN_00042cac @ 0x00042cac)
+
+```c
+// Address validation in firmware
+if (((param_3 == -1) && (param_2 < 0x3d0901)) && (param_1 < 0x983d0901)) {
+    // Proceed to hardware read
+} else {
+    // Send REJECT (0x06)
+}
+```
+
+| Parameter | Constraint | Value | Meaning |
+|-----------|------------|-------|---------|
+| param_3 | Must equal -1 | 0xFFFFFFFF | Magic constant from protocol |
+| param_2 | Must be < | 0x3d0901 (~4MB) | Size limit |
+| param_1 | Must be < | 0x983d0901 (~2.5GB) | Address limit |
+
+#### Stage 2: Hardware Read (FUN_00001090 @ 0x00001090)
+
+For validated addresses, the firmware uses hardware AES at 0x40008010/0x40008020 to encrypt the response. If the hardware cannot read the address (bus fault), error code 8 is set, mapped to response 0x27 (NOT_READABLE).
+
+### Response Types
+
+| Response | Hex | Meaning | Cause |
+|----------|-----|---------|-------|
+| REJECT | 0x06 | Validation failed | Address > 0x983d0901 or size > 0x3d0901 |
+| NOT_READABLE | 0x27 | Hardware read failed | Protected peripheral, unmapped memory |
+| CONFIRM | 0x44/0xC4 | Request acknowledged | Precedes data response |
+| DATA | 0x1A, 0x2C, 0x3A, 0x75 | Memory data | Successful read |
+
+### AES Keys (Found in Firmware at 0x0006e8cc)
+
+| Key Index | Value | Notes |
+|-----------|-------|-------|
+| 0 | `Lh2yfB7n6X7d9a4Z` | Primary key (note: '4' not '5') |
+| 1 | `Ea0b4tA25f4R038a` | Secondary key |
+
+**Note:** Python scripts use `Lh2yfB7n6X7d9a5Z` (with '5'), which also works - the firmware may accept both variations.
+
+### Tested Address Behavior
+
+| Address | Description | Response | Notes |
+|---------|-------------|----------|-------|
+| 0x00000420 | Device info block 1 | DATA (0x1A) | ✓ Readable |
+| 0x00004420 | Device info block 2 | DATA | ✓ Readable |
+| 0x03000C00 | Calibration data | DATA | ✓ Readable |
+| 0x40010450 | Unknown peripheral | DATA (0x75) | ✓ Readable |
+| 0x40048024 | SIM_SDID | NOT_READABLE (0x27) | Hardware-protected |
+| 0xE000ED00 | ARM CPUID | REJECT (0x06) | Address > 0x983d0901 |
+
+### Command 0x4B: Offset Memory Read
+
+Command 0x4B uses the same handler but adds 0x98000000 to the address:
+```c
+case 0x4b:
+    address = requested_address + 0x98000000;
+    FUN_00042cac(address, size, param3, param4);
+```
