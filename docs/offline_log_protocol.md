@@ -95,15 +95,15 @@ Encrypted Payload (32 bytes) - AES-128 ECB:
 ```
 Packet type: 0x44 (Unknown68)
 Size: 20 bytes
-Format: [header(4)] [encrypted_payload(16)]
+Format: [header(4)] [payload(16)]
 
 USB Header (4 bytes):
-  [0]    0xC4 (0x44 | 0x80, reserved bit set = response)
+  [0]    0xC4 (0x44 | 0x80, response bit set)
   [1]    Transaction ID (matches request)
-  [2:3]  0x0101 (matches request)
+  [2]    Flags low byte - bit 0 = DATA CHUNKS encrypted (1 = yes)
+  [3]    Flags high byte
 
-Encrypted Payload (16 bytes) - AES-128 ECB:
-  After decryption:
+Payload (16 bytes) - NOT encrypted, plaintext:
   [0:3]   Address echo (u32 LE)
   [4:7]   Size echo (u32 LE) - e.g., 0x2090 = 8336 bytes
   [8:11]  0xFFFFFFFF (constant)

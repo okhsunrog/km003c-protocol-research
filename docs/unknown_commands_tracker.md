@@ -107,7 +107,7 @@ These commands appear **only** in `updating_firmware.*` captures and are likely 
 | 0x0010 | PdPacket | **Implemented** | PD status (12B) or events (>12B) |
 | 0x0020 | PdStatus | Listed | PD status only |
 | 0x0040 | QcPacket | Listed | Quick Charge data |
-| 0x0200 | Unknown512 | **Unknown** | Seen with PutData |
+| 0x0200 | LogMetadata | **Fully Reversed** | Offline log info (name, samples, interval) |
 | 0x0649 | Unknown1609 | **Unknown** | With Unknown26 |
 | 0x564D | Unknown22093 | **Data Response** | Unknown44 response attribute |
 | 0x68C1 | Unknown26817 | **Unknown** | With Unknown58 |

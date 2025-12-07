@@ -252,18 +252,16 @@ class KM003C:
         if len(response) < 20:
             raise ValueError(f"Invalid Unknown68 response: {len(response)} bytes")
 
-        # Response payload (16 bytes after 4-byte header)
-        resp_payload = response[4:20]
+        # Check encryption flag: bit 0 of byte 2 (flags_lo)
+        # This is bit 16 when header is read as little-endian u32
+        # This flag indicates if DATA CHUNKS are encrypted, not the response itself
+        data_encrypted = (response[2] & 0x01) == 1
 
-        # Try parsing as plaintext first (check if values make sense)
+        # Response payload is NOT encrypted (only data chunks are)
+        resp_payload = response[4:20]
         resp_addr, resp_size, resp_const, resp_crc = struct.unpack('<IIII', resp_payload)
 
-        # If constant isn't 0xFFFFFFFF, try decrypting
-        if resp_const != 0xFFFFFFFF:
-            decrypted_resp = decrypt_ecb(resp_payload)
-            resp_addr, resp_size, resp_const, resp_crc = struct.unpack('<IIII', decrypted_resp)
-
-        print(f"Response: addr=0x{resp_addr:08X}, size={resp_size}, crc=0x{resp_crc:08X}")
+        print(f"Response: addr=0x{resp_addr:08X}, size={resp_size}, crc=0x{resp_crc:08X}, data_encrypted={data_encrypted}")
 
         # Read data chunks
         all_data = b''
@@ -282,13 +280,14 @@ class KM003C:
 
         print(f"Total received: {len(all_data)} bytes")
 
-        # Decrypt all data
-        if len(all_data) % 16 != 0:
-            padding = 16 - (len(all_data) % 16)
-            all_data += b'\x00' * padding
+        # Decrypt data if encryption flag was set in Unknown68 response
+        if data_encrypted:
+            if len(all_data) % 16 != 0:
+                padding = 16 - (len(all_data) % 16)
+                all_data += b'\x00' * padding
+            all_data = decrypt_ecb(all_data)
 
-        decrypted = decrypt_ecb(all_data)
-        return decrypted[:size]
+        return all_data[:size]
 
     def close(self):
         usb.util.release_interface(self.dev, INTERFACE_NUM)

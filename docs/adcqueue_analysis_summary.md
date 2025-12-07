@@ -485,4 +485,5 @@ Temperature from ADC: 24.6°C (not in AdcQueue)
 1. ✅ **AdcQueue fully documented** - minimal sequence confirmed on hardware
 2. ✅ **Rate configuration understood** - 0x0E command with rate index
 3. ✅ **Attribute 0x0004 clarified** - documented but never used
-4. 🔍 **Unknown commands remain**: Unknown68, Unknown76 purpose still unclear (likely device-specific init)
+4. ✅ **Unknown76 (0x4C) reversed** - Streaming authentication, required for AdcQueue to return samples. See [unknown76_authentication.md](unknown76_authentication.md)
+5. ✅ **Unknown68 (0x44) reversed** - Memory download command for device info and offline logs. See [offline_log_protocol.md](offline_log_protocol.md)
