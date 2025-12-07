@@ -23,17 +23,17 @@ This document tracks the status of all command types and attributes in the KM003
 | 0x0F | StopGraph | **Implemented** | all normal captures | Stop AdcQueue streaming |
 | 0x10 | EnablePdMonitor | **Documented** | pd_capture, pd_epr0, with_pd | Enable PD sniffer mode |
 | 0x11 | DisablePdMonitor | **Documented** | fw_update, pd_capture, pd_epr0, with_pd | Disable PD sniffer mode |
-| 0x1A | MemResponse26 | **Documented** | all normal captures | Memory response for addr 0x420 |
-| 0x2C | MemResponse44 | **Documented** | adc_*, open_close, rust_simple, with_pd, fw_update | Memory response, attr=0x564D |
+| 0x1A | DeviceInfo1 | **Fully Reversed** | all normal captures | Device info: model, HW ver, mfg date |
+| 0x2C | FirmwareInfo2 | **Fully Reversed** | adc_*, open_close, rust_simple, with_pd, fw_update | FW info (attr=0x564D) |
 | 0x34 | LogDataChunk1 | **Documented** | reading_logs, fw_update | Offline log chunk 1 (2544B) |
-| 0x3A | MemResponse58 | **Documented** | new_adcsimple, fw_update | Memory response for addr 0x4420 |
-| 0x40 | Head | **Documented** | all normal captures | Memory response for addr 0x3000C00 |
+| 0x3A | FirmwareInfo | **Fully Reversed** | new_adcsimple, fw_update | FW version, build date |
+| 0x40 | CalibrationData | **Fully Reversed** | all normal captures | Serial, UUID, timestamp |
 | 0x41 | PutData | **Implemented** | all captures | Data response with logical packets |
 | 0x44 | MemoryDownload | **Fully Reversed** | all normal captures | Memory download request |
 | 0x4C | StreamingAuth | **Fully Reversed** | all normal captures | Required for AdcQueue streaming |
 | 0x4E | LogDataChunk2 | **Documented** | reading_logs, fw_update | Offline log chunk 2 (2544B) |
 | 0x68 | LogDataChunk4 | **Documented** | reading_logs, fw_update | Offline log chunk 4 (704B) |
-| 0x75 | MemResponse117 | **Documented** | all normal captures | Memory response for addr 0x40010450 |
+| 0x75 | DeviceSerial | **Fully Reversed** | all normal captures | Serial prefix + device ID |
 | 0x76 | LogDataChunk3 | **Documented** | reading_logs, fw_update | Offline log chunk 3 (2544B) |
 
 ### Firmware Update Only Commands (0x14-0x7E)
@@ -226,62 +226,84 @@ def build_unknown68_request(address: int, size: int, tid: int) -> bytes:
 
 ---
 
-## Unknown68 Data Response Types
+## Unknown68 Data Response Types - FULLY REVERSED
 
-These are NOT independent commands but data response types for Unknown68 memory downloads.
+These are memory data response types for Unknown68 memory downloads. All data is **AES-128 ECB encrypted** with key `Lh2yfB7n6X7d9a5Z`.
 
-### Unknown26 (0x1A) - Memory Data Response
+### Unknown26 (0x1A) - Device Info Block 1
 
-**Status:** Data response type (not a command)
+**Address:** 0x420 | **Size:** 64 bytes | **Status:** Fully Reversed
 
-**Purpose:** Carries downloaded data from memory address 0x420 (Device info block 1)
-
-**Observed Packet:**
+**Decrypted Structure (64 bytes):**
 ```
-1a 2b 93 0c [60 bytes of data]
-```
-- Byte 0: Type 0x1A
-- Bytes 1-3: Unknown header fields
-- Bytes 4+: Binary data (possibly device serial/info)
-
-### Unknown58 (0x3A) - Memory Data Response
-
-**Status:** Data response type (not a command)
-
-**Purpose:** Carries downloaded data from memory address 0x4420 (Device info block 2)
-
-**Observed Packet:**
-```
-ba e8 99 3d [60 bytes of data]
+Offset  Size  Type    Field           Example
+──────────────────────────────────────────────────
+0x00    16    bytes   Reserved        (mostly 0xFF)
+0x10    12    char[]  Model           "KM003C"
+0x1C    12    char[]  HW Version      "2.1"
+0x28    24    char[]  Mfg Date        "2022.11.7"
 ```
 
-### Unknown44 (0x2C) - Memory Data Response
+### Unknown58 (0x3A) - Firmware Info Block
 
-**Status:** Data response type (not a command)
+**Address:** 0x4420 | **Size:** 64 bytes | **Status:** Fully Reversed
 
-**Purpose:** Appears after Unknown68 sequence completion. Carries additional data with attribute 0x564D.
-
-**Observed Packet:**
+**Decrypted Structure (64 bytes):**
 ```
-2c 9d 4d 56 1e 42 ec 43 d4 a6 3c 4b 74 5d 44 e1
-df 33 93 97 b3 3e e7 b2 c9 07 3f b2 1e 92 dc fa
-a8 39 42 5a ea e8 0b 10 34 9e 12 33 33 10 d5 e5
-fe 51 3f 87 cc 11 21 4c 90 2e 3f a5 1f fd 33 8c
+Offset  Size  Type    Field           Example
+──────────────────────────────────────────────────
+0x00    4     u32     Magic           0x00004000
+0x04    4     u32     Reserved        0xFFFFFFFF
+0x08    4     u32     Counter/ID      452460
+0x0C    4     bytes   Random          (4 bytes)
+0x10    12    char[]  Model           "KM003C"
+0x1C    12    char[]  FW Version      "1.9.9"
+0x28    12    char[]  FW Date         "2025.9.22"
+0x34    4     u32     Build Number    0x33 (51)
+0x38    8     bytes   Reserved        (zeros)
 ```
-- Type: 0x2C, TID: 0x9D, Attribute: 0x564D
-- Total 64 bytes, appears encrypted
 
-### Unknown117 (0x75) - Memory Data Response
+**Note:** If Magic == 0xFFFFFFFF, firmware info is invalid (use "none").
 
-**Status:** Data response type (not a command)
+### Head (0x40) - Calibration Data
 
-**Purpose:** Carries downloaded data from memory address 0x40010450 (12-byte block)
+**Address:** 0x3000C00 | **Size:** 64 bytes | **Status:** Fully Reversed
 
-**Observed Packet:**
+**Decrypted Structure (64 bytes):**
 ```
-75 eb ec 2f af 04 69 d7 1a 17 91 49 10 f8 c6 07
+Offset  Size  Type    Field           Example
+──────────────────────────────────────────────────
+0x00    7     char[]  Serial ID       "007965 "
+0x07    32    char[]  UUID/Hash       "CDFDDF2886FD40AF8F05E149624C3892"
+0x27    1     char    Space           " "
+0x28    11    char[]  Timestamp       "1682306459" (Unix epoch)
+0x33    1     char    Space           " "
+0x34    4     char[]  Marker          "LYS5"
+0x38    8     bytes   Reserved        (0xFF padding)
 ```
-- Total 16 bytes (4-byte header + 12 bytes data)
+
+**Timestamp:** Unix epoch seconds (e.g., 1682306459 = 2023-04-24 04:20:59 UTC)
+
+### Unknown117 (0x75) - Device Serial
+
+**Address:** 0x40010450 | **Size:** 12 bytes (padded to 16) | **Status:** Fully Reversed
+
+**Decrypted Structure (16 bytes):**
+```
+Offset  Size  Type    Field           Example
+──────────────────────────────────────────────────
+0x00    6     char[]  Serial Prefix   "071KBP"
+0x06    2     bytes   Separator       0x0D 0xFF
+0x08    2     bytes   Device ID       0x11 0x0A (or 0x110A)
+0x0A    2     bytes   Padding         0xFF 0xFF
+0x0C    4     bytes   Reserved        0x00000000
+```
+
+### Unknown44 (0x2C) - Alternative Firmware Info
+
+**Attribute:** 0x564D | **Size:** 64 bytes | **Status:** Fully Reversed
+
+Same structure as Unknown58 (0x3A). Appears in older capture sequences.
 
 ---
 
