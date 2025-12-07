@@ -2,14 +2,16 @@
 """
 Simple single-shot AdcQueue test - get one batch of streaming samples.
 
-This test demonstrates the full initialization sequence required for AdcQueue
+This test demonstrates the minimal initialization sequence required for AdcQueue
 (streaming ADC) mode on the POWER-Z KM003C.
 
 Key findings:
-- AdcQueue requires Unknown68/76 init sequence (unlike simple ADC)
-- Unknown68 commands may timeout intermittently - this is OK
+- AdcQueue requires Connect + Unknown76 (unlike simple ADC which needs neither)
+- Unknown68 commands are NOT required
+- GetData PD/Settings and StopGraph cleanup are NOT required
 - Attribute values must be shifted left by 1 for wire format
 - Samples are 20 bytes each with sequence, marker, VBUS, IBUS, CC1, CC2, D+, D-
+- AdcQueue only works on vendor interface (not HID)
 """
 
 import usb.core
@@ -67,48 +69,48 @@ def main():
         print("FAILED")
         return 1
 
-    # Unknown68 commands (tid=2,3,4,5) - some may timeout, that's OK
-    print("  Unknown68 init...", end=" ")
-    cmds68 = [
-        "4402010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e",
-        "44030101636beaf3f0856506eee9a27e89722dcfd18b539a39c407d5c063d91102e36a9e",
-        "44040101c51167ae613a6d46ec84a6bde8bd462ad18b539a39c407d5c063d91102e36a9e",
-        "440501019c409debc8df53b83b066c315250d05cd18b539a39c407d5c063d91102e36a9e",
-    ]
-    ok_count = 0
-    for cmd_hex in cmds68:
-        resp = send_raw(bytes.fromhex(cmd_hex), timeout=500)
-        if resp:
-            ok_count += 1
-    print(f"{ok_count}/4 OK")
+    # # Unknown68 commands - NOT required for AdcQueue
+    # print("  Unknown68 init...", end=" ")
+    # cmds68 = [
+    #     "4402010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e",
+    #     "44030101636beaf3f0856506eee9a27e89722dcfd18b539a39c407d5c063d91102e36a9e",
+    #     "44040101c51167ae613a6d46ec84a6bde8bd462ad18b539a39c407d5c063d91102e36a9e",
+    #     "440501019c409debc8df53b83b066c315250d05cd18b539a39c407d5c063d91102e36a9e",
+    # ]
+    # ok_count = 0
+    # for cmd_hex in cmds68:
+    #     resp = send_raw(bytes.fromhex(cmd_hex), timeout=500)
+    #     if resp:
+    #         ok_count += 1
+    # print(f"{ok_count}/4 OK")
 
-    # Unknown76 (tid=6)
+    # Unknown76 (tid=2) - REQUIRED
     print("  Unknown76...", end=" ")
-    resp = send_raw(bytes.fromhex("4c0600025538815b69a452c83e54ef1d70f3bc9ae6aac1b12a6ac07c20fde58c7bf517ca"))
+    resp = send_raw(bytes.fromhex("4c0200025538815b69a452c83e54ef1d70f3bc9ae6aac1b12a6ac07c20fde58c7bf517ca"))
     print("OK" if resp else "timeout")
 
-    # GetData PD status (tid=7) - ATT_PD_STATUS=0x0020 -> wire=0x0040
-    print("  GetData PD status...", end=" ")
-    resp = send_raw(bytes([0x0C, 0x07, 0x40, 0x00]))
-    print(f"{len(resp)} bytes" if resp else "timeout")
+    # # GetData PD status - NOT required for AdcQueue
+    # print("  GetData PD status...", end=" ")
+    # resp = send_raw(bytes([0x0C, 0x07, 0x40, 0x00]))
+    # print(f"{len(resp)} bytes" if resp else "timeout")
 
-    # GetData Settings (tid=8) - ATT_SETTINGS=0x0008 -> wire=0x0010
-    print("  GetData Settings...", end=" ")
-    resp = send_raw(bytes([0x0C, 0x08, 0x10, 0x00]))
-    print(f"{len(resp)} bytes" if resp else "timeout")
+    # # GetData Settings - NOT required for AdcQueue
+    # print("  GetData Settings...", end=" ")
+    # resp = send_raw(bytes([0x0C, 0x08, 0x10, 0x00]))
+    # print(f"{len(resp)} bytes" if resp else "timeout")
 
-    # StopGraph to ensure clean state (tid=9)
-    print("  StopGraph cleanup...", end=" ")
-    resp = send_raw(bytes([0x0F, 0x09, 0x00, 0x00]), timeout=500)
-    print("OK" if resp else "timeout")
-    time.sleep(0.1)
+    # # StopGraph to ensure clean state - NOT required for AdcQueue
+    # print("  StopGraph cleanup...", end=" ")
+    # resp = send_raw(bytes([0x0F, 0x09, 0x00, 0x00]), timeout=500)
+    # print("OK" if resp else "timeout")
+    # time.sleep(0.1)
 
     print("\nInit complete!")
 
-    # StartGraph at 50 SPS (tid=0x0A)
+    # StartGraph at 50 SPS (tid=3)
     # Rate encoding: RATE_50_SPS=2 -> wire=4 (shifted by 1)
     print("\nStarting graph mode (50 SPS)...", end=" ")
-    resp = send_raw(bytes([0x0E, 0x0A, 0x04, 0x00]))
+    resp = send_raw(bytes([0x0E, 0x03, 0x04, 0x00]))
     if resp and (resp[0] & 0x7F) == 0x05:
         print("ACCEPTED")
     else:
@@ -120,10 +122,10 @@ def main():
     print("Waiting 2 seconds for buffer to fill...")
     time.sleep(2.0)
 
-    # Request AdcQueue data (tid=0x0B)
+    # Request AdcQueue data (tid=4)
     # ATT_ADC_QUEUE=0x0002 -> wire=0x0004
     print("\nRequesting AdcQueue data...", end=" ")
-    resp = send_raw(bytes([0x0C, 0x0B, 0x04, 0x00]))
+    resp = send_raw(bytes([0x0C, 0x04, 0x04, 0x00]))
 
     if resp:
         data = bytes(resp)
@@ -167,9 +169,9 @@ def main():
     else:
         print("TIMEOUT")
 
-    # Stop Graph (tid=0x0C)
+    # Stop Graph (tid=5)
     print("\nStopping graph mode...", end=" ")
-    resp = send_raw(bytes([0x0F, 0x0C, 0x00, 0x00]), timeout=500)
+    resp = send_raw(bytes([0x0F, 0x05, 0x00, 0x00]), timeout=500)
     print("OK" if resp else "timeout")
 
     # Cleanup
