@@ -201,6 +201,45 @@ ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="5fc9", ATTR{idProduct}=="0063"
 
 ---
 
+## Enumeration & Vendor Control
+
+- **Standard flow:** Device and configuration descriptors are requested twice (short header then full 130B config). String descriptors are queried at multiple lengths (4/255/258 bytes).
+- **VM redirection:** In passthrough setups, a three-stage sequence occurs (host enumerate → guest enumerate → app start), followed by a proprietary control transfer.
+- **Vendor request 0x32:** `bmRequestType=0xC2`, `bRequest=0x32`, `wLength=170` — returns a 170-byte blob (likely capability/calibration query).
+- **Other control probes observed:** type 0x10 attr 0x0001 (zero-length), type 0x11 attr 0x0000 (zero-length), and GetData attr 0x0011 during init.
+
+---
+
+## Traffic Analysis (usbmon)
+
+| Endpoint | Transfer Type | Packet Count | Usage |
+|----------|---------------|--------------|-------|
+| 0x01/0x81 | Bulk | 11,710 | Primary protocol (Interface 0) |
+| 0x80/0x00 | Control | 286 | Descriptor + vendor control |
+| 0x85 | Interrupt | 12 | HID interface (Interface 3) |
+
+---
+
+## Performance Profiles (captures)
+
+| Device Addr | Packets | Rate (pps) | Avg Payload | Use Case |
+|-------------|---------|------------|-------------|----------|
+| 6 | 2,152 | 133.1 | 97.2 bytes | High-frequency ADC |
+| 13 | 2,030 | 66.0 | 8.7 bytes | Fast command-response |
+| 16 | 248 | 44.0 | 12.4 bytes | Low-volume monitoring |
+| 9 | 6,924 | 23.4 | 12.6 bytes | PD protocol analysis |
+
+---
+
+## Troubleshooting & Edge Cases
+
+- **URB ID reuse:** Kernel urb_id is an address, not a transaction identifier; always correlate Submit→Complete pairs instead of grouping by urb_id.
+- **Empty Complete:** A 0-length IN Complete (status=0) is a normal acknowledgment path for control/bulk commands.
+- **ENOENT (-2):** Seen when operations are cancelled; not fatal if the next request succeeds.
+- **Driver conflicts:** If the `powerz` driver is bound, bulk interface 0 will NAK; unbind (see above) before direct access.
+
+---
+
 ## Interface Selection Guide
 
 | Use Case | Interface | Notes |

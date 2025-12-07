@@ -56,6 +56,8 @@ The firmware uses a custom RTOS (not FreeRTOS/ThreadX):
 | Critical Enter | 0x000002f4 | Enter critical section |
 | Critical Exit | 0x000002fc | Exit critical section |
 
+Task creation signature: `(handle, name, entry_point, param, priority 0-9, stack_base, stack_size, config)` with magic `0xDAD8`. GUI runs at priority 6; ADC at 5; PD_PHY/CHARGE/USB/UFCS at 2; idle at 9.
+
 ---
 
 ## Supported Charging Protocols
@@ -138,6 +140,7 @@ switch(*param_3) {
 
 - Base oscillator: 16 MHz
 - Core frequency: 192 MHz (PLL multiplier 12)
+- NVIC registers seen at `0xe000e100` (ISER), `0xe000e280` (ICPR), `0xe000e400` (IPR).
 
 ---
 
@@ -172,6 +175,12 @@ switch(*param_3) {
 The Hynetek chip (likely HUSB238) handles physical layer; PD protocol stack is in firmware.
 
 ---
+
+## USB Stack Initialization
+
+- Init entry: `FUN_000507e8` at base `0x400c0000`.
+- Steps: clear pending state → configure FIFO sizes/addresses → set up EP0 (control) → configure bulk endpoints → enable USB interrupts.
+- Registers observed: control/status (+0x008..0x018), FIFO (+0x024/+0x028), DFIFO (+0x038), endpoint config (+0x104..0x110), OTG control/status (+0x800+).
 
 ## Graphics Library
 

@@ -36,6 +36,21 @@ Bitmask and latency validation across usb_master_dataset.parquet (2,836 request/
 3. Transaction IDs match request/response (100%).
 4. Empty PutData is normal when no AdcQueue data is ready.
 
+---
+
+## Validation & Tooling
+
+- **Dataset:** `data/processed/usb_master_dataset.parquet` (≈12k packets, 2,836 pairs).
+- **Parsers:** Python analysis + Rust `km003c-rs` achieved 0 parse errors across 5,824 packets.
+- **Exports:** `data/processed/transaction_pairs.parquet`, `request_response_analysis.json`, `bitmask_correlation_validation.json`, `rust_lib_analysis.json`.
+- **Scripts:** `scripts/analyze_request_response_correlation.py`, `scripts/analyze_with_km003c_lib.py`, `scripts/validate_bitmask_correlation.py`, `scripts/visualize_request_response.py`.
+
+## Implementation Notes
+
+- Treat `obj_count_words=0` as “no data yet”, not an error.
+- For high-rate polling, prefer Interface 0 (bulk) for ~0.6 ms latency; HID is ~3.8 ms.
+- When requesting multiple attributes, expect one logical packet per set bit and follow the `next` chain until 0.
+
 ## Files and Scripts
 
 - Dataset: `data/processed/usb_master_dataset.parquet`

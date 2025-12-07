@@ -549,7 +549,14 @@ Device encrypts challenge and session key with Key 3, returns encrypted result.
 | 0x76 | LogChunk3 | 2544 bytes | Third log data chunk |
 | 0x68 | LogChunk4 | ≤704 bytes | Final log data chunk |
 
----
+
+## Empirical Findings (Captured Traffic)
+
+- **Transaction coverage:** 2,836 request/response pairs across seven captures; 100% ID match and bitmask→attribute correlation.
+- **Common PutData sizes:** 52B (ADC only), 68B (ADC+PD status), 52–900B (AdcQueue), variable PD-only (≥18B preamble+events).
+- **obj_count_words heuristic:** `≈ (total_bytes / 4) – 3` for single-segment packets; adjust upward when multiple logical packets are chained.
+- **Latency (median):** ADC ~182 µs, PD ~158 µs, ADC+PD ~198 µs, AdcQueue ~1.06 ms (larger payloads).
+- **Empty responses:** A PutData with `obj_count_words=0` is valid when AdcQueue has no buffered samples.
 
 ## References
 

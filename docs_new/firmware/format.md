@@ -64,6 +64,27 @@ Keys are embedded as substrings in obfuscation strings at 0x140184ac8-0x140184b6
 
 ---
 
+## Header Example (KM003C_V1.9.9.mencrypt)
+
+```
+00000000: 0000 000a 0000 001a 0046 0069 0072 006d
+00000010: 0077 0061 0072 0065 0020 0066 0069 006c
+00000020: 0065 0000 0014 0043 0068 0061 0072 0067
+00000030: 0065 0072 004c 0061 0062 0000 0008 0056
+00000040: 0031 002e 0030 0000 000c 004b 004d 0030
+00000050: 0030 0033 0043 0000 000a 0031 002e 0039
+```
+
+Breakdown: `0x0000000a` strings → first QString length 0x1a → UTF-16BE "Firmware file", etc.
+
+---
+
+## Verification Checklist
+
+- `file firmware.bin` should report an ARM Cortex-M image with initial SP near `0x20000000` and reset vector inside the binary.
+- `strings -n 10 firmware.bin | grep -i "charger\\|km003\\|ufcs"` should surface device/feature strings (e.g., "Find PD charger", "Find UFCS").
+- Optional: compare metadata checksum field against a computed CRC32 if needed.
+
 ## Decrypted Firmware
 
 ### Vector Table

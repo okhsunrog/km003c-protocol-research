@@ -120,6 +120,11 @@ if ((param_3 == -1) &&           // Magic: 0xFFFFFFFF
 | param_2 | Size < | 0x3d0901 (~4MB) |
 | param_1 | Address < | 0x983d0901 (~2.5GB) |
 
+### Two-Stage Access Control
+
+1) **Firmware gate (above):** Enforces magic, size, and address ceilings; failures return REJECT (0x06).
+2) **Hardware read (FUN_00001090 @ 0x00001090):** Uses the AES engine registers at `0x40008010/0x40008020`. Requirements: size 16-byte aligned and pointers 4-byte aligned. Bus faults during the read map to error code 8 → NOT_READABLE (0x27).
+
 ### Response Types
 
 | Response | Hex | Cause |

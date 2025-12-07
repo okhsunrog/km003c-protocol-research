@@ -72,6 +72,13 @@ The wire bytes are standard USB PD messages (2-byte header + data objects).
 
 ---
 
+## Examples & Correlation
+
+- **Empty PD response:** 18-byte payload = 12-byte preamble + one 6-byte header with `wire_len=0`; indicates no new PD wire data.
+- **Preamble+event sample:** `preamble: e5 e8 5b 00 00 00 00 00 76 06 03 00` + `event: 45 e2 e8 5b 00 11` (connect). Disconnect uses code `0x12`.
+- **Wrapped message sample:** size_flag `0x9F` → `wire_len=21`; parsed messages observed: GoodCRC, Source_Capabilities, Request, Accept, PS_RDY.
+- **USB ↔ SQLite:** PD events in `pd_table.Raw` match USB PD-only payloads minus the 12-byte preamble; timestamps align with the 32-bit preamble ts (the 24-bit ADC+PD status counter is separate).
+
 ## SQLite Export Format
 
 ### Schema
