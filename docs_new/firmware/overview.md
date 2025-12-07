@@ -268,6 +268,41 @@ The firmware uses **LVGL v7.x**:
 
 Magic unlock values and register layout match NXP Kinetis parts. The 0x9c000000 region is accessed with bit masking and likely backs the 240x240 LCD (or external QSPI storage).
 
+### Clock Gating Functions
+
+Two gate helpers mirror the Kinetis SIM layout:
+
+```c
+// 0x40048000 with unlock at 0x40048010
+clock_gate_1(mask, enable) { _DAT_40048000 = enable ? _DAT_40048000 & ~mask : _DAT_40048000 | mask; _DAT_40048010 = 0xa5a50000; }
+// 0x4004800c (no unlock)
+clock_gate_2(mask, enable) { _DAT_4004800c = enable ? _DAT_4004800c & ~mask : _DAT_4004800c | mask; }
+```
+
+Observed bits: 0x1, 0x2, 0x10, 0x100, 0x8000, 0x20000.
+
+### I2C Bus (External ADC / PD PHY)
+
+- Peripheral: 0x4004e8xx (status at 0x4004e81c, control/ack at 0x4004e820).
+- Devices seen:
+  - 0x5b: Hynetek PD PHY (likely HUSB238). Regs: 0x02 ctrl, 0x04 mask, 0x10 status, 0x7f reset. Init writes 0xedc0 → 0x02, 0x0f → 0x04.
+  - 0x19: Unknown sensor/ADC (status read at reg 0x31).
+- Used by TASK_ADC for external measurements.
+
+### External Memory Region (0x9c000000)
+
+Registers at 0x9c000000/4/8/10/14, manipulated with bit clear/set ops. Likely the LCD controller or FlexSPI-mapped external storage used by LVGL.
+
+### Clock Frequency
+
+- Base oscillator: 16 MHz (from PLL calculation)
+- UI reports 192 MHz; achieved via PLL multiplier 12 (`16 MHz × 12 ≈ 192 MHz`).
+
+### MCU Candidate / Ruled Out
+
+- Evidence fits NXP Kinetis K-series (SIM unlock 0xa5a50000; eDMA+DMAMUX at 0x40053xxx/0x40054xxx; watchdog 0x40049xxx; USB FS 0x40040xxx; I2C 0x4004e8xx; boot ROM 0x1fff8xxx; bit-band alias 0x42xxxxxx).
+- Nuvoton M480 ruled out: base addresses (SYS/CLK/GPIO/PDMA) do not appear; USB/I2C bases differ; no unlock patterns; typical 12 MHz crystal mismatched.
+
 ---
 
 ## ADC/Measurement System

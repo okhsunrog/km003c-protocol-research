@@ -9,6 +9,32 @@ How to separate production tools from research/experiments.
 - `scripts/experiments/`: throwaway validation/tests; safe to delete when done.
 - `notebooks/`: manual exploration only (no .py files).
 
+### Layout (reference)
+
+```
+km003c_analysis/            # 🏭 production
+├── tools/                  # CLI tools (export, analyzers)
+├── core/                   # reusable parsing logic
+├── dashboards/             # GUI apps
+└── app.py                  # Streamlit entry
+
+scripts/                    # 🔬 research
+└── experiments/            # 🧪 temporary tests
+
+notebooks/                  # 📓 exploration only
+```
+
+## Classification Criteria
+
+- Production tool: feature-complete, argparse CLI/help, validation, exports (JSON/Parquet/CSV), documented usage, stable API, importable.
+- Research script: evolving analysis or export workflow; may change frequently.
+- Experiment: one-off validation; keep small and deletable.
+
+Documentation expectations:
+- Production → listed in README/CLAUDE with examples; has CLI help and docstring.
+- Research → brief header description; may be mentioned in findings.
+- Experiments → no main README entry; keep deletion criteria in-file if needed.
+
 ## Promotion Path (script → tool)
 
 1. Add CLI (`argparse`) and validation.

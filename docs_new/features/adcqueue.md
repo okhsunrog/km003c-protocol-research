@@ -218,3 +218,19 @@ From capture analysis:
 | 1 SPS | ~1.8 SPS | 1-2 | 1 second |
 
 Maximum sustained throughput: ~1000 samples/second at 1000 SPS mode.
+
+## Dataset Snapshot (usb_master_dataset.parquet)
+
+- Total packets: ADC 1,877 vs AdcQueue 290
+- AdcQueue size: 100–960 bytes (5–48 samples per response)
+- Example captures:
+  - `orig_adc_1000hz.6`: 220 AdcQueue responses, 8,798 samples, ~956 SPS
+  - `orig_adc_50hz.6`: 60 responses, 320 samples, ~47 SPS
+  - `pd_adcqueue_new.11`: mixed rates (1/10/50/1000 SPS) in one session
+
+## Notes & Edge Cases
+
+- Attribute 0x0004 (ATT_ADC_QUEUE_10K) is defined in docs but never observed in 20k+ packets, including 1000 SPS runs. Use attribute 0x0002 for all streaming.
+- Extended header `size=20` is the per-sample size; compute samples as `(payload_len - 8) / 20`.
+- Empty PutData (obj_count_words=0) is valid when the device buffer is empty—retry later.
+- Tested on real hardware (2025-10-05): minimal sequence works, 50 SPS shows graph icon, first poll returns ~50 accumulated samples. Test scripts: `scripts/test_exact_init_sequence.py`, `scripts/test_verify_minimal.py`, `scripts/test_minimal_adcqueue.py`.

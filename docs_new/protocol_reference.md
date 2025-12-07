@@ -430,6 +430,8 @@ All encryption uses **AES-128 ECB** mode.
 | 3 | `Fa0b4tA25f4R038a` | Streaming auth (0x4C) encrypt | Encryption key |
 | 3' | `FX0b4tA25f4R038a` | Streaming auth (0x4C) decrypt | byte[1] = 'X' |
 
+**Firmware key variant:** Some firmware dumps show key 0 as `Lh2yfB7n6X7d9a4Z`; both `...a4Z` and `...a5Z` work in practice.
+
 **Key extraction from Mtools.exe:**
 ```
 Address 0x140184ac8: "NmR0R.uz3KgNOu4xufpWLh2yfB7n6X7d9a5ZBwLe..."

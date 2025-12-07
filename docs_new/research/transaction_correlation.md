@@ -29,6 +29,12 @@ Bitmask and latency validation across usb_master_dataset.parquet (2,836 request/
 | ADC+PD (0x0011) | 198.5 µs |
 | AdcQueue (0x0002) | 1,061.5 µs |
 
+### Per-Capture Highlights
+
+- `orig_adc_1000hz.6`: 299 pairs, AdcQueue-heavy (220 requests) for high-rate sampling.
+- `pd_capture_new.9`: 1,731 pairs, mixed ADC (1,402) + PD (310); ADC ~200 ms, PD ~40 ms cadence.
+- `orig_with_pd.13`: 503 pairs, PD-dominant (347) alongside power monitoring.
+
 ## Rules Confirmed
 
 1. Bitmask → attributes: bits 0,1,3,4,9 map to 1,2,8,16,512.
@@ -50,6 +56,8 @@ Bitmask and latency validation across usb_master_dataset.parquet (2,836 request/
 - Treat `obj_count_words=0` as “no data yet”, not an error.
 - For high-rate polling, prefer Interface 0 (bulk) for ~0.6 ms latency; HID is ~3.8 ms.
 - When requesting multiple attributes, expect one logical packet per set bit and follow the `next` chain until 0.
+- High-frequency ADC: poll only attr 0x0001; avoid frequent AdcQueue if latency-sensitive.
+- Compatibility: HID (IF3) works without driver install but is slower; bulk (IF0) is fastest.
 
 ## Files and Scripts
 
