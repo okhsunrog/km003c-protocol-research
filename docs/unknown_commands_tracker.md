@@ -19,8 +19,8 @@ This document tracks the status of all command types and attributes in the KM003
 | 0x0B | Error | Unknown | fw_update | Error response? |
 | 0x0C | GetData | **Implemented** | all normal captures | Request data by attribute mask |
 | 0x0D | GetFile | Unknown | fw_update | File download? |
-| 0x0E | StartGraph | **Implemented** | adc_*, pd_adcqueue | Start AdcQueue streaming |
-| 0x0F | StopGraph | **Implemented** | all normal captures | Stop AdcQueue streaming |
+| 0x0E | StartGraph | **Fully Reversed** | adc_*, pd_adcqueue | Start streaming with rate_index (see below) |
+| 0x0F | StopGraph | **Fully Reversed** | all normal captures | Stop streaming |
 | 0x10 | EnablePdMonitor | **Documented** | pd_capture, pd_epr0, with_pd | Enable PD sniffer mode |
 | 0x11 | DisablePdMonitor | **Documented** | fw_update, pd_capture, pd_epr0, with_pd | Disable PD sniffer mode |
 | 0x1A | DeviceInfo1 | **Fully Reversed** | all normal captures | Device info: model, HW ver, mfg date |
@@ -102,8 +102,8 @@ These commands appear **only** in `updating_firmware.*` captures and are likely 
 |-----------|-----|------|-------------------|-------|
 | 0x0001 | Adc | **Implemented** | Simple ADC (44 bytes) |
 | 0x0002 | AdcQueue | **Implemented** | Streaming ADC (20 bytes/sample) |
-| 0x0004 | AdcQueue10k | Listed | 10kHz mode? |
-| 0x0008 | Settings | Listed | Device settings |
+| 0x0004 | AdcQueue10k | **Not Implemented** | Defined but unused (see below) |
+| 0x0008 | Settings | **Fully Reversed** | Device settings (180 bytes) |
 | 0x0010 | PdPacket | **Implemented** | PD status (12B) or events (>12B) |
 | 0x0020 | PdStatus | Listed | PD status only |
 | 0x0040 | QcPacket | Listed | Quick Charge data |
@@ -304,6 +304,223 @@ Offset  Size  Type    Field           Example
 **Attribute:** 0x564D | **Size:** 64 bytes | **Status:** Fully Reversed
 
 Same structure as Unknown58 (0x3A). Appears in older capture sequences.
+
+---
+
+## Settings Attribute (0x0008) - Device Configuration
+
+**Status:** Fully Reversed
+
+**Size:** 180 bytes | **Attribute:** 0x0008
+
+**Purpose:** Contains device configuration, calibration offsets, thresholds, and user-configurable device name.
+
+### Structure (180 bytes)
+
+```
+Offset  Size  Type      Field               Description
+──────────────────────────────────────────────────────────────────────
+0x00    4     u32       flags               Configuration flags (0xf8500161)
+0x04    4     u32       reserved            Always 0x00000000
+0x08    2     u16       sample_interval     ADC sample interval in microseconds (10000 = 10ms)
+0x0a    1     u8        display_brightness  Display brightness level (65 = default)
+0x0b    1     u8        unknown             Always 0xFF
+0x0c    4     u32       reserved            Always 0x00000000
+
+0x10    32    i32[8]    thresholds          Alert threshold values (-1 = disabled, -6 = enabled)
+                                            [0-2]: voltage thresholds
+                                            [3-7]: current/power thresholds
+
+0x30    40    u32[10]   calibration         ADC calibration offsets (e.g., 1002221 = 0x000F4AED)
+                                            Applied to raw ADC readings
+
+0x58    4     u32       counter             Sequence counter or settings version
+0x5c    4     u32       timestamp           Settings modification timestamp (Unix epoch)
+
+0x60    1     u8        mode_flags          Operating mode flags
+                                            Bits 2-3: Mode (0-3), extracted by firmware
+                                            Bit 0: Unknown flag
+                                            Bit 1: Unknown flag
+                                            Bit 6: Unknown flag
+0x61    15    bytes     reserved            Always zeros
+
+0x70    64    char[64]  device_name         User-configurable device name ("POWER-Z" default)
+                                            Null-terminated UTF-8 string
+
+0xb0    4     u32       checksum            Device-generated checksum (not verified by host)
+```
+
+**Note on checksum:** The last 4 bytes appear to be a checksum but:
+- Host software (Mtools) does NOT verify it
+- Not standard CRC32 (tested with various init values and byte ranges)
+- Likely calculated by device firmware using unknown algorithm
+- Safe to ignore when reading Settings; unknown if device validates on write
+
+### Example Values (from captures)
+
+```
+flags:              0xf8500161
+sample_interval:    10000 µs (10 ms)
+display_brightness: 65
+thresholds:         [-1, -1, -1, -6, -6, -6, -6, -6]
+calibration[0-9]:   1002221 (all same in this device)
+counter:            94
+mode_flags:         0x43 (bits 0,1,6 set, mode=0)
+device_name:        "POWER-Z"
+```
+
+### Firmware Handling (from Ghidra)
+
+```c
+// handle_response_packet at 0x14006d1b0
+else if (attr == 8) {  // Settings
+    FUN_140161470(device_context);  // Emit signal
+    QByteArray::remove(local_108, 0, 0x60);  // Skip to offset 0x60
+    // Read 16 bytes (mode_flags + reserved)
+    local_f0 = *puVar15;
+    uStack_e8 = puVar15[1];
+    QByteArray::remove(local_108, 0, 0x54);  // Skip rest
+    // Extract mode from bits 2-3
+    *(byte *)(device_context + 0x160) = (byte)((uint)local_f0 >> 2) & 3;
+}
+```
+
+The firmware extracts the operating mode (bits 2-3 of byte 0x60) and stores it in the device context.
+
+---
+
+## AdcQueue10k Attribute (0x0004) - NOT IMPLEMENTED
+
+**Status:** Defined in code but NOT implemented/used
+
+**Analysis Results:**
+
+1. **String reference exists**: `"AttributeAdcQueue10K"` found at Mtools.exe:0x14022ddd8 (debug enum name)
+
+2. **UI has 10KSPS button**: The software shows sample rate buttons ("10SPS", "50SPS", "1KSPS", "10KSPS") at FUN_140016940, but these are **UI labels only**, not protocol attributes
+
+3. **NO handler in protocol**: The `handle_response_packet` function (0x14006d1b0) handles:
+   - 0x01 (ADC) → `process_adc_packet`
+   - 0x02 (AdcQueue) → `process_adc_data`
+   - 0x08 (Settings)
+   - 0x10 (PdPacket)
+   - 0x20 (debug log)
+   - 0x40 (QcPacket)
+   - 0x80 (unknown)
+
+   **Attribute 0x04 is NOT handled** - would fall through with no action
+
+4. **Only in firmware update captures**: The 0x0004 bit appearing in attribute masks like 0x6fd4 is coincidental overlap with firmware data, not actual protocol usage
+
+**Conclusion:**
+
+The attribute 0x0004 was planned/reserved but never implemented. Sample rate is controlled via the **StartGraph (0x0E) command** using a rate_index parameter, NOT via Settings or a separate attribute. All streaming uses AdcQueue (0x02) with StartGraph setting the rate.
+
+---
+
+## StartGraph Command (0x0E) - Streaming Control
+
+**Status:** Fully Reversed
+
+**Purpose:** Start AdcQueue streaming at a specified sample rate.
+
+### Packet Structure
+
+**Request (4 bytes):**
+```
+Byte 0: 0x0E (type)
+Byte 1: TID (transaction ID)
+Byte 2: rate_index (0-3, sample rate selector)
+Byte 3: 0x00
+```
+
+**Response:** Accept (0x05) or Reject (0x06)
+
+### Sample Rate Encoding
+
+The rate byte uses bits 1-2 as the rate selector: `effective_index = (byte >> 1) & 3`
+
+| Byte value | Effective index | Sample Rate |
+|------------|-----------------|-------------|
+| 0-1 | 0 | 2 SPS |
+| 2-3 | 1 | 10 SPS |
+| 4-5 | 2 | 50 SPS |
+| 6-7 | 3 | 1000 SPS |
+
+**To set a specific rate:** Send `rate_index * 2` in byte 2.
+
+**Note:** Mtools.exe has a lookup table at 0x14017acb0 with timing values [1000, 100, 20, 1] ms - these are for host-side polling intervals, not the device's actual sample rates.
+
+### Firmware Implementation (Ghidra)
+
+From `manage_data_stream` at 0x14006ef10:
+
+```c
+// Line 61: Build StartGraph command with rate_index
+build_command_header(local_70, '\x0e', (uchar)rate_index);
+
+// Line 63-64: Store timing value from lookup table
+// Table at 0x14017acb0: [1000, 100, 20, 1] (ms intervals)
+*(undefined4 *)(device_context + 0x1b8) =
+     *(undefined4 *)((longlong)&local_50 + (ulonglong)((byte)rate_index & 7) * 4);
+```
+
+### Python Example
+
+```python
+def build_start_graph(tid: int, rate_index: int) -> bytes:
+    """Build StartGraph command.
+
+    Args:
+        tid: Transaction ID (0-255)
+        rate_index: 0=2SPS, 1=10SPS, 2=50SPS, 3=1000SPS
+    """
+    # Device uses (byte >> 1) & 3 as rate selector, so multiply by 2
+    return bytes([0x0E, tid, (rate_index * 2) & 0x07, 0x00])
+
+# Start streaming at 50 SPS (rate_index=2, sends byte value 4)
+packet = build_start_graph(tid=0x01, rate_index=2)
+```
+
+### Rust Library Reference
+
+The `km003c-lib` crate should use:
+
+```rust
+pub enum GraphSampleRate {
+    Sps2 = 0,     // 2 SPS (sends 0x00)
+    Sps10 = 1,    // 10 SPS (sends 0x02)
+    Sps50 = 2,    // 50 SPS (sends 0x04)
+    Sps1000 = 3,  // 1000 SPS (sends 0x06)
+}
+```
+
+**Note:** The current Rust lib has `Sps1` but device actually uses 2 SPS for index 0.
+
+---
+
+## StopGraph Command (0x0F) - Stop Streaming
+
+**Status:** Fully Reversed
+
+**Purpose:** Stop AdcQueue streaming.
+
+### Packet Structure
+
+**Request (4 bytes):**
+```
+Byte 0: 0x0F (type)
+Byte 1: TID (transaction ID)
+Byte 2-3: 0x0000
+```
+
+**Response:** Accept (0x05)
+
+From `manage_data_stream`:
+```c
+// Line 47: Build StopGraph command
+build_command_header(local_88, '\x0f', '\0');
+```
 
 ---
 
