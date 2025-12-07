@@ -1,8 +1,8 @@
 # KM003C Offline Log Download Protocol
 
-**Date**: 2025-10-05  
-**Source**: reading_logs0.11 capture (29.5s, 618 packets)  
-**Status**: 🔍 Partially understood, encryption/compression detected
+**Date**: 2025-10-05 (Updated: 2025-12-07)
+**Source**: reading_logs0.11 capture (29.5s, 618 packets) + Ghidra RE
+**Status**: ✅ Fully reversed and verified
 
 ---
 
@@ -50,52 +50,78 @@ Unknown68 request (36 bytes)
 
 ---
 
-## Unknown68 Exchange (Log Read Command)
+## Unknown68 Exchange (Memory/Log Download Command) ✅ REVERSED
 
-### Request Structure
+### Encryption Details (from Ghidra RE)
+
+**Algorithm**: AES-128 ECB
+**Key**: `Lh2yfB7n6X7d9a5Z` (16 bytes, key index 0)
+**Key Location**: Mtools.exe @ 0x140184ac8 + offset 0x14
+
+### Request Structure (36 bytes)
 
 ```
 Packet type: 0x44 (Unknown68)
 Size: 36 bytes total
-Format: [header(4)] [payload(32)]
+Format: [header(4)] [encrypted_payload(32)]
 
-Example: 44 47 01 01 06fd6d233e3bc6d0e28ca4c7635a1ad26ae4c2c0e9b903c0810ea0e0
+USB Header (4 bytes):
   [0]    0x44 (packet type 68)
-  [1]    0x47 (ID = 71)
-  [2:3]  0x0101 (flags/extended?)
-  [4:35] 32-byte payload (challenge? encryption key? log selector?)
+  [1]    Transaction ID (increments)
+  [2:3]  0x0101 (flags: encrypted payload)
+
+Encrypted Payload (32 bytes) - AES-128 ECB:
+  After decryption:
+  [0:3]   Address (u32 LE) - memory address or log marker
+  [4:7]   Size (u32 LE) - bytes to download
+  [8:11]  0xFFFFFFFF (constant)
+  [12:15] CRC32 (of bytes 0-11 + padding)
+  [16:31] 0xFF × 16 (padding)
 ```
 
-**32-byte payload characteristics**:
-- Appears random/encrypted
-- Different for each Unknown68 in initialization
-- Possibly: authentication challenge, encryption key, or log file selector
+**Address field semantics**:
+| Address | Purpose |
+|---------|---------|
+| 0x00000420 | Device info block 1 (64 bytes) |
+| 0x00004420 | Device info block 2 (64 bytes) |
+| 0x03000C00 | Unknown data (64 bytes) |
+| 0x40010450 | Unknown data (12 bytes) |
+| 0x98100000 | **Offline log data** (special marker, bit 31 set) |
 
-### Response Structure
+**CRC32 calculation**: Standard CRC32 over the 16-byte structure (address + size + 0xFFFFFFFF + padding).
+
+### Response Structure (20 bytes)
 
 ```
-Packet type: 0x44 (Unknown68)  
+Packet type: 0x44 (Unknown68)
 Size: 20 bytes
+Format: [header(4)] [encrypted_payload(16)]
 
-Example: c4 47 01 01 0000109890200000ffffffff2f0ab013
-  [0]    0xC4 (0x44 with reserved bit set)
-  [1]    0x47 (ID = 71, matches request)
+USB Header (4 bytes):
+  [0]    0xC4 (0x44 | 0x80, reserved bit set = response)
+  [1]    Transaction ID (matches request)
   [2:3]  0x0101 (matches request)
-  [4:19] 16-byte response data
+
+Encrypted Payload (16 bytes) - AES-128 ECB:
+  After decryption:
+  [0:3]   Address echo (u32 LE)
+  [4:7]   Size echo (u32 LE) - e.g., 0x2090 = 8336 bytes
+  [8:11]  0xFFFFFFFF (constant)
+  [12:15] CRC32 (checksum of data to follow)
 ```
 
-**Response data fields** (decoded):
-```
-Bytes 4-7:   Unknown/flags (varies)
-Bytes 8-11:  Total log size in bytes (0x00002090 = 8336 bytes) ✓
-Bytes 12-15: 0xFFFFFFFF (constant marker)
-Bytes 16-19: CRC32 or hash of log data
-```
+### Example: Log Download Request
 
-**Validation**: ID=71 response before data transfer:
-- Field2 = 8336 bytes
-- Actual chunks: 3 × 2544 = 7632 bytes
-- Close match (overhead for headers/padding?)
+**Captured encrypted**: `44 47 01 01 <32 bytes encrypted>`
+**Decrypted payload**: `00001098 90200000 ffffffff 2f0ab013 ffffffff ffffffff ffffffff ffffffff`
+
+Parsed:
+- Address: 0x98100000 (log marker, little-endian: `00001098`)
+- Size: 0x00002090 = 8336 bytes (little-endian: `90200000`)
+- Constant: 0xFFFFFFFF
+- CRC32: 0x13b00a2f
+
+**Response decrypted**: Echoes address and size, provides CRC32 of log data
 
 **ASCII visualization**: No readable text in encrypted chunks (high entropy throughout)
 
@@ -114,37 +140,18 @@ All exactly **2544 bytes** each.
 
 ### Data Characteristics
 
-**Observation**: Data appears encrypted or compressed
-- High entropy (random-looking bytes)
-- No obvious text or structured data
-- No repeated patterns
+**Encryption**: AES-128 ECB (same key as Unknown68 request/response)
+- Entire chunk payload is encrypted (no header skip needed)
+- Key: `Lh2yfB7n6X7d9a5Z`
 
-**Examples** (first 50 bytes):
-```
-Chunk 1 (type=52):  b4 45 20 62 1e 2e 78 d8 f5 95 83 96 12 45 4b 96...
-Chunk 2 (type=78):  4e ed bf 16 0e d8 21 92 6f 60 39 ce 5d 7c bf 5d...
-Chunk 3 (type=118): 76 4f cf ad 0a 89 a1 f4 ce eb ec 13 7b 3d e4 df...
-```
+**Decryption**: Concatenate all chunks, decrypt with AES-128 ECB, parse as 16-byte samples.
 
-**Analysis results**:
-- Data is **fully encrypted** (no readable voltage/current patterns found)
-- Scanned all offset combinations: no valid i32 voltage/current pairs
-- High entropy throughout all 7629 bytes
-- Expected unencrypted: 521 samples × 8 bytes = 4168 bytes
-
-**Hypothesis**: 
-- Unknown68 32-byte request contains encryption key or algorithm selector
-- Data encrypted with AES or proprietary cipher
-- Three chunks (52/78/118) are sequential parts of encrypted log
-- Total encrypted size (7629B) > unencrypted (4168B) suggests:
-  - Additional metadata/headers encrypted together
-  - Padding for encryption block alignment
-  - Or compression applied before encryption
-
-**Known from user**:
-- Recording: ~5-9V voltage, 2A → 0.1A current decrease
-- 521 samples at 10s intervals
-- Expected format: 4 bytes VBUS (i32 µV) + 4 bytes IBUS (i32 µA)
+**Verified data from reading_logs0.11**:
+- 521 samples × 16 bytes = 8336 bytes
+- Voltage: 5V → 9V (changed during recording)
+- Current: -1.9A → -0.1A (decreasing discharge)
+- Charge accumulator: -810.3 mAh (matches official app: -0.8103 Ah)
+- Energy accumulator: -5747.2 mWh (matches official app: -5.7472 Wh)
 
 ---
 
@@ -194,39 +201,29 @@ From reading_logs0.11:
 
 ---
 
-## Log Metadata (Unknown512 / Attribute 0x0200)
+## Log Metadata (Attribute 0x0200) ✅ VERIFIED
 
-**Discovered**: GetData with attribute 0x0200 returns log metadata!
+**Request**: `GetData(attr=0x0200)` returns log metadata in PutData response.
 
-### Structure (48 bytes payload)
+### Structure (48 bytes after 8-byte PutData header)
 
 ```
-[0:16]   Log filename (null-terminated ASCII string)
-         Example: "A01.d"
-         
-[16:18]  Unknown bytes (0x450A in example)
-
-[18:20]  Data point count (u16 little-endian)
-         Example: 521 samples ✓
-         
-[20:22]  Recording interval in milliseconds (u16)
-         Example: 10000 = 10 seconds ✓ (confirmed via device settings)
-         
-[22:24]  Flags (u16)
-         Example: 0
-         
-[24:28]  Estimated size? (u32)
-         Example: 5200 bytes
-         
-[28:48]  Additional metadata (20 bytes)
-         Contains checksums or encrypted data
+Offset  Size  Type    Field              Example
+────────────────────────────────────────────────────────
+0x00    16    char[]  Log filename       "A01.d" (null-terminated)
+0x10    2     u16     Unknown            0x0A45
+0x12    2     u16     Sample count       521
+0x14    2     u16     Interval (ms)      10000 (= 10 seconds)
+0x16    2     u16     Flags              0x0000
+0x18    4     u32     Estimated size     5200 bytes
+0x1C    20    bytes   Additional data    (checksums/metadata)
 ```
 
-**Usage**: Request `GetData(attr=0x0200)` to enumerate logs before downloading.
+**Calculated data size**: `sample_count × 16 bytes` (actual ADC data)
+- Example: 521 × 16 = 8336 bytes (vs. estimated 5200 - estimate is lower)
 
-**Calculation**: With 521 data points at 10 second intervals:
-- Total recording time: 521 × 10s = 5210 seconds ≈ 87 minutes
-- Data per sample: ~15 bytes (5200 bytes / 521 ≈ 10 bytes + overhead)
+**Duration calculation**: `sample_count × interval_ms / 1000` seconds
+- Example: 521 × 10000 / 1000 = 5210s = 1:26:50
 
 ---
 
@@ -245,132 +242,105 @@ From reading_logs0.11:
 
 ## Research Questions
 
-### 1. Unknown68 Payload Purpose
+### ✅ SOLVED: Unknown68 Payload Purpose
 
-**32-byte request payload**:
-- Random-looking data (different each time)
-- Could be: encryption key, challenge, nonce, log file ID
-- Need: comparison with multiple log downloads
+**32-byte request payload** (after AES-128 ECB decryption):
+- Address (4B) + Size (4B) + 0xFFFFFFFF (4B) + CRC32 (4B) + Padding (16B)
+- For offline ADC downloads, address = 0x98100000 (special marker)
+- Size = exact data size in bytes
 
-### 2. Encryption/Compression
+### ✅ SOLVED: Encryption Method
 
-**Evidence**:
-- High entropy in large data chunks
-- No obvious patterns
-- Fixed chunk sizes (2544 bytes)
+**Request/Response encryption**: AES-128 ECB with key `Lh2yfB7n6X7d9a5Z`
 
-**Possibilities**:
-- AES encryption (32-byte key from Unknown68?)
-- Proprietary compression
-- Raw flash dump with vendor-specific format
+**ADC data chunks**: Also encrypted (bit 16 of response header indicates encryption)
+- Same key (index 0)
+- Same mode (ECB)
+- Decrypted in `download_large_data()` function
 
-### 3. Chunk Packet Types
+### 🔍 PARTIALLY SOLVED: Chunk Packet Types
 
-Why three different types (52, 78, 118)?
-- Chunk sequence indicator?
-- Different file segments?
-- Protocol versioning?
+Types 0x34 (52), 0x4E (78), 0x76 (118), 0x68 (104):
+- Sequential chunk indicators for large transfers
+- Each chunk up to 2544 bytes
+- Final chunk (0x68) may be smaller
 
-### 4. Response Format
+### ✅ SOLVED: Response Format
 
-Unknown68 response (20 bytes):
-- What do the fields mean?
-- Is 0x00001098 a file size?
-- Is 0x90200000 a timestamp?
+Unknown68 response (20 bytes) after decryption:
+- Bytes 0-3: Address echo
+- Bytes 4-7: Size echo (0x2090 = 8336 bytes)
+- Bytes 8-11: 0xFFFFFFFF (constant)
+- Bytes 12-15: CRC32 of data to follow
 
----
+### ✅ SOLVED: ADC Data Structure
 
-## Testing Recommendations
+**Sample format**: 16 bytes per sample (not 8 bytes as initially expected)
 
-### Test 1: Multiple Log Downloads
+```
+Offset  Size  Type    Field           Unit
+──────────────────────────────────────────────────
+0x00    4     i32     Voltage         µV (microvolts)
+0x04    4     i32     Current         µA (microamps, negative = discharge)
+0x08    4     i32     Charge_Acc      µAh (accumulated charge)
+0x0C    4     i32     Energy_Acc      µWh (accumulated energy)
+```
 
-**Procedure**:
-1. Record several logs on device (different durations/conditions)
-2. Download each log while capturing USB
-3. Compare Unknown68 payloads
-4. Check if chunk count varies with log size
+**Verified correlations**:
+- `Charge_Acc[n+1] - Charge_Acc[n] ≈ Current[n] × (interval_sec / 3600)`
+- `Energy_Acc[n+1] - Energy_Acc[n] ≈ (Voltage[n] × Current[n]) × (interval_sec / 3600)`
+- Accuracy: within 1-2% (rounding errors)
 
-**Goal**: Understand log file structure and Unknown68 payload meaning
+**Example from reading_logs0.11** (521 samples @ 10s intervals):
+```
+Sample 0:   V=5.000V, I=-1.905A, Q_acc=-5.3mAh,   E_acc=-26.4mWh
+Sample 100: V=9.022V, I=-0.908A, Q_acc=-276.6mAh, E_acc=-2066.9mWh
+Sample 520: V=8.989V, I=-0.099A, Q_acc=-810.3mAh, E_acc=-5747.2mWh
+```
 
-### Test 2: Empty Log Download
-
-**Procedure**:
-1. Clear device logs
-2. Attempt download with no logs
-3. Capture USB traffic
-
-**Goal**: Understand error handling and empty state protocol
-
-### Test 3: Decryption Attempt
-
-**Procedure**:
-1. Download known log (record exact conditions)
-2. Compare encrypted USB data with expected values
-3. Try XOR, AES with various keys from Unknown68
-
-**Goal**: Determine if data is encrypted and find decryption method
+**Total data size**: 521 × 16 = 8336 bytes ✓
 
 ---
 
-## Implementation Status
+## Implementation
+
+### Python Script
+
+**`scripts/download_offline_log.py`** - Downloads and decrypts offline logs from device.
 
 ### km003c-rs Library
 
-❌ **Not yet implemented**:
-- Unknown68 (0x44) packet type
-- Unknown(52/78/118) data chunk packets
-- Log enumeration protocol
-- Data decryption/decompression
+Future implementation recommendations:
 
-### Recommendations
-
-1. **Add packet types**:
 ```rust
-// In PacketType enum
-LogReadCommand = 68,   // 0x44, Unknown68
-LogDataChunk1 = 52,    // 0x34
-LogDataChunk2 = 78,    // 0x4E
-LogDataChunk3 = 118,   // 0x76
+// Packet types to add
+LogReadCommand = 68,     // 0x44 (Unknown68)
+LogDataChunk = 52,       // 0x34, 0x4E, 0x76, 0x68 (sequential chunks)
+
+// API to add
+pub async fn get_log_metadata(&mut self) -> Result<LogMetadata, KMError>;
+pub async fn download_log(&mut self) -> Result<OfflineLog, KMError>;
 ```
-
-2. **Add API**:
-```rust
-pub async fn list_offline_logs(&mut self) -> Result<Vec<LogInfo>, KMError>;
-pub async fn download_log(&mut self, log_id: u32) -> Result<Vec<u8>, KMError>;
-```
-
-3. **Research needed**:
-- Reverse engineer Unknown68 payload format
-- Decrypt/decompress log data
-- Parse log file structure
-
----
-
-## Related Captures
-
-Files for further analysis:
-- `reading_logs0.11` - Single log download (this document)
-- Need: captures with multiple logs, empty logs, different log sizes
 
 ---
 
 ## Conclusions
 
-✅ **Understood**:
-- Log download uses Unknown68 command
-- Data transferred in 2544-byte chunks
-- Three chunk types observed
-- Challenge/response pattern present
+✅ **Fully Understood**:
+- Log download uses Unknown68 command with AES-128 ECB encryption
+- Request: 36 bytes (4B header + 32B encrypted payload with address/size/CRC32)
+- Response: 20 bytes (4B header + 16B encrypted echo with CRC32 of data)
+- Data chunks: types 0x34/0x4E/0x76/0x68, each up to 2544 bytes
+- Data encryption: AES-128 ECB with key `Lh2yfB7n6X7d9a5Z`
+- Sample format: 16 bytes (voltage µV + current µA + charge µAh + energy µWh)
+- Accumulated values correlate with instantaneous measurements within 1-2%
 
-❌ **Unknown**:
-- Unknown68 32-byte payload meaning
-- Data encryption/compression method
-- Chunk type significance
-- Log file format after decryption
-
-🔬 **Next steps**: Need more captures with known log content to reverse engineer encryption/format.
+🔍 **Remaining questions**:
+- Chunk type significance (0x34/0x4E/0x76/0x68) - sequential indicators?
+- Multiple log handling - how to select specific logs?
+- Log deletion protocol
 
 ---
 
-**Analysis date**: 2025-10-05  
-**Confidence**: ⭐⭐ (Protocol flow understood, data format unknown)
+**Analysis date**: 2025-10-05 (Updated: 2025-12-07)
+**Confidence**: ⭐⭐⭐⭐⭐ (Protocol fully reversed, data format confirmed)
