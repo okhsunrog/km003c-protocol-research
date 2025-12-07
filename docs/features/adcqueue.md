@@ -59,13 +59,13 @@ send([0x0F, tid, 0x00, 0x00])
 Format: [0x0E, TID, rate_byte, 0x00]
 
 Rate byte encoding:
-  0x00 → rate_index 0 → 1 SPS
+  0x00 → rate_index 0 → 2 SPS (effective ~1.8 SPS observed)
   0x02 → rate_index 1 → 10 SPS
   0x04 → rate_index 2 → 50 SPS
   0x06 → rate_index 3 → 1000 SPS
 ```
 
-The rate_byte is `rate_index * 2` due to bit position in the header.
+The rate_byte is `rate_index * 2` (device uses bits 1-2 of the control header). `km003c_lib::GraphSampleRate` uses the same mapping and multiplies by 2 when encoding StartGraph.
 
 ### StopGraph Command (0x0F)
 
@@ -215,7 +215,7 @@ From capture analysis:
 | 1000 SPS | ~956 SPS | 38-40 | 42 ms |
 | 50 SPS | ~47 SPS | 5-10 | 100-200 ms |
 | 10 SPS | ~9.6 SPS | 2-5 | Variable |
-| 1 SPS | ~1.8 SPS | 1-2 | 1 second |
+| 2 SPS | ~1.8 SPS | 1-2 | 1 second |
 
 Maximum sustained throughput: ~1000 samples/second at 1000 SPS mode.
 

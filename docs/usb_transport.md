@@ -142,6 +142,13 @@ Device → Host: Complete IN (response data)
 | -115 | EINPROGRESS | IN URB pending |
 | -2 | ENOENT | Operation cancelled |
 
+### URB Flags
+
+| Flag | Hex | Meaning |
+|------|-----|---------|
+| URB_SHORT_NOT_OK | 0x00000200 | Host expects full-length transfer; short packets treated as errors |
+| Standard | 0x00000000 | Relaxed length (short OK) |
+
 ### URB ID Warning
 
 The `urb_id` in USB monitoring tools (Wireshark/usbmon) is a **kernel memory address**, not a transaction ID. It gets reused.

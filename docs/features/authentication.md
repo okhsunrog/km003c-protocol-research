@@ -144,6 +144,19 @@ See [Offline Logs](offline_logs.md) for the log download protocol.
 
 ---
 
+### Memory Block Layouts (decrypted)
+
+| Response Type | Address | Size | Fields |
+|---------------|---------|------|--------|
+| 0x1A (DeviceInfo1) | 0x420 | 64 | 0x00..0x0F reserved; 0x10 12B model (e.g., "KM003C"); 0x1C 12B HW version (e.g., "2.1"); 0x28 24B mfg date (e.g., "2022.11.7") |
+| 0x3A (FirmwareInfo) | 0x4420 | 64 | 0x00 u32 magic (0x00004000 or 0xFFFFFFFF if invalid); 0x04 u32 reserved; 0x08 u32 counter/ID; 0x0C 4B random; 0x10 12B model; 0x1C 12B FW version (e.g., "1.9.9"); 0x28 12B FW date (e.g., "2025.9.22"); 0x34 u32 build number; 0x38 8B reserved |
+| 0x40 (CalibrationData) | 0x3000C00 | 64 | 0x00 7B serial ID (e.g., "007965 "); 0x07 32B UUID/hash (e.g., "CDFDDF2886FD40AF8F05E149624C3892"); 0x27 1B space; 0x28 11B timestamp (Unix epoch ASCII); 0x33 1B space; 0x34 4B marker ("LYS5"); 0x38 8B reserved (0xFF) |
+| 0x75 (DeviceSerial) | 0x40010450 | 12 (padded to 16) | 0x00 6B serial prefix (e.g., "071KBP"); 0x06 2B separator (0x0D 0xFF); 0x08 2B device ID; 0x0A 2B padding (0xFF 0xFF); 0x0C 4B reserved |
+
+These structures are returned in plaintext after the 20-byte confirmation packet; only the request payload is encrypted.
+
+---
+
 ## Authentication Levels
 
 The firmware (at `DAT_20004041`) tracks three authentication levels:

@@ -217,6 +217,10 @@ The firmware uses **LVGL v7.x**:
 | AttachWaitSource | Waiting for attachment |
 | AttachedSource | Connected as source |
 | TrySource | Attempting source role |
+| TryWaitSource | Waiting in try.SRC |
+| AttachedDebSource | Debug accessory source attached |
+| UnattachedDebSource | Debug accessory source unattached |
+| DebugAccessorySource | Debug accessory mode (source) |
 
 ### Sink States
 
@@ -225,6 +229,9 @@ The firmware uses **LVGL v7.x**:
 | AttachedSink | Connected as sink |
 | AttachWaitSink | Waiting for attachment |
 | TrySink | Attempting sink role |
+| TryWaitSink | Waiting in try.SNK |
+| AttachedDebSink | Debug accessory sink attached |
+| DebugAccessorySink | Debug accessory mode (sink) |
 
 ### Cable/Accessory States
 
@@ -234,6 +241,32 @@ The firmware uses **LVGL v7.x**:
 | IllegalCable | Invalid cable |
 | AttachedLightningPlug | Lightning adapter |
 | AttachedMonitor | Display attached |
+| AttachWaitCable | Waiting for cable |
+| CablePlugShortCircuit | Short circuit on cable plug |
+| AttachWaitLightningPlug | Waiting for Lightning adapter |
+| AttachWaitMonitor | Waiting for monitor |
+| AttachWaitAccessory | Waiting for accessory |
+
+## Charging Mode Initialization
+
+`FUN_00008f8c` selects protocol/charging modes:
+
+| Mode Param | Resulting Mode | Notes |
+|------------|----------------|-------|
+| 0 | 8 | Unknown mode |
+| 1 | 2 | Falls through from case 1 to 2 |
+| 2 | 9 | QC detection? |
+| 3–4 | 1 | Basic charging |
+| 5 | 1 | Sets `_DAT_200046dc = 0x20002610` (protocol A) |
+| 6 | 1 | Sets `_DAT_200046d4 = 0x20003b64` (protocol B) |
+| 7 | 1 | Sets `_DAT_200046d8 = 0x2000479c` (protocol C) |
+| 9 | 2 | AFC mode? |
+| 10 | 3 | FCP mode? |
+| 11–13 | 4 | VOOC/SVOOC family |
+| 14–15 | 5 | MTK PE family |
+| default | 0 | |
+
+Each mode configures protocol-specific data structures and handlers for voltage/current negotiation.
 
 ---
 
