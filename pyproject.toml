@@ -17,7 +17,7 @@ dependencies = [
     "matplotlib>=3.5.0",
     "seaborn>=0.11.0",
     "numpy>=2.3.3",
-    "usbpdpy>=0.2.0",
+    "usbpdpy>=0.2.1",
     "polars",
     "streamlit>=1.49.1",
     "plotly>=6.3.0",

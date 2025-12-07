@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test PdStatus attribute with PD hardware connected."""
+"""Test PD packet parsing with PD hardware connected."""
 
 import usb.core
 import usb.util
@@ -7,6 +7,78 @@ import time
 
 VID = 0x5FC9
 PID = 0x0063
+
+# USB PD Control Message Types (no data objects)
+PD_CTRL_MSGS = {
+    0x01: "GoodCRC",
+    0x02: "GotoMin",
+    0x03: "Accept",
+    0x04: "Reject",
+    0x05: "Ping",
+    0x06: "PS_RDY",
+    0x07: "Get_Source_Cap",
+    0x08: "Get_Sink_Cap",
+    0x09: "DR_Swap",
+    0x0A: "PR_Swap",
+    0x0B: "VCONN_Swap",
+    0x0C: "Wait",
+    0x0D: "Soft_Reset",
+    0x0E: "Data_Reset",
+    0x0F: "Data_Reset_Complete",
+    0x10: "Not_Supported",
+    0x11: "Get_Source_Cap_Extended",
+    0x12: "Get_Status",
+    0x13: "FR_Swap",
+    0x14: "Get_PPS_Status",
+    0x15: "Get_Country_Codes",
+    0x16: "Get_Sink_Cap_Extended",
+}
+
+# USB PD Data Message Types (have data objects)
+PD_DATA_MSGS = {
+    0x01: "Source_Capabilities",
+    0x02: "Request",
+    0x03: "BIST",
+    0x04: "Sink_Capabilities",
+    0x05: "Battery_Status",
+    0x06: "Alert",
+    0x07: "Get_Country_Info",
+    0x08: "Enter_USB",
+    0x0F: "Vendor_Defined",
+}
+
+def decode_pd_header(wire_data):
+    """Decode PD message header from wire bytes."""
+    if len(wire_data) < 2:
+        return None
+
+    header = int.from_bytes(wire_data[:2], 'little')
+    msg_type = header & 0x1F
+    data_role = (header >> 5) & 1  # 0=UFP, 1=DFP
+    spec_rev = (header >> 6) & 3   # PD spec revision
+    power_role = (header >> 8) & 1  # 0=Sink, 1=Source
+    msg_id = (header >> 9) & 7     # Message ID (0-7)
+    num_data_obj = (header >> 12) & 7  # Number of 4-byte data objects
+    extended = (header >> 15) & 1   # Extended message flag
+
+    if num_data_obj == 0:
+        # Control message
+        msg_name = PD_CTRL_MSGS.get(msg_type, f"Ctrl_{msg_type}")
+    else:
+        # Data message
+        msg_name = PD_DATA_MSGS.get(msg_type, f"Data_{msg_type}")
+
+    return {
+        "msg_type": msg_type,
+        "msg_name": msg_name,
+        "data_role": "DFP" if data_role else "UFP",
+        "power_role": "Source" if power_role else "Sink",
+        "spec_rev": f"PD{spec_rev+1}.0",
+        "msg_id": msg_id,
+        "num_data_obj": num_data_obj,
+        "extended": extended,
+        "data_objects": wire_data[2:] if len(wire_data) > 2 else b"",
+    }
 
 def find_device():
     dev = usb.core.find(idVendor=VID, idProduct=PID)
