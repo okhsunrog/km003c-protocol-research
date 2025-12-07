@@ -14,7 +14,7 @@ project_root = Path(__file__).parent.parent.parent
 analysis_scripts_path = project_root / "src" / "analysis" / "scripts"
 sys.path.insert(0, str(analysis_scripts_path))
 
-from km003c_lib import parse_packet  # noqa: E402
+from km003c import parse_packet, AdcData, AdcQueueData, PdStatus, PdEventStream  # noqa: E402
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
@@ -35,8 +35,8 @@ def get_adc_data(packet):
         return None
     payloads = packet["DataResponse"]["payloads"]
     for payload in payloads:
-        if "Adc" in payload:
-            return payload["Adc"]
+        if isinstance(payload, AdcData):
+            return payload
     return None
 
 
@@ -46,8 +46,8 @@ def get_adcqueue_data(packet):
         return None
     payloads = packet["DataResponse"]["payloads"]
     for payload in payloads:
-        if "AdcQueue" in payload:
-            return payload["AdcQueue"]
+        if isinstance(payload, AdcQueueData):
+            return payload
     return None
 
 
@@ -57,8 +57,8 @@ def get_pd_status(packet):
         return None
     payloads = packet["DataResponse"]["payloads"]
     for payload in payloads:
-        if "PdStatus" in payload:
-            return payload["PdStatus"]
+        if isinstance(payload, PdStatus):
+            return payload
     return None
 
 
@@ -68,8 +68,8 @@ def get_pd_events(packet):
         return None
     payloads = packet["DataResponse"]["payloads"]
     for payload in payloads:
-        if "PdEvents" in payload:
-            return payload["PdEvents"]
+        if isinstance(payload, PdEventStream):
+            return payload
     return None
 
 
