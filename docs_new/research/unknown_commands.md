@@ -6,14 +6,35 @@ For fully documented commands, see [Protocol Reference](../protocol_reference.md
 
 ---
 
-## Bootloader/DFU Commands
+## Command Coverage
 
-These commands appear **only** in firmware update captures (`updating_firmware.*`):
+### Implemented / Known
+
+| Type | Hex | Name | Status | Notes |
+|------|-----|------|--------|-------|
+| 0x02 | Connect | Implemented | Session start (optional for AdcQueue) |
+| 0x03 | Disconnect | Implemented | Normal session end |
+| 0x05 | Accept | Implemented | Ack |
+| 0x06 | Reject | Implemented | Error response |
+| 0x0C | GetData | Implemented | Attribute mask requests |
+| 0x0E | StartGraph | Fully reversed | Rate index 0-3 |
+| 0x0F | StopGraph | Fully reversed | |
+| 0x10 | EnablePdMonitor | Documented | Enable PD sniffer |
+| 0x11 | DisablePdMonitor | Documented | Disable PD sniffer |
+| 0x41 | PutData | Implemented | Data responses |
+| 0x44 | MemoryRead | Fully reversed | Offline logs/calibration/firmware info |
+| 0x4C | StreamingAuth | Fully reversed | Required for AdcQueue streaming |
+| 0x34/0x4E/0x76/0x68 | LogDataChunk* | Documented | Offline log chunks |
+| 0x1A/0x3A/0x40/0x75 | DeviceInfo/Firmware/Calibration/Serial | Fully reversed | MemoryRead responses |
+
+### Bootloader/DFU Only
+
+These appear only in firmware update captures (`updating_firmware.*`) and remain unsolved:
 
 | Type | Hex | Count | Notes |
 |------|-----|-------|-------|
 | 0x00 | Unknown | - | Bootloader? |
-| 0x01 | Sync | 113 | Firmware data transfer? |
+| 0x01 | Sync | 113 | Likely firmware data chunks |
 | 0x04 | Reset | - | Device-level reset? |
 | 0x07 | Finished | - | Update complete? |
 | 0x08 | JumpAprom | - | Jump to application? |
@@ -34,6 +55,22 @@ Commands seen only during firmware updates:
 ```
 
 Type 0x01 appears 113 times - likely firmware chunk transfers.
+
+## Attribute Coverage
+
+| Attribute | Hex | Name | Status | Notes |
+|-----------|-----|------|--------|-------|
+| 0x0001 | ADC | Implemented | 44-byte snapshot |
+| 0x0002 | AdcQueue | Implemented | 20 bytes/sample, streaming |
+| 0x0004 | AdcQueue10k | Not implemented | Documented but unused |
+| 0x0008 | Settings | Fully reversed | 180 bytes |
+| 0x0010 | PdPacket | Implemented | Status (12B) or events (>12B) |
+| 0x0020 | PdStatus | Listed | Status only |
+| 0x0040 | QcPacket | Listed | Quick Charge data |
+| 0x0200 | LogMetadata | Fully reversed | Offline log info |
+| 0x0649 | Unknown1609 | Unknown | Seen with Unknown26 |
+| 0x564D | Unknown22093 | Data response | Unknown44 response attribute |
+| 0x68C1 | Unknown26817 | Unknown | Seen with Unknown58 |
 
 ---
 

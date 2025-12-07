@@ -16,15 +16,17 @@ The KM003C can record power measurements to internal flash while offline. This p
 
 ## Protocol Flow
 
-```
-1. Connect (0x02)
-2. Auth (0x4C) - optional but typical
-3. GetData Settings (0x0008)
-4. GetData LogMetadata (0x0200) - get log info
-5. MemoryRead (0x44) with address 0x98100000 - initiate download
-6. Receive data chunks (0x34, 0x4E, 0x76, 0x68)
-7. Decrypt and parse samples
-```
+Initialization and transfer as observed in captures (reading_logs0.11):
+
+1. Connect (0x02) → Accept
+2. Unknown68 ×3 with small responses (challenge/echo)
+3. Head (0x40) and Unknown117/Unknown26 responses
+4. (Optional) Unknown76 auth
+5. GetData Settings (0x0008)
+6. GetData LogMetadata (0x0200) to fetch sizes
+7. MemoryRead (0x44, address 0x98100000) to start download
+8. Receive chunk sequence 0x34 → 0x4E → 0x76 → 0x68 (final, may be smaller)
+9. Concatenate, decrypt, parse 16-byte samples
 
 ---
 
@@ -115,6 +117,12 @@ Each chunk up to 2544 bytes, encrypted with AES-128 ECB.
 1. Concatenate all chunk payloads
 2. Decrypt with key `Lh2yfB7n6X7d9a5Z`
 3. Parse as 16-byte samples
+
+**Observed download statistics (reading_logs0.11):**
+- Duration: 29.5s; 618 packets total (290 requests, 308 responses)
+- Unknown68 exchanges: 4; large data chunks: 3 × 2544 bytes
+- Total encrypted log data ≈ 7632 bytes (521 samples × 16B)
+- Normal ADC polling continued during download (135 GetData ADC)
 
 ---
 

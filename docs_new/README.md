@@ -46,6 +46,8 @@ Complete reverse engineering documentation for the **ChargerLAB POWER-Z KM003C**
 | Document | Description |
 |----------|-------------|
 | [Unknown Commands](research/unknown_commands.md) | Partially understood commands, bootloader protocol |
+| [Transaction Correlation](research/transaction_correlation.md) | Bitmask/latency validation across captures |
+| [Code Organization](research/code_organization_strategy.md) | Repo layout: production vs research vs experiments |
 | [Research Notes](research/notes.md) | Ongoing investigation notes |
 
 ### Official Documentation

@@ -238,6 +238,27 @@ The firmware uses **LVGL v7.x**:
 - Cable Resistance measurement
 - VDO manufacturer info
 
+### General Cable Types
+- Passive/Active cable detection
+- USB-C to C cables
+- Cable simulation mode
+
+## Peripheral Map and Unlocks
+
+| Address / Range | Purpose | Notes |
+|-----------------|---------|-------|
+| 0x40048010 | SIM unlock | Magic `0xa5a50000` |
+| 0x40053bfc / 0x400543fe | DMA / DMAMUX unlock | Magic `0xa500` |
+| 0x40015400 / 0x40016400 | Timer/TPM 0/1 | FlexTimer |
+| 0x4001dxxx | LPUART/FlexIO | UFCS single-wire |
+| 0x4004e8xx | I2C | External ADC / sensors / PD PHY |
+| 0x40040000 | USB FS controller | Device/host |
+| 0x9c000000 | External memory/LCD | Heavily referenced (LCD or QSPI) |
+| 0x1fff8xxx | Bootloader ROM | Thunk at 0x1fff8184 |
+| 0x42xxxxxx | Bit-band alias | Atomic bit ops |
+
+Magic unlock values and register layout match NXP Kinetis parts. The 0x9c000000 region is accessed with bit masking and likely backs the 240x240 LCD (or external QSPI storage).
+
 ---
 
 ## ADC/Measurement System

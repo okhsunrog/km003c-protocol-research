@@ -15,17 +15,28 @@ The KM003C can capture USB PD messages and export them to SQLite. PD data appear
 
 ---
 
-## PD Status Block (12 bytes)
+## PD Status vs Preamble (12 bytes)
 
-In combo ADC+PD responses (attribute includes 0x0010), a 12-byte PD status appears:
+PD data shows up in two distinct 12-byte forms. They are not interchangeable:
 
-| Offset | Size | Type | Field |
-|--------|------|------|-------|
-| 0 | 4 | u32 | Timestamp (LE, ~40ms/tick) |
-| 4 | 4 | u32 | Unknown |
-| 8 | 4 | u32 | Status flags |
+- **PD Status (ADC+PD combo, 68B total):**
+  - `[0] type_id (u8)`
+  - `[1..3] timestamp24 (u24, ~40ms/tick)`
+  - `[4..5] vbus_mV (u16)`
+  - `[6..7] ibus_mA (u16)`
+  - `[8..9] cc1_mV (u16)`
+  - `[10..11] cc2_mV (u16)`
+  - Follows an ADC logical packet; no PD events follow in the common 68B packets.
 
-This status block is followed by variable-length PD events.
+- **PD Preamble (PD-only/event streams):**
+  - `[0..3] timestamp_ms (u32, ms base)`
+  - `[4..5] vbus_mV (u16)`
+  - `[6..7] ibus_mA (i16, signed)`
+  - `[8..9] cc1_mV (u16)`
+  - `[10..11] cc2_mV (u16)`
+  - Immediately followed by repeated 6-byte event headers + PD wire bytes.
+
+**Empty PD response:** When no new PD data is available, the device returns an 18-byte PdPacket: 12-byte preamble + a single empty 6-byte event header (`wire_len=0`).
 
 ---
 
@@ -110,6 +121,10 @@ while i < len(raw):
     else:
         break
 ```
+
+**Timestamp alignment:** SQLite `timestamp_ms` aligns with the 32-bit preamble timestamps in USB PD-only payloads. The 24-bit PD status timestamp from ADC+PD packets is a coarse counter (~40 ms/tick) and should not be conflated with the SQLite timestamps.
+
+**Empty PD rows:** The empty 18-byte PD USB response normally produces no SQLite row unless accompanied by a separate `0x45` status event.
 
 ---
 
@@ -247,5 +262,7 @@ for time, raw in cursor:
 | Request | 1 |
 | Accept | 1 |
 | PS_RDY | 1 |
+
+All observed wrapped events were SOP (sop=0). Connect (`0x11`) and disconnect (`0x12`) status events in USB captures align with the first/last markers in the SQLite export.
 
 All messages observed were SOP (sop=0).

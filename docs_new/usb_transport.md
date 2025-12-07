@@ -238,6 +238,51 @@ Purpose: Likely device capability or calibration query.
 
 ---
 
+## Traffic Analysis
+
+### Transfer Type Encoding (Wireshark)
+- `0` Isochronous, `1` Interrupt, `2` Control, `3` Bulk
+
+### Observed Counts (captures)
+
+| Endpoint | Type | Packets | Usage |
+|----------|------|---------|-------|
+| 0x01/0x81 | Bulk | 11,710 | Primary protocol |
+| 0x80/0x00 | Control | 286 | Enumeration |
+| 0x85 | Interrupt | 12 | HID (IF3) |
+
+### Handshakes & ZLP
+
+- **Data request:** Host posts IN URB (status -115 EINPROGRESS) → device completes with data.
+- **Ack only:** Host sends command → empty Complete status=0.
+- **Error:** Empty Complete status=-2 (ENOENT).
+- **URB IDs are kernel addresses**: never use `urb_id` for correlation; pair Submit→Complete by order.
+
+### Timing (typical)
+
+| Metric | Value |
+|--------|-------|
+| Command latency | 77–85 µs |
+| ADC polling interval | ~200 ms |
+| PD capture interval | ~40 ms |
+| Max sustained throughput | ~133 packets/s |
+
+### Performance Profiles
+
+| Device Addr | Packets | Rate (pps) | Avg Payload | Use Case |
+|-------------|---------|------------|-------------|---------|
+| 6 | 2,152 | 133.1 | 97.2 B | High-frequency ADC |
+| 13 | 2,030 | 66.0 | 8.7 B | Fast command/response |
+| 16 | 248 | 44.0 | 12.4 B | Low-volume monitoring |
+| 9 | 6,924 | 23.4 | 12.6 B | PD analysis |
+
+### Troubleshooting
+
+- Mis-grouping by `urb_id` leads to corrupted flows; always match Submit→Complete pairs.
+- Interface 0 gives best latency; HID (IF3) is slower but driverless; CDC mostly for serial/debug.
+
+---
+
 ## Related Documentation
 
 - [Protocol Reference](protocol_reference.md) - Application protocol
