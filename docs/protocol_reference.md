@@ -122,8 +122,8 @@ Bits 22-31: size (10 bits) - payload size in bytes
 | 0x0C | GetData | OUT→IN | mask | Request data by attribute mask |
 | 0x0E | StartGraph | OUT→IN | rate | Start streaming (rate: 0-3) |
 | 0x0F | StopGraph | OUT→IN | 0x0000 | Stop streaming |
-| 0x10 | EnablePdMonitor | OUT→IN | 0x0002 | Enable PD sniffer |
-| 0x11 | DisablePdMonitor | OUT→IN | 0x0000 | Disable PD sniffer |
+| 0x10 | EnablePdMonitor | OUT→IN | 0x0002 | Enable PD sniffer (purpose unclear, optional) |
+| 0x11 | DisablePdMonitor | OUT→IN | 0x0000 | Disable PD sniffer (purpose unclear, optional) |
 | 0x41 | PutData | IN | varies | Data response |
 | 0x44 | MemoryRead | OUT→IN | 0x0101 | Read device memory |
 | 0x4C | StreamingAuth | OUT→IN | 0x0002 | Enable streaming features |
@@ -206,6 +206,8 @@ Request:  10 TID 02 00
 Response: 05 TID 00 00 (Accept)
 ```
 
+**Note:** The exact purpose of this command is unclear. PD events can be retrieved via polling (GetData with attr=0x0010) without explicitly calling EnablePdMonitor. The device appears to buffer PD events by default. This command may enable extended capture features or higher-rate buffering. Needs further investigation.
+
 #### DisablePdMonitor (0x11)
 
 Disables PD capture.
@@ -214,6 +216,8 @@ Disables PD capture.
 Request:  11 TID 00 00
 Response: 05 TID 00 00 (Accept)
 ```
+
+**Note:** Purpose unclear - see EnablePdMonitor note above.
 
 #### MemoryRead (0x44)
 
@@ -291,12 +295,10 @@ Returned with attribute 0x0001.
 | 40 | 2 | u16 | vdp_avg_mV | Millivolts |
 | 42 | 2 | u16 | vdm_avg_mV | Millivolts |
 
-**Temperature conversion** (INA228/INA229 formula):
+**Temperature conversion** (INA228/INA229, LSB = 1/128 °C = 7.8125 m°C):
 ```c
 float temp_celsius(int16_t raw) {
-    uint8_t high = (raw >> 8) & 0xFF;
-    uint8_t low = raw & 0xFF;
-    return ((high * 2000.0) + (low * 1000.0 / 128.0)) / 1000.0;
+    return raw / 128.0;
 }
 ```
 
@@ -499,15 +501,13 @@ Device encrypts challenge and session key with Key 3, returns encrypted result.
 
 ```
 1. Connect (0x02)      → Accept (0x05)
-2. EnablePdMonitor     → Accept (0x05)
-   (0x10)
-3. GetData (0x0C)      → PutData with PdPacket
+2. GetData (0x0C)      → PutData with PdPacket
    attr=0x0010
    [repeat every ~40ms]
-4. DisablePdMonitor    → Accept (0x05)
-   (0x11)
-5. Disconnect (0x03)   → Accept (0x05)
+3. Disconnect (0x03)   → Accept (0x05)
 ```
+
+**Note:** EnablePdMonitor (0x10) and DisablePdMonitor (0x11) are optional. The device buffers PD events by default and returns them via GetData polling. The purpose of these commands is unclear and needs further investigation.
 
 ### Memory Read
 

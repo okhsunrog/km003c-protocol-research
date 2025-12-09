@@ -19,8 +19,8 @@ For fully documented commands, see [Protocol Reference](../protocol_reference.md
 | 0x0C | GetData | Implemented | Attribute mask requests |
 | 0x0E | StartGraph | Fully reversed | Rate index 0-3 |
 | 0x0F | StopGraph | Fully reversed | |
-| 0x10 | EnablePdMonitor | Documented | Enable PD sniffer |
-| 0x11 | DisablePdMonitor | Documented | Disable PD sniffer |
+| 0x10 | EnablePdMonitor | Partially understood | Purpose unclear - PD polling works without it |
+| 0x11 | DisablePdMonitor | Partially understood | Purpose unclear - see EnablePdMonitor |
 | 0x41 | PutData | Implemented | Data responses |
 | 0x44 | MemoryRead | Fully reversed | Offline logs/calibration/firmware info |
 | 0x4C | StreamingAuth | Fully reversed | Required for AdcQueue streaming |

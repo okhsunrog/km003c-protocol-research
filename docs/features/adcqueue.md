@@ -226,7 +226,7 @@ Maximum sustained throughput: ~1000 samples/second at 1000 SPS mode.
 - Example captures:
   - `orig_adc_1000hz.6`: 220 AdcQueue responses, 8,798 samples, ~956 SPS
   - `orig_adc_50hz.6`: 60 responses, 320 samples, ~47 SPS
-  - `pd_adcqueue_new.11`: mixed rates (1/10/50/1000 SPS) in one session
+  - `pd_adcqueue_new.11`: mixed rates (2/10/50/1000 SPS) in one session
 
 ## Notes & Edge Cases
 

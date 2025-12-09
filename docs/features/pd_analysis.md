@@ -178,18 +178,6 @@ if hasattr(msg, 'pdos'):
 
 ## USB Protocol Commands
 
-### Enable PD Monitor (0x10)
-
-```
-10 TID 00 00  # Enable PD capture
-```
-
-### Disable PD Monitor (0x11)
-
-```
-11 TID 00 00  # Disable PD capture
-```
-
 ### Request PD Data
 
 Include attribute 0x0010 in GetData:
@@ -198,6 +186,17 @@ Include attribute 0x0010 in GetData:
 0C TID 20 00  # GetData attr=0x0010 (PD only)
 0C TID 22 00  # GetData attr=0x0011 (ADC + PD)
 ```
+
+The device buffers PD events and returns them via polling. No special enable command is required.
+
+### Enable/Disable PD Monitor (0x10/0x11) - Optional
+
+```
+10 TID 02 00  # Enable PD capture
+11 TID 00 00  # Disable PD capture
+```
+
+**Note:** These commands are optional. PD data can be retrieved via GetData polling without explicitly enabling the monitor. The exact purpose of these commands is unclear and needs further investigation.
 
 ---
 

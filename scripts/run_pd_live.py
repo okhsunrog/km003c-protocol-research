@@ -5,21 +5,22 @@ Live PD packet capture and decoding using km003c_lib and usbpdpy.
 Captures PD events from connected hardware and decodes the USB PD wire messages.
 """
 
+import time
+
 import usb.core
 import usb.util
-import time
 import usbpdpy
-from km003c import (
-    VID, PID, parse_packet, create_packet,
-    CMD_CONNECT, CMD_DISCONNECT, CMD_GET_DATA, ATT_PD_PACKET,
-    PdStatus, PdEventStream
-)
+from km003c import (ATT_PD_PACKET, CMD_CONNECT, CMD_DISCONNECT, CMD_GET_DATA,
+                    PID, VID, PdEventStream, PdStatus, create_packet,
+                    parse_packet, parse_raw_packet)
+
 
 def get_packet_type(packet):
     """Extract packet type from dict-based Packet."""
     if isinstance(packet, dict) and len(packet) > 0:
         return list(packet.keys())[0]
     return None
+
 
 def get_pd_status(packet):
     """Extract PD status from DataResponse packet."""
@@ -29,6 +30,7 @@ def get_pd_status(packet):
         if isinstance(payload, PdStatus):
             return payload
     return None
+
 
 def get_pd_events(packet):
     """Extract PD events from DataResponse packet."""
@@ -150,7 +152,9 @@ def decode_pd_wire(wire_data: bytes, source_caps=None) -> dict | None:
             result["request_objects"] = []
             for rdo in msg.request_objects:
                 if rdo.operating_current_a is not None:
-                    result["request_objects"].append(f"PDO#{rdo.object_position} @ {rdo.operating_current_a:.2f}A")
+                    result["request_objects"].append(
+                        f"PDO#{rdo.object_position} @ {rdo.operating_current_a:.2f}A"
+                    )
                 else:
                     result["request_objects"].append(f"PDO#{rdo.object_position}")
 
@@ -169,7 +173,6 @@ def main():
     if not dev.connect():
         print("Failed to connect!")
         return
-    print("Connected\n")
 
     print("Capturing PD events (Ctrl+C to stop)...")
     print("=" * 80)
@@ -197,37 +200,66 @@ def main():
             if pkt_type != "DataResponse":
                 continue
 
-            # Check for PD status (12-byte measurement snapshot)
-            pd_status = get_pd_status(packet)
-            if pd_status:
-                print(f"PdStatus: type={pd_status.type_id}, ts={pd_status.timestamp}, "
-                      f"vbus={pd_status.vbus_v:.2f}V, ibus={pd_status.ibus_a:.3f}A")
-
             # Check for PD events (preamble + wire messages)
             pd_events = get_pd_events(packet)
             if pd_events:
+                events_list = getattr(pd_events, "events", [])
+                if not events_list:
+                    # Probably a PdStatus (size=12) or empty PD reply; skip to avoid noise
+                    continue
                 preamble = pd_events.preamble
-                print(f"\nPdEventStream: ts={preamble.timestamp}ms, "
-                      f"vbus={preamble.vbus_v:.2f}V, ibus={preamble.ibus_a:.3f}A")
+                print(
+                    f"\nPdEventStream: ts={preamble.timestamp}ms, "
+                    f"vbus={preamble.vbus_v:.2f}V, ibus={preamble.ibus_a:.3f}A"
+                )
 
-                for event in pd_events.events:
+                for event in events_list:
                     ts = event.timestamp
-                    data = event.data
+                    data = getattr(event, "data", None)
+                    ev_repr = repr(event).lower()
 
-                    # PdEventData is an enum: Connect(()), Disconnect(()), or PdMessage{sop, wire_data}
-                    # In Python it comes as dict with keys 'sop' and 'wire_data' for messages
-                    if isinstance(data, dict) and "sop" in data and "wire_data" in data:
-                        sop = data["sop"]
-                        wire = bytes(data["wire_data"])
+                    sop = None
+                    wire = b""
+                    # PdEventData::PdMessage comes through as dict with sop + wire_data
+                    if isinstance(data, dict):
+                        sop = data.get("sop")
+                        wire = bytes(data.get("wire_data", b"") or b"")
+                    # Fallback: direct tuple/variant payloads (Connect/Disconnect with transparent binding)
+                    elif isinstance(data, tuple) and len(data) == 0:
+                        # Connect/Disconnect come through as empty tuple () due to #[pyo3(transparent)]
+                        # Check repr to distinguish them
+                        if "type=connect" in ev_repr:
+                            print(f"  [{ts:8d}ms] ** CONNECT **")
+                            source_caps = None
+                            continue
+                        if "type=disconnect" in ev_repr:
+                            print(f"  [{ts:8d}ms] ** DISCONNECT **")
+                            continue
+                        # Unknown empty tuple variant
+                        sop = None
+                        wire = b""
+                    else:
+                        # Fallback: try to infer connect/disconnect from repr
+                        if "type=connect" in ev_repr:
+                            print(f"  [{ts:8d}ms] ** CONNECT **")
+                            source_caps = None
+                            continue
+                        if "type=disconnect" in ev_repr:
+                            print(f"  [{ts:8d}ms] ** DISCONNECT **")
+                            continue
 
-                        # Empty wire_data with special sop = connection event
-                        if len(wire) == 0:
-                            if sop == 0x11:
-                                print(f"  [{ts:8d}ms] ** CONNECT **")
-                                source_caps = None  # Reset on new connection
-                            elif sop == 0x12:
-                                print(f"  [{ts:8d}ms] ** DISCONNECT **")
-                        elif len(wire) >= 2:
+                    # Connection/status (0x11/0x12 with empty wire)
+                    if sop in (0x11, 0x12) and len(wire) == 0:
+                        if sop == 0x11:
+                            print(f"  [{ts:8d}ms] ** CONNECT **")
+                            source_caps = None  # Reset on new connection
+                        else:
+                            print(f"  [{ts:8d}ms] ** DISCONNECT **")
+                        continue
+
+                    # PD messages
+                    if sop is not None:
+                        if len(wire) >= 2:
                             decoded = decode_pd_wire(wire, source_caps)
 
                             if decoded and "type" in decoded:
@@ -243,16 +275,18 @@ def main():
                                     obj_info = f"\n             PDOs: {decoded['data_objects']}"
                                 if decoded.get("request_objects"):
                                     obj_info = f"\n             RDOs: {decoded['request_objects']}"
-                                print(f"  [{ts:8d}ms] SOP{sop}: {decoded['type']:20s} "
-                                      f"(ID={decoded['msg_id']}, {role}){obj_info}")
+                                print(
+                                    f"  [{ts:8d}ms] SOP{sop}: {decoded['type']:20s} "
+                                    f"(ID={decoded['msg_id']}, {role}){obj_info}"
+                                )
                             else:
                                 print(f"  [{ts:8d}ms] SOP{sop}: raw={wire.hex()}")
-                    # Handle Connect/Disconnect enum variants (tuple form)
-                    elif data == ():
-                        # This shouldn't happen with current structure, but just in case
-                        print(f"  [{ts:8d}ms] Event: {data}")
+                        else:
+                            # Empty/short wire that isn't a connection code
+                            print(f"  [{ts:8d}ms] SOP{sop}: {wire.hex()}")
 
                 print()
+            # If no PD events parsed, just loop; avoid noisy debug output
 
             time.sleep(0.05)
 
@@ -260,7 +294,6 @@ def main():
         print("\n\nStopping...")
     finally:
         dev.disconnect()
-        print("Disconnected")
 
 
 if __name__ == "__main__":
