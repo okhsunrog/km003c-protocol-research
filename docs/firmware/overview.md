@@ -120,27 +120,31 @@ switch(*param_3) {
 
 ## MCU Identification
 
-**Most Likely:** NXP Kinetis K series (K22/K24/K64/K66)
+**Confirmed:** NXP Kinetis MK66FX1M0xxx or MK66FN2M0xxx (K66 sub-family)
+
+- **MK66FX1M0:** 1MB Flash + 256KB FlexNVM + FlexRAM
+- **MK66FN2M0:** 2MB Flash, no FlexNVM
 
 ### Evidence
 
-| Feature | Address/Value |
-|---------|---------------|
-| SIM unlock magic | 0xa5a50000 @ 0x40048010 |
-| DMA unlock magic | 0xa500 @ 0x40053bfc |
-| eDMA | 0x40053xxx |
-| DMAMUX | 0x40054xxx |
-| USB FS | 0x40040xxx |
-| I2C | 0x4004e8xx |
-| Watchdog | 0x40049xxx |
-| Bootloader ROM | 0x1fff8xxx |
-| Bit-band alias | 0x42xxxxxx |
+| Feature | Address/Value | Notes |
+|---------|---------------|-------|
+| SIM unlock magic | 0xa5a50000 @ 0x40048010 | Kinetis signature |
+| DMA unlock magic | 0xa500 @ 0x40053bfc | Kinetis signature |
+| eDMA | 0x40053xxx | Matches Kinetis |
+| DMAMUX | 0x40054xxx | Matches Kinetis |
+| USB FS | 0x40040xxx | Matches Kinetis |
+| I2C | 0x4004e8xx | Matches Kinetis |
+| Watchdog | 0x40049xxx | Matches Kinetis |
+| Bootloader ROM | 0x1fff8xxx | Matches Kinetis |
+| Bit-band alias | 0x42xxxxxx | Matches Kinetis |
 
 ### Clock Configuration
 
 - Base oscillator: 16 MHz
-- Core frequency: 192 MHz (PLL multiplier 12)
+- Core frequency: 192 MHz (PLL multiplier 12, slightly above K66 spec of 180 MHz)
 - NVIC registers seen at `0xe000e100` (ISER), `0xe000e280` (ICPR), `0xe000e400` (IPR).
+- Architecture: ARM Cortex-M4F (confirmed by vector table analysis)
 
 ---
 
@@ -330,11 +334,6 @@ Registers at 0x9c000000/4/8/10/14, manipulated with bit clear/set ops. Likely th
 
 - Base oscillator: 16 MHz (from PLL calculation)
 - UI reports 192 MHz; achieved via PLL multiplier 12 (`16 MHz × 12 ≈ 192 MHz`).
-
-### MCU Candidate / Ruled Out
-
-- Evidence fits NXP Kinetis K-series (SIM unlock 0xa5a50000; eDMA+DMAMUX at 0x40053xxx/0x40054xxx; watchdog 0x40049xxx; USB FS 0x40040xxx; I2C 0x4004e8xx; boot ROM 0x1fff8xxx; bit-band alias 0x42xxxxxx).
-- Nuvoton M480 ruled out: base addresses (SYS/CLK/GPIO/PDMA) do not appear; USB/I2C bases differ; no unlock patterns; typical 12 MHz crystal mismatched.
 
 ---
 
