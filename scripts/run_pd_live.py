@@ -248,9 +248,10 @@ def main():
                             print(f"  [{ts:8d}ms] ** DISCONNECT **")
                             continue
 
-                    # Connection/status (0x11/0x12 with empty wire)
-                    if sop in (0x11, 0x12) and len(wire) == 0:
-                        if sop == 0x11:
+                    # Connection/status (0x21/0x22 with empty wire)
+                    # Note: 0x21 = 33 (connect), 0x22 = 34 (disconnect)
+                    if sop in (0x21, 0x22) and len(wire) == 0:
+                        if sop == 0x21:
                             print(f"  [{ts:8d}ms] ** CONNECT **")
                             source_caps = None  # Reset on new connection
                         else:

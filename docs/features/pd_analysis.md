@@ -54,8 +54,8 @@ Two event kinds appear in PD payloads:
 | 5 | 1 | Event code |
 
 **Event codes:**
-- `0x11` - Connect
-- `0x12` - Disconnect
+- `0x21` - Connect (33 decimal)
+- `0x22` - Disconnect (34 decimal)
 
 ### Wrapped PD Message Event (variable)
 
@@ -75,7 +75,7 @@ The wire bytes are standard USB PD messages (2-byte header + data objects).
 ## Examples & Correlation
 
 - **Empty PD response:** 18-byte payload = 12-byte preamble + one 6-byte header with `wire_len=0`; indicates no new PD wire data.
-- **Preamble+event sample:** `preamble: e5 e8 5b 00 00 00 00 00 76 06 03 00` + `event: 45 e2 e8 5b 00 11` (connect). Disconnect uses code `0x12`.
+- **Preamble+event sample:** `preamble: e5 e8 5b 00 00 00 00 00 76 06 03 00` + `event: 45 e2 e8 5b 00 21` (connect). Disconnect uses code `0x22`.
 - **Wrapped message sample:** size_flag `0x9F` → `wire_len=21`; parsed messages observed: GoodCRC, Source_Capabilities, Request, Accept, PS_RDY.
 - **USB ↔ SQLite:** PD events in `pd_table.Raw` match USB PD-only payloads minus the 12-byte preamble; timestamps align with the 32-bit preamble ts (the 24-bit ADC+PD status counter is separate).
 
@@ -269,6 +269,6 @@ for time, raw in cursor:
 | Accept | 1 |
 | PS_RDY | 1 |
 
-All observed wrapped events were SOP (sop=0). Connect (`0x11`) and disconnect (`0x12`) status events in USB captures align with the first/last markers in the SQLite export.
+All observed wrapped events were SOP (sop=0). Connect (`0x21`) and disconnect (`0x22`) status events in USB captures align with the first/last markers in the SQLite export.
 
 All messages observed were SOP (sop=0).
