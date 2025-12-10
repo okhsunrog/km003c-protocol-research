@@ -174,7 +174,7 @@ Response: 41 TID ... (PutData with requested data)
 Starts AdcQueue streaming at specified sample rate.
 
 ```
-Request:  0E TID [rate*2] 00
+Request:  0E TID [rate_index] 00
 Response: 05 TID 00 00 (Accept)
 ```
 
@@ -182,9 +182,9 @@ Response: 05 TID 00 00 (Accept)
 | Rate Index | Byte Value | Sample Rate |
 |------------|------------|-------------|
 | 0 | 0x00 | 2 SPS |
-| 1 | 0x02 | 10 SPS |
-| 2 | 0x04 | 50 SPS |
-| 3 | 0x06 | 1000 SPS |
+| 1 | 0x01 | 10 SPS |
+| 2 | 0x02 | 50 SPS |
+| 3 | 0x03 | 1000 SPS |
 
 **Prerequisite:** StreamingAuth (0x4C) must be sent first.
 
@@ -554,7 +554,7 @@ coincidental - they are simply the first byte of encrypted data for each address
 | 0x2C | FirmwareInfo2 | varies | 64 bytes | FW info (attr=0x564D) |
 | 0x3A | FirmwareInfo | 0x4420 | 64 bytes | FW version, build date |
 | 0x40 | CalibrationData | 0x3000C00 | 64 bytes | Serial, UUID, timestamp |
-| 0x75 | HardwareID | 0x40010450 | 12 bytes | Serial prefix + device ID |
+| 0x75 | HardwareID | 0x40010450 | 12 bytes | Authentication blob (NOT a serial number) |
 
 ### Log Data Chunks
 

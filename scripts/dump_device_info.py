@@ -57,8 +57,8 @@ class DeviceInfo:
     serial_id: str
     uuid: str
     calibration_timestamp: int | None
-    device_serial: str
-    device_id: bytes
+    hardware_id_prefix: str  # First 6 bytes of HardwareID (NOT a serial number)
+    hardware_id_suffix: bytes  # Remaining 6 bytes of HardwareID
 
 
 def encrypt_ecb(data: bytes) -> bytes:
@@ -231,14 +231,14 @@ def parse_device_info(blocks: dict[int, bytes]) -> DeviceInfo:
         serial_id = uuid = "N/A"
         calibration_timestamp = None
 
-    # Parse DeviceSerial (0x40010450)
+    # Parse HardwareID (0x40010450) - authentication blob, NOT a serial number
     if 0x40010450 in blocks:
         data = blocks[0x40010450]
-        device_serial = data[0:6].decode('ascii', errors='replace')
-        device_id = data[6:12]
+        hardware_id_prefix = data[0:6].decode('ascii', errors='replace')
+        hardware_id_suffix = data[6:12]
     else:
-        device_serial = "N/A"
-        device_id = b''
+        hardware_id_prefix = "N/A"
+        hardware_id_suffix = b''
 
     return DeviceInfo(
         model=model,
@@ -249,8 +249,8 @@ def parse_device_info(blocks: dict[int, bytes]) -> DeviceInfo:
         serial_id=serial_id,
         uuid=uuid,
         calibration_timestamp=calibration_timestamp,
-        device_serial=device_serial,
-        device_id=device_id,
+        hardware_id_prefix=hardware_id_prefix,
+        hardware_id_suffix=hardware_id_suffix,
     )
 
 
@@ -303,8 +303,8 @@ def main():
             dt = datetime.utcfromtimestamp(info.calibration_timestamp)
             print(f"Calibration Time:   {info.calibration_timestamp} ({dt.isoformat()} UTC)")
         print()
-        print(f"Device Serial:      {info.device_serial}")
-        print(f"Device ID:          {info.device_id.hex()}")
+        print(f"HardwareID Prefix:  {info.hardware_id_prefix} (NOT a serial)")
+        print(f"HardwareID Suffix:  {info.hardware_id_suffix.hex()}")
 
         # Print raw hex dumps
         print("\n" + "=" * 60)

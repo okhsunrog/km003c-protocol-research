@@ -44,9 +44,11 @@ Required before AdcQueue streaming. The device decrypts the payload and checks i
 
 ### HardwareID Structure (12 bytes at 0x40010450)
 
+The HardwareID is a 12-byte authentication blob stored in device memory. It is **NOT a serial number** - the real serial is `serial_id` in CalibrationData at 0x3000C00 (e.g., "007965").
+
 | Offset | Size | Field | Example |
 |--------|------|-------|---------|
-| 0 | 6 | Serial Prefix | `"071KBP"` (ASCII) |
+| 0 | 6 | Identifier | `"071KBP"` (ASCII, not a serial) |
 | 6 | 2 | Separator | `0x0D 0xFF` |
 | 8 | 2 | Device ID | `0x0A11` (LE) = 2577 |
 | 10 | 2 | Padding | `0xFFFF` |
@@ -150,10 +152,14 @@ The encryption flag is indicated by bit 0 of byte 2 in the confirmation response
 
 | Offset | Size | Field |
 |--------|------|-------|
-| 0 | 16 | Encrypted block | AES-encrypted data (decrypt entire block) |
+| 0 | N×16 | Encrypted blocks | AES-encrypted data (N = ceil(requested_size / 16)) |
+
+**AES block alignment:** Responses are always padded to 16-byte boundaries. For example:
+- Request 12 bytes → receive 16 bytes (1 block)
+- Request 64 bytes → receive 64 bytes (4 blocks)
 
 **Note:** The first byte of the encrypted response may appear to be a "type byte" (e.g., 0x75),
-but this is coincidental - the entire 16-byte block must be decrypted together.
+but this is coincidental - the entire response must be decrypted as 16-byte blocks.
 
 ### Known Memory Addresses
 
@@ -176,7 +182,7 @@ See [Offline Logs](offline_logs.md) for the log download protocol.
 | DeviceInfo1 | 0x420 | 64 | 0x00..0x0F reserved; 0x10 12B model (e.g., "KM003C"); 0x1C 12B HW version (e.g., "2.1"); 0x28 24B mfg date (e.g., "2022.11.7") |
 | FirmwareInfo | 0x4420 | 64 | 0x00 u32 magic (0x00004000 or 0xFFFFFFFF if invalid); 0x04 u32 reserved; 0x08 u32 counter/ID; 0x0C 4B random; 0x10 12B model; 0x1C 12B FW version (e.g., "1.9.9"); 0x28 12B FW date (e.g., "2025.9.22"); 0x34 u32 build number; 0x38 8B reserved |
 | CalibrationData | 0x3000C00 | 64 | 0x00 7B serial ID (e.g., "007965 "); 0x07 32B UUID/hash (e.g., "CDFDDF2886FD40AF8F05E149624C3892"); 0x27 1B space; 0x28 11B timestamp (Unix epoch ASCII); 0x33 1B space; 0x34 4B marker ("LYS5"); 0x38 8B reserved (0xFF) |
-| HardwareID | 0x40010450 | 12 | 0x00 6B serial prefix (e.g., "071KBP"); 0x06 2B separator (0x0D 0xFF); 0x08 2B device ID (e.g., 0x0A11); 0x0A 2B padding (0xFF 0xFF) |
+| HardwareID | 0x40010450 | 12 | Authentication blob (NOT a serial): 0x00 6B identifier (e.g., "071KBP"); 0x06 2B separator (0x0D 0xFF); 0x08 2B device ID (e.g., 0x0A11); 0x0A 2B padding (0xFF 0xFF) |
 
 ---
 

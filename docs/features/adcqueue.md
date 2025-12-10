@@ -59,16 +59,16 @@ send([0x0F, tid, 0x00, 0x00])
 ### StartGraph Command (0x0E)
 
 ```
-Format: [0x0E, TID, rate_byte, 0x00]
+Format: [0x0E, TID, rate_index, 0x00]
 
-Rate byte encoding:
-  0x00 → rate_index 0 → 2 SPS (effective ~1.8 SPS observed)
-  0x02 → rate_index 1 → 10 SPS
-  0x04 → rate_index 2 → 50 SPS
-  0x06 → rate_index 3 → 1000 SPS
+Rate index encoding:
+  0x00 → 2 SPS (effective ~1.8 SPS observed)
+  0x01 → 10 SPS
+  0x02 → 50 SPS
+  0x03 → 1000 SPS
 ```
 
-The rate_byte is `rate_index * 2` (device uses bits 1-2 of the control header). `km003c_lib::GraphSampleRate` uses the same mapping and multiplies by 2 when encoding StartGraph.
+The rate index is sent directly (0-3). `km003c_lib::GraphSampleRate` enum values map directly to these indices.
 
 ### StopGraph Command (0x0F)
 
@@ -199,7 +199,7 @@ device.read(0x81, 64)
 device.write(0x01, bytes([0x4C, 0x02, 0x00, 0x02]) + auth_payload)  # Auth
 device.read(0x81, 64)
 
-device.write(0x01, bytes([0x0E, 0x03, 0x04, 0x00]))  # StartGraph 50 SPS
+device.write(0x01, bytes([0x0E, 0x03, 0x02, 0x00]))  # StartGraph 50 SPS (rate_index=2)
 device.read(0x81, 64)
 
 time.sleep(1.0)

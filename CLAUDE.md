@@ -63,8 +63,9 @@ pd_candidates = tx_tagged.filter(
 ### Parsing Protocol Correctly
 
 - Use `km003c_lib` for all KM003C protocol parsing. Avoid manual bit/byte parsing in Python. This ensures consistent attribute masks and header semantics across scripts.
-- Control header bits (wire): `type:7 | reserved_flag:1 | id:8 | (unused):1 | att:15`. The `att` field is a 15‑bit value that directly equals the attribute (ADC=0x0001, AdcQueue=0x0002, Settings=0x0008, PdPacket=0x0010). Do not apply extra shifts.
- - Byte layout gotcha: `att` starts at bit 17 of the 32‑bit little‑endian header. For `att=0x0001` (ADC), the third byte often shows `0x02`. This is expected; do not reinterpret it as `0x0002`. Prefer `km003c_lib` to avoid such mistakes.
+- Control header bits (wire): `type:7 | reserved_flag:1 | id:8 | unused:1 | att:15`.
+  - The `att` field is a 15‑bit attribute value: ADC=1, AdcQueue=2, Settings=8, PdPacket=16, Unknown512=512.
+  - **Wire byte gotcha**: Due to the unused bit at position 16, raw bytes 2-3 read as `raw_u16 = (att << 1)`. For example, `att=1` (ADC) appears as `0x0002` in raw bytes, `att=8` (Settings) appears as `0x0010`. Always use `km003c_lib` to parse correctly.
 - `reserved_flag` is vendor‑specific and is not an extended header indicator. PutData (0x41) always carries extended logical packets.
 - Extended header (per logical packet): `att:15 | next:1 | chunk:6 | size:10`.
 
@@ -119,8 +120,9 @@ uv run pytest -q  # Quick iteration
 
 - Master Parquet: `data/processed/usb_master_dataset.parquet` (≈11.5k packets).
 - GetData attribute_mask is a 15‑bit bitmask; combine with bitwise OR to request multiple classes.
-  - Bits → attributes: 0x0001 ADC(1), 0x0002 AdcQueue(2), 0x0008 Settings(8), 0x0010 PdPacket(16), 0x0200 Unknown512(512)
-  - Examples: 0x0011 = ADC|PD, 0x0003 = ADC|AdcQueue
+  - Attribute values: ADC=1, AdcQueue=2, Settings=8, PdPacket=16, Unknown512=512
+  - Wire mask (raw bytes 2-3): `wire_mask = attribute << 1` due to unused bit at position 16
+  - Examples: wire 0x0002 = ADC, wire 0x0004 = AdcQueue, wire 0x0010 = Settings
 - PutData uses chained logical packets; continue until `next=0`.
 - Response `id` matches request `id` (8‑bit roll‑over).
 - Do NOT group by URB ID (kernel address, reused). Use split_usb_transactions.

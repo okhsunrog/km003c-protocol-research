@@ -117,11 +117,11 @@ class KM003C:
     def start_graph(self, rate_index):
         """
         Start graph mode.
-        rate_index: 0=1SPS, 1=10SPS, 2=50SPS, 3=1000SPS
+        rate_index: 0=2SPS, 1=10SPS, 2=50SPS, 3=1000SPS
         """
         print(f"Starting graph mode (rate_index={rate_index})...")
-        # Rate encoded as rate_index*2 in bytes due to bitfield structure
-        response = self.send_cmd(0x0E, rate_index * 2)
+        # Rate index sent directly (0-3)
+        response = self.send_cmd(0x0E, rate_index)
         
         if response:
             resp_type = response[0] & 0x7F
