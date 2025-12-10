@@ -72,13 +72,14 @@ undefined4 FUN_00001090(uint *source, uint size, uint *key, uint *output) {
 ### Level Determination (case 0x4C)
 
 ```c
-// Check against hardware device ID (0x40010450-0x40010458)
-if (decrypted matches device_id) {
-    DAT_20004041 = 1;
+// Decrypt payload with AES key Fa0b4tA25f4R038a
+// Check bytes 8-19 against HardwareID (0x40010450, 12 bytes)
+if (memcmp(&decrypted[8], (void*)0x40010450, 12) == 0) {
+    DAT_20004041 = 1;  // Level 1 - device authenticated
 }
 // Or check against calibration data (0x03000c00)
 else if (decrypted matches calibration_data) {
-    DAT_20004041 = 2;
+    DAT_20004041 = 2;  // Level 2 - calibration authenticated
 }
 ```
 
@@ -131,7 +132,7 @@ if ((param_3 == -1) &&           // Magic: 0xFFFFFFFF
 |----------|-----|-------|
 | REJECT | 0x06 | Firmware validation failed |
 | NOT_READABLE | 0x27 | Hardware bus fault |
-| DATA | 0x1A, 0x3A, 0x40, 0x75 | Successful read |
+| DATA | (encrypted) | Successful read - 16-byte AES-ECB encrypted blocks |
 
 ### Address Blocking
 
@@ -173,6 +174,9 @@ switch(error_code & 0x1f) {
 ```
 
 ### Data Response Types
+
+**Note:** Data responses are AES-128-ECB encrypted with `MEMORY_READ_KEY`.
+The "type" values are coincidental first bytes of encrypted data, not type prefixes.
 
 | Type | Hex | Memory Region |
 |------|-----|---------------|

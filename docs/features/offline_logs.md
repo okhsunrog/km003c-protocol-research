@@ -78,6 +78,9 @@ Initialization and transfer as observed in captures (reading_logs0.11):
 
 ### Known Addresses
 
+**Note:** Data responses are AES-128-ECB encrypted with `MEMORY_READ_KEY` (`Lh2yfB7n6X7d9a5Z`).
+Check bit 0 of the confirmation response flags to determine if decryption is needed.
+
 | Address | Response Type | Size | Description |
 |---------|---------------|------|-------------|
 | 0x00000420 | 0x1A | 64 | Device info block 1 |

@@ -12,8 +12,11 @@ For packet headers and general protocol, see [Protocol Reference](../protocol_re
 # 1. Connect
 send([0x02, tid, 0x00, 0x00])
 
-# 2. Auth (required for streaming)
-send([0x4C, tid, 0x00, 0x02] + bytes(32))
+# 2. Auth (required for streaming) - must include HardwareID!
+# See authentication.md for how to read HardwareID from device
+hardware_id = bytes.fromhex('3037314b42500dff110affff')  # Example - device specific!
+auth_payload = encrypt_auth(hardware_id)  # AES-128-ECB with Fa0b4tA25f4R038a
+send([0x4C, tid, 0x00, 0x02] + auth_payload)
 
 # 3. Start Graph at 50 SPS (rate_index=2)
 send([0x0E, tid, 0x04, 0x00])
@@ -28,7 +31,7 @@ response = read()  # Returns N × 20-byte samples
 send([0x0F, tid, 0x00, 0x00])
 ```
 
-**Key insight:** Authentication (0x4C) is required for AdcQueue - without it, StartGraph succeeds but returns 0 samples. However, payload content doesn't matter - any 32 bytes work.
+**Key insight:** Authentication (0x4C) is required for AdcQueue - without it, StartGraph succeeds but returns 0 samples. The payload must contain the device's 12-byte HardwareID (from address 0x40010450). See [Authentication](authentication.md) for details.
 
 ---
 
@@ -123,7 +126,7 @@ Typical packet contains 5-50 samples (100-1000 bytes total).
 
 1. **USB reset** - Clean device state
 2. **Wait 1.5 seconds** - Device needs initialization time
-3. **Auth (0x4C)** - Any 32-byte payload works
+3. **Auth (0x4C)** - Payload must contain HardwareID (see [Authentication](authentication.md))
 4. **StartGraph (0x0E)** - With rate index
 5. **Poll AdcQueue** - Request attribute 0x0002 every 100-200ms
 6. **StopGraph (0x0F)** - When done
@@ -182,10 +185,18 @@ def parse_adcqueue_response(data):
     return samples
 
 # Example: 50 SPS streaming
+# NOTE: You need the device's HardwareID for auth - see authentication.md
+from Crypto.Cipher import AES
+import struct, time, os
+
+hardware_id = bytes.fromhex('3037314b42500dff110affff')  # YOUR device's serial!
+plaintext = struct.pack('<Q', int(time.time()*1000)) + hardware_id + os.urandom(12)
+auth_payload = AES.new(b'Fa0b4tA25f4R038a', AES.MODE_ECB).encrypt(plaintext)
+
 device.write(0x01, bytes([0x02, 0x01, 0x00, 0x00]))  # Connect
 device.read(0x81, 64)
 
-device.write(0x01, bytes([0x4C, 0x02, 0x00, 0x02]) + bytes(32))  # Auth
+device.write(0x01, bytes([0x4C, 0x02, 0x00, 0x02]) + auth_payload)  # Auth
 device.read(0x81, 64)
 
 device.write(0x01, bytes([0x0E, 0x03, 0x04, 0x00]))  # StartGraph 50 SPS

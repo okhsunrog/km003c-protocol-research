@@ -232,14 +232,23 @@ See [Authentication](features/authentication.md) for full details.
 
 #### StreamingAuth (0x4C)
 
-Required before AdcQueue streaming. Device acts as AES encryption oracle.
+Required before AdcQueue streaming. Device validates payload against HardwareID.
 
 ```
-Request:  4C TID 00 02 [32 bytes payload]
-Response: 4C 00 03 02 [32 bytes encrypted]
+Request:  4C TID 00 02 [32 bytes AES-encrypted]
+Response: 4C 00 XX XX [32 bytes re-encrypted]
 ```
 
-**Key finding:** Payload content doesn't matter - any 32 bytes enable streaming.
+**Plaintext structure (32 bytes, before AES-128-ECB encryption):**
+- Bytes 0-7: Timestamp (any value, not checked)
+- Bytes 8-19: HardwareID (12 bytes from 0x40010450, **required**)
+- Bytes 20-31: Padding (any value, not checked)
+
+**Response attribute:**
+- 0x0201: Auth failed (HardwareID mismatch) - AdcQueue returns empty
+- 0x0203: Auth success - AdcQueue works
+
+**Encryption key:** `Fa0b4tA25f4R038a`
 
 See [Authentication](features/authentication.md) for full details.
 
@@ -486,8 +495,8 @@ Device encrypts challenge and session key with Key 3, returns encrypted result.
 
 ```
 1. Connect (0x02)      → Accept (0x05)
-2. StreamingAuth       → 0x4C response     [REQUIRED]
-   (0x4C, any payload)
+2. StreamingAuth       → 0x4C response (attr=0x0203)  [REQUIRED]
+   (0x4C, encrypted payload with HardwareID)
 3. StartGraph (0x0E)   → Accept (0x05)
    rate=0-3
 4. GetData (0x0C)      → PutData (0x41) with AdcQueue samples
@@ -534,13 +543,18 @@ Device encrypts challenge and session key with Key 3, returns encrypted result.
 
 ### Data Response Types (from MemoryRead)
 
+**Important:** MemoryRead data responses are AES-128-ECB encrypted using `MEMORY_READ_KEY`
+(`Lh2yfB7n6X7d9a5Z`). The entire response block must be decrypted before parsing.
+The "type" values below historically appeared as the first byte of responses, but this is
+coincidental - they are simply the first byte of encrypted data for each address.
+
 | Type | Hex | Address | Size | Content |
 |------|-----|---------|------|---------|
 | 0x1A | DeviceInfo1 | 0x420 | 64 bytes | Model, HW version, mfg date |
 | 0x2C | FirmwareInfo2 | varies | 64 bytes | FW info (attr=0x564D) |
 | 0x3A | FirmwareInfo | 0x4420 | 64 bytes | FW version, build date |
 | 0x40 | CalibrationData | 0x3000C00 | 64 bytes | Serial, UUID, timestamp |
-| 0x75 | DeviceSerial | 0x40010450 | 12 bytes | Serial prefix + device ID |
+| 0x75 | HardwareID | 0x40010450 | 12 bytes | Serial prefix + device ID |
 
 ### Log Data Chunks
 
