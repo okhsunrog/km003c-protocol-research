@@ -1,9 +1,12 @@
 """
-Helper functions for working with km003c_lib's dict-based API.
+Helper functions for working with km003c_lib's Python API.
 
-These helpers make it easier to work with the new enum-as-dict representation
-that was introduced when PyO3 wrapper types were removed.
+PayloadData enum variants are serialized by PyO3 as:
+- Known types (Adc, AdcQueue, PdStatus, PdEvents) -> bare class instances
+- Unknown payloads -> dict with 'attribute' and 'data' keys
 """
+
+from km003c_lib import AdcData, AdcQueueData, PdStatus, PdEventStream
 
 
 def get_packet_type(packet):
@@ -29,12 +32,12 @@ def get_adc_data(packet):
     Returns:
         AdcData or None: The ADC data if present
     """
-    if "DataResponse" not in packet:
+    if not isinstance(packet, dict) or "DataResponse" not in packet:
         return None
     payloads = packet["DataResponse"]["payloads"]
     for payload in payloads:
-        if "Adc" in payload:
-            return payload["Adc"]
+        if isinstance(payload, AdcData):
+            return payload
     return None
 
 
@@ -47,12 +50,12 @@ def get_adcqueue_data(packet):
     Returns:
         AdcQueueData or None: The AdcQueue data if present
     """
-    if "DataResponse" not in packet:
+    if not isinstance(packet, dict) or "DataResponse" not in packet:
         return None
     payloads = packet["DataResponse"]["payloads"]
     for payload in payloads:
-        if "AdcQueue" in payload:
-            return payload["AdcQueue"]
+        if isinstance(payload, AdcQueueData):
+            return payload
     return None
 
 
@@ -65,12 +68,12 @@ def get_pd_status(packet):
     Returns:
         PdStatus or None: The PD status if present
     """
-    if "DataResponse" not in packet:
+    if not isinstance(packet, dict) or "DataResponse" not in packet:
         return None
     payloads = packet["DataResponse"]["payloads"]
     for payload in payloads:
-        if "PdStatus" in payload:
-            return payload["PdStatus"]
+        if isinstance(payload, PdStatus):
+            return payload
     return None
 
 
@@ -83,12 +86,12 @@ def get_pd_events(packet):
     Returns:
         PdEventStream or None: The PD events if present
     """
-    if "DataResponse" not in packet:
+    if not isinstance(packet, dict) or "DataResponse" not in packet:
         return None
     payloads = packet["DataResponse"]["payloads"]
     for payload in payloads:
-        if "PdEvents" in payload:
-            return payload["PdEvents"]
+        if isinstance(payload, PdEventStream):
+            return payload
     return None
 
 
@@ -99,9 +102,9 @@ def get_all_payloads(packet):
         packet: Parsed packet dict from parse_packet()
 
     Returns:
-        list: List of payload dicts, or empty list if not DataResponse
+        list: List of payload objects, or empty list if not DataResponse
     """
-    if "DataResponse" not in packet:
+    if not isinstance(packet, dict) or "DataResponse" not in packet:
         return []
     return packet["DataResponse"]["payloads"]
 
@@ -115,7 +118,7 @@ def get_attribute_mask(packet):
     Returns:
         int or None: The attribute mask if this is a GetData packet
     """
-    if "GetData" not in packet:
+    if not isinstance(packet, dict) or "GetData" not in packet:
         return None
     return packet["GetData"]["attribute_mask"]
 

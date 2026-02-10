@@ -184,6 +184,29 @@ See [Offline Logs](offline_logs.md) for the log download protocol.
 | CalibrationData | 0x3000C00 | 64 | 0x00 7B serial ID (e.g., "007965 "); 0x07 32B UUID/hash (e.g., "CDFDDF2886FD40AF8F05E149624C3892"); 0x27 1B space; 0x28 11B timestamp (Unix epoch ASCII); 0x33 1B space; 0x34 4B marker ("LYS5"); 0x38 8B reserved (0xFF) |
 | HardwareID | 0x40010450 | 12 | Authentication blob (NOT a serial): 0x00 6B identifier (e.g., "071KBP"); 0x06 2B separator (0x0D 0xFF); 0x08 2B device ID (e.g., 0x0A11); 0x0A 2B padding (0xFF 0xFF) |
 
+### Memory Map Summary
+
+Based on empirical testing with MemoryRead (0x44):
+
+| Region | Range | Status | Notes |
+|--------|-------|--------|-------|
+| Low memory | 0x00000000-0x20000000 | Readable | Returns data for any address |
+| Calibration | 0x03000C00 | Readable | CalibrationData (64 bytes) |
+| Peripheral | 0x40000000-0x40010000 | **Unstable** | Causes device timeout/crash |
+| HardwareID | 0x40010450 | Readable | Only stable peripheral address (12 bytes) |
+| Flash/Log | 0x98100000 | Readable | Log data region |
+
+**Important findings:**
+- The low memory region (0x00000000-0x20000000) appears to return data for any address, suggesting the device may have permissive memory access or memory mapping.
+- The peripheral region (0x40000000+) is unstable - accessing most addresses causes device timeout and disconnection.
+- Only the specific HardwareID address (0x40010450) works in the peripheral region.
+- Reading invalid addresses too aggressively can crash the device, requiring re-enumeration.
+
+**Recommended read strategy:**
+1. Read known addresses only (DeviceInfo, FirmwareInfo, Calibration, HardwareID, Log)
+2. Add delays between reads (50ms minimum) to avoid overwhelming the device
+3. Avoid scanning the peripheral region (0x40000000+) except for HardwareID
+
 ---
 
 ## Authentication Levels

@@ -24,12 +24,13 @@ import usbpdpy
 from pathlib import Path
 
 import sys
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from km003c_analysis.usb_transaction_splitter import split_usb_transactions
-from km003c_analysis.transaction_tagger import tag_transactions
+from km003c_analysis.core.usb_transaction_splitter import split_usb_transactions
+from km003c_analysis.core.transaction_tagger import tag_transactions
 
 
 def parse_pd_wrapped_payload(payload: bytes) -> list[dict]:
@@ -76,7 +77,9 @@ def parse_pd_wrapped_payload(payload: bytes) -> list[dict]:
 
 
 def analyze_source(source_file: str) -> None:
-    df = pl.read_parquet(PROJECT_ROOT / "data" / "processed" / "usb_master_dataset.parquet")
+    df = pl.read_parquet(
+        PROJECT_ROOT / "data" / "processed" / "usb_master_dataset.parquet"
+    )
     df = df.filter(pl.col("source_file") == source_file)
     df = tag_transactions(split_usb_transactions(df))
 
@@ -119,7 +122,9 @@ def analyze_source(source_file: str) -> None:
         events = parse_pd_wrapped_payload(payload)
         if any(e.get("pd_name") for e in events):
             decoded += 1
-            sample = [(e["pd_name"], e["wire_len"]) for e in events if e.get("pd_name")][:6]
+            sample = [
+                (e["pd_name"], e["wire_len"]) for e in events if e.get("pd_name")
+            ][:6]
             print(
                 f"tx {r['transaction_id']} start={r['start_time']:.3f} size={size} events={sample}"
             )
