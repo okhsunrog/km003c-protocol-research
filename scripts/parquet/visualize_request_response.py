@@ -2,7 +2,7 @@
 """
 Визуализация результатов анализа request-response корреляций.
 
-Run: uv run python scripts/visualize_request_response.py
+Run: uv run python scripts/parquet/visualize_request_response.py
 """
 
 import polars as pl

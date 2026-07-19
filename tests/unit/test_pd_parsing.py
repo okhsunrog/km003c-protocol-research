@@ -12,16 +12,19 @@ from pathlib import Path
 # Try to import usbpdpy - skip tests if not available
 try:
     import usbpdpy
+
     USBPDPY_AVAILABLE = True
 except ImportError:
     USBPDPY_AVAILABLE = False
 
-from km003c import parse_packet, PdEventStream
+from km003c_lib import PdEventStream, parse_packet
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
 
-DATASET = Path(__file__).parent.parent.parent / "data/processed/usb_master_dataset.parquet"
+DATASET = (
+    Path(__file__).parent.parent.parent / "data/processed/usb_master_dataset.parquet"
+)
 
 
 def get_pd_events(packet):

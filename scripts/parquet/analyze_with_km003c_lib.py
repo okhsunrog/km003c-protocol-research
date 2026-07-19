@@ -8,7 +8,7 @@
 - Валидации структуры chained logical packets
 - Глубокого анализа ADC и PD данных
 
-Run: uv run python scripts/analyze_with_km003c_lib.py
+Run: uv run python scripts/parquet/analyze_with_km003c_lib.py
 """
 
 from __future__ import annotations

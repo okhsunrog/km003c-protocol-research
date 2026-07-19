@@ -8,7 +8,7 @@ This script analyzes the USB master dataset to:
 3. Correlate GetData requests (attribute_mask) with PutData responses (attributes)
 4. Identify patterns and mappings between request masks and response attributes
 
-Run: uv run python scripts/analyze_request_response_correlation.py
+Run: uv run python scripts/parquet/analyze_request_response_correlation.py
 """
 
 from __future__ import annotations

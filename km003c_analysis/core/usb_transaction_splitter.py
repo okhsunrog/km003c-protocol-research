@@ -30,6 +30,10 @@ class TransactionSplitterConfig:
     # Transaction ID output column
     transaction_id_col: str = "transaction_id"
 
+    # Independent capture stream. Frame numbers and URB IDs may repeat between
+    # source files, so splitter state must not cross this boundary.
+    source_col: Optional[str] = "source_file"
+
     # USB protocol constants
     bulk_transfer_type: str = "0x03"
     control_transfer_type: str = "0x02"
@@ -224,6 +228,24 @@ class USBTransactionSplitter:
 
         return self.current_transaction
 
+    def _split_single_stream(
+        self, df: pl.DataFrame, first_transaction_id: int
+    ) -> pl.DataFrame:
+        """Split one capture stream with fresh URB state."""
+        df = df.sort(self.config.frame_number_col)
+        self.reset_state()
+        self.current_transaction = first_transaction_id
+
+        transaction_ids = [
+            self.process_frame(row, index) for index, row in enumerate(df.to_dicts())
+        ]
+        tid_series = pl.Series(
+            self.config.transaction_id_col,
+            transaction_ids,
+            dtype=pl.Int64,
+        )
+        return df.with_columns(tid_series)
+
     def split_transactions(self, df: pl.DataFrame) -> pl.DataFrame:
         """
         Split a DataFrame of USB frames into logical transactions.
@@ -250,26 +272,25 @@ class USBTransactionSplitter:
         if missing_cols:
             raise ValueError(f"Missing required columns: {missing_cols}")
 
-        # Sort by frame number to ensure proper chronological order
-        df = df.sort(self.config.frame_number_col)
+        if df.is_empty():
+            return df.with_columns(
+                pl.Series(self.config.transaction_id_col, [], dtype=pl.Int64)
+            )
 
-        # Reset state for new processing
-        self.reset_state()
+        source_col = self.config.source_col
+        if source_col is not None and source_col in df.columns:
+            streams = df.partition_by(source_col, maintain_order=True)
+        else:
+            streams = [df]
 
-        # Convert to list of dicts for processing
-        rows = df.to_dicts()
+        split_streams = []
+        next_transaction_id = 1
+        for stream in streams:
+            split_stream = self._split_single_stream(stream, next_transaction_id)
+            split_streams.append(split_stream)
+            next_transaction_id = self.current_transaction + 1
 
-        # Process each frame to get its transaction ID
-        transaction_ids = []
-        for i, row in enumerate(rows):
-            transaction_id = self.process_frame(row, i)
-            transaction_ids.append(transaction_id)
-
-        # Create a new DataFrame with just the transaction IDs
-        tid_df = pl.DataFrame({self.config.transaction_id_col: transaction_ids})
-
-        # Horizontally concatenate the transaction ID column with the original, sorted DataFrame
-        return pl.concat([df, tid_df], how="horizontal")
+        return pl.concat(split_streams)
 
     def validate_output(self, df: pl.DataFrame) -> Dict[str, bool]:
         """
@@ -289,21 +310,31 @@ class USBTransactionSplitter:
                 "transaction_order": True,
             }
 
-        # Extract sequences for validation
-        frame_nums = df.select(self.config.frame_number_col).to_series().to_list()
         tx_ids = df.select(self.config.transaction_id_col).to_series().to_list()
 
-        # Check ordering requirements
+        source_col = self.config.source_col
+        if source_col is not None and source_col in df.columns:
+            streams = df.partition_by(source_col, maintain_order=True)
+        else:
+            streams = [df]
+
+        def column_is_ordered(stream: pl.DataFrame, column: str) -> bool:
+            values = stream[column].to_list()
+            return all(
+                values[index] <= values[index + 1] for index in range(len(values) - 1)
+            )
+
         frame_order_valid = all(
-            frame_nums[i] <= frame_nums[i + 1] for i in range(len(frame_nums) - 1)
+            column_is_ordered(stream, self.config.frame_number_col)
+            for stream in streams
         )
         tx_order_valid = all(tx_ids[i] <= tx_ids[i + 1] for i in range(len(tx_ids) - 1))
 
         timestamp_order_valid = True
         if self.config.timestamp_col in df.columns:
-            timestamps = df.select(self.config.timestamp_col).to_series().to_list()
             timestamp_order_valid = all(
-                timestamps[i] <= timestamps[i + 1] for i in range(len(timestamps) - 1)
+                column_is_ordered(stream, self.config.timestamp_col)
+                for stream in streams
             )
 
         return {

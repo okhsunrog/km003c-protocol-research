@@ -14,7 +14,13 @@ project_root = Path(__file__).parent.parent.parent
 analysis_scripts_path = project_root / "src" / "analysis" / "scripts"
 sys.path.insert(0, str(analysis_scripts_path))
 
-from km003c import parse_packet, AdcData, AdcQueueData, PdStatus, PdEventStream  # noqa: E402
+from km003c_lib import (  # noqa: E402
+    AdcData,
+    AdcQueueData,
+    PdEventStream,
+    PdStatus,
+    parse_packet,
+)
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
@@ -128,9 +134,10 @@ class TestPacketParsing:
 
     def test_parse_generic_data_command(self):
         """Test parsing of generic data commands with payloads."""
-        # Real Unknown68 command with 32-byte payload
+        # Unknown data command with a 32-byte payload. Packet type 0x45 is not
+        # assigned by the protocol, so the semantic parser must preserve it.
         extended_command_hex = (
-            "4402010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e"
+            "4502010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e"
         )
         extended_command_bytes = bytes.fromhex(extended_command_hex)
 
@@ -261,9 +268,9 @@ class TestPacketClassification:
             ("02010000", "Connect", "Connect command"),
             ("0c071000", "GetData", "PD GetData command"),
             (
-                "4402010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e",
+                "4502010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e",
                 "Generic",
-                "Unknown68 command",
+                "unknown data command",
             ),
         ]
 
@@ -285,8 +292,8 @@ class TestPacketClassification:
 
         # Multiple extended commands should all be Generic
         extended_commands = [
-            "4402010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e",
-            "44030101636beaf3f0856506eee9a27e89722dcfd18b539a39c407d5c063d91102e36a9e",
+            "4502010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e",
+            "46030101636beaf3f0856506eee9a27e89722dcfd18b539a39c407d5c063d91102e36a9e",
         ]
         for hex_data in extended_commands:
             packet_bytes = bytes.fromhex(hex_data)
@@ -301,25 +308,25 @@ class TestChainedLogicalPackets:
         """Test ADC + PdStatus chained packet (68 bytes total)."""
         import polars as pl
 
-        dataset_path = Path(__file__).parent.parent / "data/processed/usb_master_dataset.parquet"
+        dataset_path = project_root / "data/processed/usb_master_dataset.parquet"
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
 
         df = pl.read_parquet(dataset_path)
-        session = df.filter(pl.col('source_file') == 'pd_capture_new.9')
-        bulk = session.filter(pl.col('transfer_type') == '0x03')
+        session = df.filter(pl.col("source_file") == "pd_capture_new.9")
+        bulk = session.filter(pl.col("transfer_type") == "0x03")
 
         # Find ADC+PD packet (68 bytes = 4 main + 4 ext + 44 ADC + 4 ext + 12 PD)
         responses = bulk.filter(
-            (pl.col('endpoint_address') == '0x81') &
-            (pl.col('urb_type') == 'C') &
-            (pl.col('data_length') == 68)
+            (pl.col("endpoint_address") == "0x81")
+            & (pl.col("urb_type") == "C")
+            & (pl.col("data_length") == 68)
         )
 
         assert len(responses) > 0, "No ADC+PD packets found"
 
         row = responses.row(0, named=True)
-        payload = bytes.fromhex(row['payload_hex'])
+        payload = bytes.fromhex(row["payload_hex"])
         packet = parse_packet(payload)
 
         # Should have BOTH ADC and PD status
@@ -336,30 +343,32 @@ class TestChainedLogicalPackets:
         assert 0.0 <= adc_data.vbus_v <= 50.0
         assert 0.0 <= pd_status.vbus_v <= 50.0
 
-        print(f"✓ Chained ADC+PD: ADC={adc_data.vbus_v:.3f}V, PD={pd_status.vbus_v:.3f}V")
+        print(
+            f"✓ Chained ADC+PD: ADC={adc_data.vbus_v:.3f}V, PD={pd_status.vbus_v:.3f}V"
+        )
 
     def test_adc_plus_adcqueue(self):
         """Test ADC + AdcQueue chained packet."""
         import polars as pl
 
-        dataset_path = Path(__file__).parent.parent / "data/processed/usb_master_dataset.parquet"
+        dataset_path = project_root / "data/processed/usb_master_dataset.parquet"
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
 
         df = pl.read_parquet(dataset_path)
-        session = df.filter(pl.col('source_file') == 'orig_adc_record.6')
-        bulk = session.filter(pl.col('transfer_type') == '0x03')
+        session = df.filter(pl.col("source_file") == "orig_adc_record.6")
+        bulk = session.filter(pl.col("transfer_type") == "0x03")
 
         responses = bulk.filter(
-            (pl.col('endpoint_address') == '0x81') &
-            (pl.col('urb_type') == 'C') &
-            pl.col('payload_hex').is_not_null()
+            (pl.col("endpoint_address") == "0x81")
+            & (pl.col("urb_type") == "C")
+            & pl.col("payload_hex").is_not_null()
         )
 
         # Find ADC+AdcQueue packet
         found = False
         for row in responses.iter_rows(named=True):
-            payload = bytes.fromhex(row['payload_hex'])
+            payload = bytes.fromhex(row["payload_hex"])
             try:
                 packet = parse_packet(payload)
                 adc_data = get_adc_data(packet)
@@ -372,9 +381,11 @@ class TestChainedLogicalPackets:
                     assert get_packet_type(packet) == "DataResponse"
                     assert len(adcqueue_data.samples) >= 1
 
-                    print(f"✓ Chained ADC+AdcQueue: ADC={adc_data.vbus_v:.3f}V, Queue={len(adcqueue_data.samples)} samples")
+                    print(
+                        f"✓ Chained ADC+AdcQueue: ADC={adc_data.vbus_v:.3f}V, Queue={len(adcqueue_data.samples)} samples"
+                    )
                     break
-            except:
+            except Exception:
                 continue
 
         assert found, "No ADC+AdcQueue chained packets found in dataset"
@@ -388,26 +399,26 @@ class TestAdcQueueParsing:
         import polars as pl
 
         # Load dataset
-        dataset_path = Path(__file__).parent.parent / "data/processed/usb_master_dataset.parquet"
+        dataset_path = project_root / "data/processed/usb_master_dataset.parquet"
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
 
         df = pl.read_parquet(dataset_path)
 
         # Filter for AdcQueue responses from orig_adc_1000hz.6
-        session = df.filter(pl.col('source_file') == 'orig_adc_1000hz.6')
-        bulk = session.filter(pl.col('transfer_type') == '0x03')
+        session = df.filter(pl.col("source_file") == "orig_adc_1000hz.6")
+        bulk = session.filter(pl.col("transfer_type") == "0x03")
         responses = bulk.filter(
-            (pl.col('endpoint_address') == '0x81') &
-            (pl.col('urb_type') == 'C') &
-            pl.col('payload_hex').is_not_null()
+            (pl.col("endpoint_address") == "0x81")
+            & (pl.col("urb_type") == "C")
+            & pl.col("payload_hex").is_not_null()
         )
 
         adcqueue_count = 0
         adc_count = 0
 
         for row in responses.iter_rows(named=True):
-            payload_hex = row['payload_hex']
+            payload_hex = row["payload_hex"]
             if not payload_hex or len(payload_hex) < 16:
                 continue
 
@@ -424,7 +435,9 @@ class TestAdcQueueParsing:
 
                     # Validate AdcQueue structure
                     assert len(samples) > 0, "AdcQueue has no samples"
-                    assert 5 <= len(samples) <= 50, f"Unexpected sample count: {len(samples)}"
+                    assert 5 <= len(samples) <= 50, (
+                        f"Unexpected sample count: {len(samples)}"
+                    )
 
                     # Validate first sample fields
                     first = samples[0]
@@ -443,17 +456,23 @@ class TestAdcQueueParsing:
                     # Test sequence_range method
                     seq_range = adcqueue_data.sequence_range()
                     if seq_range:
-                        assert seq_range[0] <= seq_range[1] or (seq_range[0] > 60000 and seq_range[1] < 1000)  # Handle wrap
+                        assert seq_range[0] <= seq_range[1] or (
+                            seq_range[0] > 60000 and seq_range[1] < 1000
+                        )  # Handle wrap
 
                 elif adc_data:
                     adc_count += 1
-            except Exception as e:
+            except Exception:
                 # Some packets might not parse (that's OK for this test)
                 pass
 
         # Should have found AdcQueue data in this capture
-        assert adcqueue_count > 0, f"No AdcQueue packets found (found {adc_count} ADC packets)"
-        assert adcqueue_count >= 200, f"Expected >=200 AdcQueue packets, found {adcqueue_count}"
+        assert adcqueue_count > 0, (
+            f"No AdcQueue packets found (found {adc_count} ADC packets)"
+        )
+        assert adcqueue_count >= 200, (
+            f"Expected >=200 AdcQueue packets, found {adcqueue_count}"
+        )
         print(f"✓ Parsed {adcqueue_count} AdcQueue packets and {adc_count} ADC packets")
 
     def test_adcqueue_sample_structure(self):
@@ -461,23 +480,23 @@ class TestAdcQueueParsing:
         import polars as pl
 
         # Load a real AdcQueue packet from dataset
-        dataset_path = Path(__file__).parent.parent / "data/processed/usb_master_dataset.parquet"
+        dataset_path = project_root / "data/processed/usb_master_dataset.parquet"
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
 
         df = pl.read_parquet(dataset_path)
-        session = df.filter(pl.col('source_file') == 'orig_adc_1000hz.6')
-        bulk = session.filter(pl.col('transfer_type') == '0x03')
+        session = df.filter(pl.col("source_file") == "orig_adc_1000hz.6")
+        bulk = session.filter(pl.col("transfer_type") == "0x03")
         responses = bulk.filter(
-            (pl.col('endpoint_address') == '0x81') &
-            (pl.col('urb_type') == 'C') &
-            pl.col('payload_hex').is_not_null() &
-            (pl.col('frame_number') >= 1004)
+            (pl.col("endpoint_address") == "0x81")
+            & (pl.col("urb_type") == "C")
+            & pl.col("payload_hex").is_not_null()
+            & (pl.col("frame_number") >= 1004)
         )
 
         # Find first valid AdcQueue packet
         for row in responses.head(10).iter_rows(named=True):
-            payload = bytes.fromhex(row['payload_hex'])
+            payload = bytes.fromhex(row["payload_hex"])
             try:
                 packet = parse_packet(payload)
                 adcqueue_data = get_adcqueue_data(packet)
@@ -491,21 +510,21 @@ class TestAdcQueueParsing:
 
                     # Check first sample has all fields
                     first = samples[0]
-                    assert hasattr(first, 'sequence')
-                    assert hasattr(first, 'vbus_v')
-                    assert hasattr(first, 'ibus_a')
-                    assert hasattr(first, 'power_w')
-                    assert hasattr(first, 'cc1_v')
-                    assert hasattr(first, 'cc2_v')
-                    assert hasattr(first, 'vdp_v')
-                    assert hasattr(first, 'vdm_v')
+                    assert hasattr(first, "sequence")
+                    assert hasattr(first, "vbus_v")
+                    assert hasattr(first, "ibus_a")
+                    assert hasattr(first, "power_w")
+                    assert hasattr(first, "cc1_v")
+                    assert hasattr(first, "cc2_v")
+                    assert hasattr(first, "vdp_v")
+                    assert hasattr(first, "vdm_v")
 
                     # Test repr works
-                    assert 'AdcQueueSample' in repr(first)
-                    assert 'AdcQueueData' in repr(adcqueue_data)
+                    assert "AdcQueueSample" in repr(first)
+                    assert "AdcQueueData" in repr(adcqueue_data)
 
                     return  # Test passed
-            except Exception as e:
+            except Exception:
                 continue
 
         pytest.fail("Could not find a valid AdcQueue packet in dataset")

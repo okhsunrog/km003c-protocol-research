@@ -258,7 +258,7 @@ class TestAdcQueueStreaming:
         time.sleep(0.1)
 
     @pytest.mark.xfail(
-        reason="AdcQueue test has device state issues in pytest fixtures. Use scripts/test_adcqueue.py for validation."
+        reason="AdcQueue test has device state issues in pytest fixtures. Use scripts/run_adcqueue_single.py for validation."
     )
     def test_adcqueue_data_streaming(self, device):
         """
@@ -268,7 +268,7 @@ class TestAdcQueueStreaming:
         that doesn't work reliably in pytest fixture context (device returns buffered
         responses from previous commands, attribute 512, etc.).
 
-        For reliable AdcQueue testing, use: uv run scripts/test_adcqueue.py
+        For reliable AdcQueue testing, use: uv run python scripts/run_adcqueue_single.py
         """
         device["full_init"]()  # Full init required for AdcQueue
 

@@ -10,9 +10,18 @@ import time
 import usb.core
 import usb.util
 import usbpdpy
-from km003c import (ATT_PD_PACKET, CMD_CONNECT, CMD_DISCONNECT, CMD_GET_DATA,
-                    PID, VID, PdEventStream, PdStatus, create_packet,
-                    parse_packet, parse_raw_packet)
+from km003c_lib import (
+    ATT_PD_PACKET,
+    CMD_CONNECT,
+    CMD_DISCONNECT,
+    CMD_GET_DATA,
+    PID,
+    VID,
+    PdEventStream,
+    PdStatus,
+    create_packet,
+    parse_packet,
+)
 
 
 def get_packet_type(packet):
