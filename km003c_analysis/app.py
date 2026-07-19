@@ -5,8 +5,8 @@ This module provides the main Streamlit GUI for analyzing KM003C USB protocol ca
 The actual implementation is in the dashboards.main module.
 """
 
-# Import and run the main dashboard
-from .dashboards.main import *
+from km003c_analysis.dashboards.main import main
 
-# This allows the app to be run with: streamlit run km003c_analysis/app.py
-# or: uv run python -m streamlit run km003c_analysis/app.py
+
+if __name__ == "__main__":
+    main()
