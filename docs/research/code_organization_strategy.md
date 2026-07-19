@@ -49,13 +49,13 @@ Documentation expectations:
 
 ## Current Research Scripts
 
-- `scripts/analyze_km003c_protocol.py`
-- `scripts/parse_pd_wrapped.py`
-- `scripts/export_*.py`
-- `scripts/summarize_pd_messages.py`
+- `scripts/parquet/analyze_km003c_protocol.py`
+- `scripts/parquet/parse_pd_wrapped.py`
+- `scripts/parquet/export_*.py`
+- `scripts/parquet/summarize_pd_messages.py`
 
 ## Usage Examples
 
 - Production: `uv run python -m km003c_analysis.tools.pd_sqlite_analyzer --help`
-- Research: `uv run python scripts/analyze_km003c_protocol.py`
+- Research: `uv run python scripts/parquet/analyze_km003c_protocol.py`
 - Experiment: `uv run python scripts/experiments/test_new_feature.py`

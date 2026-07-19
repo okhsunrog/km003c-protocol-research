@@ -12,7 +12,7 @@ ABSOLUTELY MINIMAL sequence discovered through systematic testing:
 NO other commands needed! Connect, Unknown68, Unknown76, etc. are NOT required.
 
 Usage:
-    uv run scripts/test_adcqueue.py
+    uv run python scripts/run_adcqueue.py
 """
 
 import time

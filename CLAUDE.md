@@ -93,22 +93,22 @@ if isinstance(raw, dict) and "Data" in raw:
 - Map GetData masks → PutData categories (use transactions)
   - Load master dataset, split transactions as above.
   - For each transaction, parse first OUT Submit with data as GetData; parse IN Complete as PutData and classify segments.
-  - See docs/protocol_specification.md for bitmask semantics and attributes.
+  - See docs/protocol_reference.md for bitmask semantics and attributes.
 
 - Extract ADC payloads
-  - Parse PutData logical packets with attribute=1 (ADC) and size=44; use the byte offsets from docs/protocol_specification.md.
+  - Parse PutData logical packets with attribute=1 (ADC) and size=44; use the byte offsets from docs/protocol_reference.md.
 
 - Parse PD event streams
   - For PdPacket attribute=16 with size>12: preamble (12B) + repeated 6B event headers + PD wire bytes.
-  - Full details and SQLite parity: docs/pd_sqlite_export_format.md.
+  - Full details and SQLite parity: docs/features/pd_analysis.md.
 
 - Correlate to SQLite export
   - Use km003c_analysis.tools.pd_sqlite_analyzer to load and compare PD streams; export to Parquet/JSON if needed.
 
 ## Tests You Should Use
 
-- Transaction logic: tests/test_transaction_splitter.py
-- Tagging semantics: tests/test_transaction_tagger.py
+- Transaction logic: tests/unit/test_transaction_splitter.py
+- Tagging semantics: tests/unit/test_transaction_tagger.py
 
 Recommended loop:
 ```bash
@@ -118,7 +118,7 @@ uv run pytest -q  # Quick iteration
 
 ## Data + Invariants
 
-- Master Parquet: `data/processed/usb_master_dataset.parquet` (≈11.5k packets).
+- Master Parquet: `data/processed/usb_master_dataset.parquet` (20,862 packets from 14 capture files).
 - GetData attribute_mask is a 15‑bit bitmask; combine with bitwise OR to request multiple classes.
   - Attribute values: ADC=1, AdcQueue=2, Settings=8, PdPacket=16, Unknown512=512
   - Wire mask (raw bytes 2-3): `wire_mask = attribute << 1` due to unused bit at position 16
@@ -137,16 +137,16 @@ uv run pytest -q  # Quick iteration
   - `km003c_analysis.tools.pd_sqlite_analyzer` — analyze/convert official SQLite PD exports
 
 - Scripts (examples)
-  - `scripts/analyze_km003c_protocol.py` — end‑to‑end protocol analysis
-  - `scripts/parse_pd_wrapped.py` — PD wrapped event parsing
-  - `scripts/export_complete_pd_analysis.py` — full PD analysis export
-  - `scripts/summarize_pd_messages.py` — quick PD summary
+  - `scripts/parquet/analyze_km003c_protocol.py` — end‑to‑end protocol analysis
+  - `scripts/parquet/parse_pd_wrapped.py` — PD wrapped event parsing
+  - `scripts/parquet/export_complete_pd_analysis.py` — full PD analysis export
+  - `scripts/parquet/summarize_pd_messages.py` — quick PD summary
 
 ## Documentation Map (read, don’t duplicate)
 
-- Protocol: `docs/protocol_specification.md` — application‑layer headers, bitmasks, ADC payload offsets, flows
-- Transport: `docs/usb_transport_specification.md` — endpoints, URB/ZLP handshakes, timings
-- PD SQLite: `docs/pd_sqlite_export_format.md` — PD preamble/events, SQLite schema and parity with USB
+- Protocol: `docs/protocol_reference.md` — application‑layer headers, bitmasks, ADC payload offsets, flows
+- Transport: `docs/usb_transport.md` — endpoints, URB/ZLP handshakes, timings
+- PD SQLite: `docs/features/pd_analysis.md` — PD preamble/events, SQLite schema and parity with USB
 
 ## When to Extend vs. Reuse
 

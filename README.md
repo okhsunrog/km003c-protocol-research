@@ -4,8 +4,8 @@ Reverse engineering the ChargerLAB POWER-Z KM003C USB-C power analyzer protocol.
 
 ## Protocol Documentation
 
-[`docs/protocol_specification.md`](docs/protocol_specification.md) - Complete protocol specification for the KM003C device. Consolidates reverse engineering findings, community implementations, and official documentation.
-[`docs/pd_sqlite_export_format.md`](docs/pd_sqlite_export_format.md) - Format of PD captures exported by the official Windows app (SQLite schema + Raw BLOB wire layout).
+- [`docs/protocol_reference.md`](docs/protocol_reference.md) - Complete protocol reference for the KM003C device.
+- [`docs/features/pd_analysis.md`](docs/features/pd_analysis.md) - USB PD capture and official SQLite export format.
 
 ## Architecture
 
@@ -15,7 +15,7 @@ Reverse engineering the ChargerLAB POWER-Z KM003C USB-C power analyzer protocol.
 - Handles multiple devices and capture sessions
 
 ### Dataset
-`data/processed/usb_master_dataset.parquet` - 11,514 USB packets across 4 devices and 7 capture sessions.
+`data/processed/usb_master_dataset.parquet` - 20,862 USB packets from 14 capture files, containing 8 distinct USB device-address values.
 
 ### Analysis Tools
 - `km003c_analysis/` - Python library for reusable USB transaction processing and GUI
@@ -79,18 +79,19 @@ uv run python -m km003c_analysis.tools.pd_sqlite_analyzer --export-parquet messa
 ### Analysis Scripts
 ```bash
 # Complete KM003C protocol analysis
-uv run python scripts/analyze_km003c_protocol.py
+uv run python scripts/parquet/analyze_km003c_protocol.py
 
 # Export PD messages to Parquet
-uv run python scripts/export_pd_messages.py
+uv run python scripts/parquet/export_pd_messages.py
 
 # Wrapped PD format parsing
-uv run python scripts/parse_pd_wrapped.py
+uv run python scripts/parquet/parse_pd_wrapped.py
 ```
 
 ### Web Interface
 ```bash
 just app  # Launch Streamlit analyzer
+```
 
 ## Protocol Parsing and Attribute Masks
 
@@ -121,8 +122,6 @@ if isinstance(raw, dict) and "Data" in raw:
 ```
 
 Important: Avoid manual bit/byte parsing for KM003C headers in Python. Agents and scripts should use the Rust parser to prevent off-by-one mistakes in attribute masks and misinterpretation of `reserved_flag`.
-```
-
 ## Protocol Insights
 
 - USB VID: 0x5FC9, PID: 0x0063
@@ -135,4 +134,4 @@ Important: Avoid manual bit/byte parsing for KM003C headers in Python. Agents an
 
 - [km003c-rs](https://github.com/okhsunrog/km003c-rs) - Rust implementation
 - [Linux kernel driver](https://kernel.googlesource.com/pub/scm/linux/kernel/git/akpm/mm/+/refs/tags/mm-everything-2023-12-29-21-56/drivers/hwmon/powerz.c)
-- [Community implementations](docs/protocol_specification.md#community-contributions)
+- [Community implementations](docs/protocol_reference.md#community-implementations)

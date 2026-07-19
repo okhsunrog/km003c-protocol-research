@@ -188,8 +188,9 @@ that field begins at bit 17, its value appears shifted left by one in wire byte 
 | 2 | 0x04 | 50 SPS |
 | 3 | 0x06 | 1000 SPS |
 
-APIs that construct the bitfield header, including `km003c_lib::create_packet`,
-take the logical index and perform this encoding automatically.
+APIs that construct the bitfield header, including Python's
+`km003c_lib.create_packet()`, take the logical index and perform this encoding
+automatically.
 
 **Prerequisite:** StreamingAuth (0x4C) must be sent first.
 
@@ -586,3 +587,9 @@ coincidental - they are simply the first byte of encrypted data for each address
 - [AdcQueue](features/adcqueue.md) - Streaming implementation
 - [Firmware Handlers](firmware/handlers.md) - Device firmware analysis
 - [Mtools Analysis](firmware/mtools_analysis.md) - Windows app reverse engineering
+
+### Community Implementations
+
+- [chaseleif/km003c](https://github.com/chaseleif/km003c) - Python implementation
+- [LongDirtyAnimAlf/km003c](https://github.com/LongDirtyAnimAlf/km003c) - Pascal datalogger implementation
+- [fqueze/usb-power-profiling](https://github.com/fqueze/usb-power-profiling) - JavaScript WebUSB implementation

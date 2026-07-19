@@ -5,7 +5,7 @@
 Использует низкоуровневый parse_raw_packet для извлечения ВСЕХ logical packets
 из PutData, включая те, что Rust библиотека пока не парсит семантически.
 
-Run: uv run python scripts/validate_bitmask_correlation.py
+Run: uv run python scripts/parquet/validate_bitmask_correlation.py
 """
 
 from __future__ import annotations

@@ -8,7 +8,9 @@ Tests are separated into unit and integration tests for efficient development wo
 tests/
 ├── unit/              # Fast tests, no hardware required
 │   ├── test_packet_parsing.py       # km003c_lib parsing (ADC, AdcQueue, PD)
+│   ├── test_pd_parsing.py           # USB PD messages from captured traffic
 │   ├── test_raw_packet.py            # Low-level protocol structures
+│   ├── test_app_entrypoint.py         # Streamlit application entry point
 │   ├── test_transaction_splitter.py  # USB transaction grouping
 │   └── test_transaction_tagger.py    # Transaction pattern tagging
 │
@@ -62,19 +64,20 @@ pytest tests/ --override-ini="addopts="
 
 ## What Each Suite Tests
 
-### Unit Tests (33 tests)
-- ✅ Transaction splitter logic (6 tests)
+### Unit Tests (48 tests)
+- ✅ Transaction splitter logic (7 tests)
 - ✅ Transaction tagger patterns (8 tests)  
-- ✅ Packet parsing with km003c_lib (15 tests)
-- ✅ Raw packet protocol structures (4 tests)
+- ✅ Packet and PD parsing with km003c_lib (24 tests, including 4 capture-dependent cases)
+- ✅ Raw packet protocol structures and rate encoding (8 tests)
+- ✅ Streamlit entry point (1 test)
 - ✅ Validates against 20,862-packet dataset
 
-### Integration Tests (7 tests)
+### Integration Tests (8 tests)
 - ✅ Device discovery and connection
 - ✅ Basic commands (Connect, GetData ADC)
 - ✅ Start/Stop Graph commands
 - ✅ km003c_lib bindings on real responses
-- ⚠️ AdcQueue streaming (xfail - use `scripts/test_adcqueue.py` instead)
+- ⚠️ AdcQueue streaming (xfail - use `scripts/run_adcqueue_single.py` instead)
 
 ## CI/CD Configuration
 

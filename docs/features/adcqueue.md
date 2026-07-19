@@ -70,8 +70,8 @@ Logical index → wire byte 2 → sample rate:
 
 The logical rate index occupies the control header's `attribute` bitfield, which
 starts at bit 17. Raw packets therefore contain the index shifted left by one in
-byte 2. `km003c_lib::GraphSampleRate` and `create_packet` use the logical indices
-and encode the bitfield automatically.
+byte 2. The Rust `GraphSampleRate` enum and Python `RATE_*` constants use logical
+indices; `km003c_lib.create_packet()` encodes the bitfield automatically.
 
 ### StopGraph Command (0x0F)
 
@@ -247,4 +247,4 @@ Maximum sustained throughput: ~1000 samples/second at 1000 SPS mode.
 - Attribute 0x0004 (ATT_ADC_QUEUE_10K) is defined in docs but never observed in 20k+ packets, including 1000 SPS runs. Use attribute 0x0002 for all streaming.
 - Extended header `size=20` is the per-sample size; compute samples as `(payload_len - 8) / 20`.
 - Empty PutData (obj_count_words=0) is valid when the device buffer is empty—retry later.
-- Tested on real hardware (2025-10-05): minimal sequence works, 50 SPS shows graph icon, first poll returns ~50 accumulated samples. Test scripts: `scripts/test_exact_init_sequence.py`, `scripts/test_verify_minimal.py`, `scripts/test_minimal_adcqueue.py`.
+- Tested on real hardware (2025-10-05): minimal sequence works, 50 SPS shows graph icon, first poll returns ~50 accumulated samples. Reproduction script: `scripts/run_adcqueue_single.py`; hardware tests: `tests/integration/test_integration_device.py`.
