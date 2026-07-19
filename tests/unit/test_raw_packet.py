@@ -1,8 +1,32 @@
 import pytest
-from km003c_lib import parse_raw_packet
+from km003c_lib import (
+    CMD_START_GRAPH,
+    RATE_1000_SPS,
+    RATE_10_SPS,
+    RATE_2_SPS,
+    RATE_50_SPS,
+    create_packet,
+    parse_raw_packet,
+)
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize(
+    ("rate_index", "wire_rate_byte"),
+    [
+        (RATE_2_SPS, 0x00),
+        (RATE_10_SPS, 0x02),
+        (RATE_50_SPS, 0x04),
+        (RATE_1000_SPS, 0x06),
+    ],
+)
+def test_start_graph_rate_encoding(rate_index, wire_rate_byte):
+    """Logical rate indices occupy the header attribute bits on the wire."""
+    packet = create_packet(CMD_START_GRAPH, 0x2A, rate_index)
+
+    assert packet == bytes([0x0E, 0x2A, wire_rate_byte, 0x00])
 
 
 def test_parse_raw_packet_basic():
@@ -46,6 +70,7 @@ def test_parse_raw_packet_extended():
     assert len(logical_packets) >= 1
 
     first_lp = logical_packets[0]
+
     # logical_packets may contain dicts or PyO3 LogicalPacket objects
     def lp_get(obj, key, default=None):
         if isinstance(obj, dict):

@@ -59,16 +59,19 @@ send([0x0F, tid, 0x00, 0x00])
 ### StartGraph Command (0x0E)
 
 ```
-Format: [0x0E, TID, rate_index, 0x00]
+Format: [0x0E, TID, rate_index << 1, 0x00]
 
-Rate index encoding:
-  0x00 → 2 SPS (effective ~1.8 SPS observed)
-  0x01 → 10 SPS
-  0x02 → 50 SPS
-  0x03 → 1000 SPS
+Logical index → wire byte 2 → sample rate:
+  0x00 → 0x00 → 2 SPS (effective ~1.8 SPS observed)
+  0x01 → 0x02 → 10 SPS
+  0x02 → 0x04 → 50 SPS
+  0x03 → 0x06 → 1000 SPS
 ```
 
-The rate index is sent directly (0-3). `km003c_lib::GraphSampleRate` enum values map directly to these indices.
+The logical rate index occupies the control header's `attribute` bitfield, which
+starts at bit 17. Raw packets therefore contain the index shifted left by one in
+byte 2. `km003c_lib::GraphSampleRate` and `create_packet` use the logical indices
+and encode the bitfield automatically.
 
 ### StopGraph Command (0x0F)
 
@@ -199,7 +202,7 @@ device.read(0x81, 64)
 device.write(0x01, bytes([0x4C, 0x02, 0x00, 0x02]) + auth_payload)  # Auth
 device.read(0x81, 64)
 
-device.write(0x01, bytes([0x0E, 0x03, 0x02, 0x00]))  # StartGraph 50 SPS (rate_index=2)
+device.write(0x01, bytes([0x0E, 0x03, 0x04, 0x00]))  # StartGraph 50 SPS (rate_index=2)
 device.read(0x81, 64)
 
 time.sleep(1.0)
