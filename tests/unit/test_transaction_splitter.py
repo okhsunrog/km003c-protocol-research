@@ -77,8 +77,11 @@ def test_splitter_preserves_data_integrity_and_order(master_df):
         "Original columns and their order should be preserved."
     )
 
-    # Sort the original DataFrame the same way the splitter does for a valid comparison
-    sorted_master_df = master_df.sort("frame_number")
+    # Sort each capture independently, preserving the source-file order.
+    sorted_master_df = pl.concat(
+        source_df.sort("frame_number")
+        for source_df in master_df.partition_by("source_file", maintain_order=True)
+    )
 
     # 4. Verify the actual data in the original columns is unchanged
     assert sorted_master_df.equals(result_df.select(original_cols)), (
@@ -134,6 +137,30 @@ def test_splitter_creates_valid_transactions(master_df):
 
     # Check that transaction IDs are integers, as expected
     assert result_df["transaction_id"].dtype == pl.Int64
+
+
+def test_splitter_does_not_mix_captures_with_repeated_frame_numbers():
+    """A transaction must never include frames from different capture files."""
+    frames = pl.DataFrame(
+        {
+            "source_file": ["capture-a", "capture-b", "capture-a", "capture-b"],
+            "frame_number": [1, 1, 2, 2],
+            "transfer_type": ["0x03"] * 4,
+            "endpoint_address": ["0x01", "0x01", "0x81", "0x81"],
+            "urb_type": ["S", "S", "C", "C"],
+            "urb_id": ["a-out", "b-out", "a-in", "b-in"],
+            "data_length": [4, 4, 4, 4],
+            "urb_status": ["0", "0", "0", "0"],
+        }
+    )
+
+    result = split_usb_transactions(frames)
+    sources_per_transaction = result.group_by("transaction_id").agg(
+        pl.col("source_file").n_unique().alias("source_count")
+    )
+
+    assert sources_per_transaction["source_count"].max() == 1
+    assert result["transaction_id"].n_unique() == 2
 
 
 def test_splitter_creates_valid_transactions_per_source(source_dataframes):
