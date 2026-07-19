@@ -6,7 +6,7 @@ PayloadData enum variants are serialized by PyO3 as:
 - Unknown payloads -> dict with 'attribute' and 'data' keys
 """
 
-from km003c_lib import AdcData, AdcQueueData, PdStatus, PdEventStream
+from km003c import AdcData, AdcQueueData, PdEventStream, PdStatus
 
 
 def get_packet_type(packet):

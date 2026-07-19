@@ -18,7 +18,7 @@ Usage:
 import argparse
 import usb.core
 import usb.util
-from km003c_lib import VID, PID, parse_packet, create_packet, CMD_GET_DATA, ATT_ADC
+from km003c import ATT_ADC, CMD_GET_DATA, PID, VID, create_packet, parse_packet
 from km003c_helpers import get_adc_data
 
 

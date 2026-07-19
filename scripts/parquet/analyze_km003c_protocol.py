@@ -25,7 +25,7 @@ from km003c_analysis.core import split_usb_transactions, tag_transactions
 
 # Import the Rust library for KM003C packet parsing
 try:
-    from km003c_lib import parse_packet, parse_raw_packet
+    from km003c import parse_packet, parse_raw_packet
     KM003C_LIB_AVAILABLE = True
 except ImportError:
     print("⚠️  km003c_lib not available - will use simplified analysis")

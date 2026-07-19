@@ -9,7 +9,7 @@ import time
 import struct
 import binascii
 from Crypto.Cipher import AES
-from km003c_lib import VID, PID
+from km003c import PID, VID
 
 INTERFACE_NUM = 0
 ENDPOINT_OUT = 0x01

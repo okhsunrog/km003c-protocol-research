@@ -71,7 +71,7 @@ Logical index → wire byte 2 → sample rate:
 The logical rate index occupies the control header's `attribute` bitfield, which
 starts at bit 17. Raw packets therefore contain the index shifted left by one in
 byte 2. The Rust `GraphSampleRate` enum and Python `RATE_*` constants use logical
-indices; `km003c_lib.create_packet()` encodes the bitfield automatically.
+indices; `km003c.create_packet()` encodes the bitfield automatically.
 
 ### StopGraph Command (0x0F)
 

@@ -22,7 +22,7 @@ from typing import Dict, List, Any
 from km003c_analysis.core import split_usb_transactions, tag_transactions
 
 try:
-    from km003c_lib import parse_raw_packet
+    from km003c import parse_raw_packet
     KM003C_LIB_AVAILABLE = True
 except ImportError:
     KM003C_LIB_AVAILABLE = False

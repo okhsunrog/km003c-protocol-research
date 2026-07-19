@@ -18,7 +18,7 @@ from ..core.usb_transaction_splitter import split_usb_transactions
 from ..core.transaction_tagger import tag_transactions
 
 # Import the proper Rust library for packet parsing
-from km003c_lib import parse_packet, parse_raw_packet
+from km003c import parse_packet, parse_raw_packet
 
 try:
     # When running from project root

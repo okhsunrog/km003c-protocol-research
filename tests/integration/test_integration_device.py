@@ -15,7 +15,7 @@ import pytest
 import usb.core
 import usb.util
 import time
-from km003c_lib import (
+from km003c import (
     VID,
     PID,
     AdcData,

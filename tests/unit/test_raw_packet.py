@@ -1,5 +1,5 @@
 import pytest
-from km003c_lib import (
+from km003c import (
     CMD_START_GRAPH,
     RATE_1000_SPS,
     RATE_10_SPS,

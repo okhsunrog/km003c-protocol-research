@@ -21,7 +21,7 @@ import usb.core
 import usb.util
 from Crypto.Cipher import AES
 from dataclasses import dataclass
-from km003c_lib import VID, PID
+from km003c import PID, VID
 
 # USB endpoints (vendor interface)
 INTERFACE_NUM = 0

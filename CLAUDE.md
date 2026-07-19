@@ -8,11 +8,8 @@ Concise, AI‑oriented guidance for working in this repo. Optimize for correctne
 # Install runtime deps
 uv sync
 
-# Dev deps (ruff/maturin/etc.)
-uv sync -E dev
-
-# Build Rust Python extension (km003c_lib)
-just rust-ext
+# Locked runtime and development dependencies, including km003c
+uv sync --locked
 ```
 
 ## Core Commands
@@ -41,7 +38,7 @@ Preferred path: use the library for parsing/splitting/tagging; avoid re‑implem
 import polars as pl
 from pathlib import Path
 from km003c_analysis.core import split_usb_transactions, tag_transactions
-from km003c_lib import parse_packet, parse_raw_packet
+from km003c import parse_packet, parse_raw_packet
 from scripts.km003c_helpers import get_packet_type, get_adc_data, get_pd_status, get_pd_events
 
 DATASET = Path("data/processed/usb_master_dataset.parquet")
@@ -62,10 +59,10 @@ pd_candidates = tx_tagged.filter(
 
 ### Parsing Protocol Correctly
 
-- Use `km003c_lib` for all KM003C protocol parsing. Avoid manual bit/byte parsing in Python. This ensures consistent attribute masks and header semantics across scripts.
+- Use the Rust-backed `km003c` package for all KM003C protocol parsing. Avoid manual bit/byte parsing in Python. This ensures consistent attribute masks and header semantics across scripts.
 - Control header bits (wire): `type:7 | reserved_flag:1 | id:8 | unused:1 | att:15`.
   - The `att` field is a 15‑bit attribute value: ADC=1, AdcQueue=2, Settings=8, PdPacket=16, Unknown512=512.
-  - **Wire byte gotcha**: Due to the unused bit at position 16, raw bytes 2-3 read as `raw_u16 = (att << 1)`. For example, `att=1` (ADC) appears as `0x0002` in raw bytes, `att=8` (Settings) appears as `0x0010`. Always use `km003c_lib` to parse correctly.
+  - **Wire byte gotcha**: Due to the unused bit at position 16, raw bytes 2-3 read as `raw_u16 = (att << 1)`. For example, `att=1` (ADC) appears as `0x0002` in raw bytes, `att=8` (Settings) appears as `0x0010`. Always use `km003c` to parse correctly.
 - `reserved_flag` is vendor‑specific and is not an extended header indicator. PutData (0x41) always carries extended logical packets.
 - Extended header (per logical packet): `att:15 | next:1 | chunk:6 | size:10`.
 

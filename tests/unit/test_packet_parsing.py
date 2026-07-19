@@ -14,7 +14,7 @@ project_root = Path(__file__).parent.parent.parent
 analysis_scripts_path = project_root / "src" / "analysis" / "scripts"
 sys.path.insert(0, str(analysis_scripts_path))
 
-from km003c_lib import (  # noqa: E402
+from km003c import (
     AdcData,
     AdcQueueData,
     PdEventStream,

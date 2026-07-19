@@ -20,7 +20,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from km003c_analysis.core import split_usb_transactions, tag_transactions
-from km003c_lib import parse_packet
+from km003c import parse_packet
 try:
     from scripts.km003c_helpers import (
         get_packet_type,

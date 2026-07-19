@@ -17,7 +17,7 @@ try:
 except ImportError:
     USBPDPY_AVAILABLE = False
 
-from km003c_lib import PdEventStream, parse_packet
+from km003c import PdEventStream, parse_packet
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
@@ -207,20 +207,9 @@ class TestPdMessageParsing:
                 continue
 
             for event in pd_events.events:
-                data = event.data
-
-                if not isinstance(data, dict) or "wire_data" not in data:
-                    continue
-
-                sop = data.get("sop")
-                wire = bytes(data["wire_data"])
-
-                # Empty wire with special SOP = connection event
-                if len(wire) == 0:
-                    if sop == 0x11:
-                        connect_found = True
-                    elif sop == 0x12:
-                        disconnect_found = True
+                event_repr = repr(event)
+                connect_found |= "type=connect" in event_repr
+                disconnect_found |= "type=disconnect" in event_repr
 
         assert connect_found, "Should find CONNECT events"
         assert disconnect_found, "Should find DISCONNECT events"

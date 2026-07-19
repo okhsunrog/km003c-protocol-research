@@ -48,8 +48,10 @@ sudo udevadm trigger
 ### Environment Setup
 ```bash
 uv sync
-just rust-ext  # Build km003c_lib Python bindings
 ```
+
+`uv sync` installs the Rust-backed `km003c` Python package from the pinned
+`km003c-rs` release in `uv.lock`.
 
 ### PCAP Conversion
 ```bash
@@ -95,17 +97,17 @@ just app  # Launch Streamlit analyzer
 
 ## Protocol Parsing and Attribute Masks
 
-- Use the Rust-backed parser `km003c_lib` for protocol parsing in scripts and tools. Prefer `parse_packet()` for semantic payloads (ADC, AdcQueue, PD status/events) and `parse_raw_packet()` for low-level headers and logical packets when needed.
+- Use the Rust-backed `km003c` package for protocol parsing in scripts and tools. Prefer `parse_packet()` for semantic payloads (ADC, AdcQueue, PD status/events) and `parse_raw_packet()` for low-level headers and logical packets when needed.
 - Control header layout (wire):
   - `type` 7 bits, `reserved_flag` 1 bit, `id` 8 bits, 1 unnamed bit, then `att` 15 bits.
 - The 15-bit `att` field holds attribute values directly (no shifting). Examples: `0x0001` ADC, `0x0002` AdcQueue, `0x0008` Settings, `0x0010` PdPacket.
- - Byte layout gotcha (for humans/agents reading hex): the `att` field starts at bit 17 of the 32-bit little‑endian header. For `att=0x0001` (ADC), the third byte often appears as `0x02` — this is correct and does not mean `0x0002` (AdcQueue). Always parse via the 32‑bit little‑endian bitfield or use `km003c_lib`.
+ - Byte layout gotcha (for humans/agents reading hex): the `att` field starts at bit 17 of the 32-bit little‑endian header. For `att=0x0001` (ADC), the third byte often appears as `0x02` — this is correct and does not mean `0x0002` (AdcQueue). Always parse via the 32-bit little-endian bitfield or use `km003c`.
   - `reserved_flag` is vendor-specific and is NOT an indicator of extended headers. PutData (0x41) responses always include chained logical packets.
 - Extended header (per logical packet): `att:15 | next:1 | chunk:6 | size:10`.
 
 Recommended usage:
 ```
-from km003c_lib import parse_packet, parse_raw_packet
+from km003c import parse_packet, parse_raw_packet
 from scripts.km003c_helpers import get_packet_type, get_adc_data, get_pd_status, get_pd_events
 
 pkt = parse_packet(packet_bytes)

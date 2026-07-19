@@ -17,7 +17,7 @@ from collections import defaultdict
 import json
 
 try:
-    from km003c_lib import parse_raw_packet
+    from km003c import parse_raw_packet
     KM003C_LIB_AVAILABLE = True
 except ImportError:
     print("❌ km003c_lib not available")

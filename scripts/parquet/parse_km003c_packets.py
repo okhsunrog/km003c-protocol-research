@@ -24,7 +24,7 @@ import usbpdpy
 from pathlib import Path
 
 # Use the Rust protocol parser
-from km003c_lib import parse_packet
+from km003c import parse_packet
 from scripts.km003c_helpers import (
     get_packet_type,
     get_adc_data,

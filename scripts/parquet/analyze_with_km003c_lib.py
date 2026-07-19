@@ -21,7 +21,7 @@ import json
 
 # Rust library imports
 try:
-    from km003c_lib import (
+    from km003c import (
         parse_raw_packet,
         parse_packet,
         VID,

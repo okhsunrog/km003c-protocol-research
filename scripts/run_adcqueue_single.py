@@ -17,7 +17,7 @@ Key findings:
 import usb.core
 import usb.util
 import time
-from km003c_lib import VID, PID
+from km003c import PID, VID
 
 INTERFACE_NUM = 0  # Vendor/Bulk interface
 ENDPOINT_OUT = 0x01
