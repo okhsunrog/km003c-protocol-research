@@ -308,9 +308,7 @@ class TestChainedLogicalPackets:
         """Test ADC + PdStatus chained packet (68 bytes total)."""
         import polars as pl
 
-        dataset_path = (
-            Path(__file__).parent.parent / "data/processed/usb_master_dataset.parquet"
-        )
+        dataset_path = project_root / "data/processed/usb_master_dataset.parquet"
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
 
@@ -353,9 +351,7 @@ class TestChainedLogicalPackets:
         """Test ADC + AdcQueue chained packet."""
         import polars as pl
 
-        dataset_path = (
-            Path(__file__).parent.parent / "data/processed/usb_master_dataset.parquet"
-        )
+        dataset_path = project_root / "data/processed/usb_master_dataset.parquet"
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
 
@@ -403,9 +399,7 @@ class TestAdcQueueParsing:
         import polars as pl
 
         # Load dataset
-        dataset_path = (
-            Path(__file__).parent.parent / "data/processed/usb_master_dataset.parquet"
-        )
+        dataset_path = project_root / "data/processed/usb_master_dataset.parquet"
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
 
@@ -486,9 +480,7 @@ class TestAdcQueueParsing:
         import polars as pl
 
         # Load a real AdcQueue packet from dataset
-        dataset_path = (
-            Path(__file__).parent.parent / "data/processed/usb_master_dataset.parquet"
-        )
+        dataset_path = project_root / "data/processed/usb_master_dataset.parquet"
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
 
