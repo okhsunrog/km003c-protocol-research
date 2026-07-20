@@ -8,10 +8,10 @@ from Crypto.Cipher import AES
 
 # Known AES keys from Mtools.exe reverse engineering (all 4 extracted)
 KEYS = {
-    0: b"Lh2yfB7n6X7d9a5Z",  # Unknown68 memory download
+    0: b"Lh2yfB7n6X7d9a5Z",  # MemoryRead
     1: b"sdkW78R3k5dj0fHv",  # Key 1
     2: b"Uy34VW13jHj3598e",  # Key 2
-    3: b"Fa0b4tA25f4R038a",  # Unknown76 auth
+    3: b"Fa0b4tA25f4R038a",  # StreamingAuth
 }
 
 

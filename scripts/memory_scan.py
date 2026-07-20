@@ -6,8 +6,8 @@ Scans various memory addresses and reports response types.
 This reproduces the Rust memory_scan binary functionality.
 
 Usage:
-    uv run scripts/memory_scan.py
-    uv run scripts/memory_scan.py --quick   # Only known addresses
+    uv run --locked scripts/memory_scan.py
+    uv run --locked scripts/memory_scan.py --quick   # Only known addresses
 """
 
 import argparse
@@ -215,18 +215,43 @@ class KM003C:
             elif resp_type == 0x27:  # NotReadable
                 return ScanResult(ReadResult.NOT_READABLE)
             elif resp_type == 0x44:  # Confirmation (0xC4 with bit 7 set)
-                # Read encrypted data packet
-                try:
-                    data_packet = self._recv(timeout=500)
-                except usb.core.USBTimeoutError:
-                    return ScanResult(ReadResult.TIMEOUT, error_msg="data timeout")
+                if len(response) != 20 or response[1] != request[1]:
+                    return ScanResult(
+                        ReadResult.ERROR,
+                        error_msg="invalid MemoryRead confirmation header",
+                    )
+                echoed_address, echoed_size, magic, checksum = struct.unpack(
+                    "<IIII", response[4:20]
+                )
+                expected_crc = crc32(response[4:16])
+                if (echoed_address, echoed_size, magic, checksum) != (
+                    address,
+                    size,
+                    0xFFFFFFFF,
+                    expected_crc,
+                ):
+                    return ScanResult(
+                        ReadResult.ERROR,
+                        error_msg="invalid MemoryRead confirmation payload",
+                    )
 
-                # Decrypt if valid AES block
-                if len(data_packet) > 0 and len(data_packet) % 16 == 0:
-                    decrypted = decrypt_ecb(data_packet)
-                    return ScanResult(ReadResult.DATA, size=len(decrypted))
-                else:
-                    return ScanResult(ReadResult.DATA, size=len(data_packet))
+                expected_size = (size + AES.block_size - 1) // AES.block_size
+                expected_size *= AES.block_size
+                encrypted = bytearray()
+                while len(encrypted) < expected_size:
+                    try:
+                        transfer = self._recv(timeout=500)
+                    except usb.core.USBTimeoutError:
+                        return ScanResult(ReadResult.TIMEOUT, error_msg="data timeout")
+                    if not transfer or len(encrypted) + len(transfer) > expected_size:
+                        return ScanResult(
+                            ReadResult.ERROR,
+                            error_msg="invalid MemoryRead data length",
+                        )
+                    encrypted.extend(transfer)
+
+                decrypt_ecb(bytes(encrypted))
+                return ScanResult(ReadResult.DATA, size=size)
             else:
                 return ScanResult(
                     ReadResult.ERROR, error_msg=f"unexpected type 0x{resp_type:02X}"

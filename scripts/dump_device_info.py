@@ -10,8 +10,8 @@ to extract device information including:
 - Calibration data
 
 Usage:
-    uv run scripts/dump_device_info.py
-    uv run scripts/dump_device_info.py --raw  # Also save raw decrypted data
+    uv run --locked scripts/dump_device_info.py
+    uv run --locked scripts/dump_device_info.py --raw  # Also save raw decrypted data
 """
 
 import argparse
@@ -141,13 +141,10 @@ class KM003C:
         except usb.core.USBTimeoutError:
             return None
 
-    def _build_download_request(self, address: int, size: int) -> bytes:
-        """Build encrypted Unknown68 download request."""
-        # Build plaintext payload
+    def _build_memory_read_request(self, address: int, size: int) -> bytes:
+        """Build an encrypted MemoryRead request."""
         payload = struct.pack("<III", address, size, 0xFFFFFFFF)
-        # Add padding for CRC calculation
-        padded = payload + b"\xff" * 4
-        checksum = crc32(padded)
+        checksum = crc32(payload)
 
         # Full 32-byte payload
         full_payload = payload + struct.pack("<I", checksum) + (b"\xff" * 16)
@@ -163,27 +160,59 @@ class KM003C:
 
     def download_memory(self, address: int, size: int) -> bytes:
         """Download memory from device at specified address."""
-        request = self._build_download_request(address, size)
+        request = self._build_memory_read_request(address, size)
         self._send(request)
 
-        # Read Unknown68 response (20 bytes)
         response = self._recv()
-        if len(response) < 20:
-            raise ValueError(f"Invalid Unknown68 response: {len(response)} bytes")
+        if not response:
+            raise ValueError("Received an empty MemoryRead confirmation")
+        response_type = response[0] & 0x7F
+        if response_type == 0x06:
+            raise ValueError("MemoryRead request rejected by device")
+        if response_type == 0x27:
+            raise ValueError("MemoryRead address is not readable")
+        if len(response) != 20:
+            raise ValueError(f"Invalid MemoryRead confirmation: {len(response)} bytes")
+        if response_type != 0x44:
+            raise ValueError(f"Unexpected confirmation type: 0x{response_type:02x}")
+        if response[1] != request[1]:
+            raise ValueError(
+                f"Confirmation transaction ID {response[1]} does not match {request[1]}"
+            )
+        if response[2:4] != b"\x01\x01":
+            raise ValueError(
+                f"Unexpected confirmation control word: {response[2:4].hex()}"
+            )
 
-        # Check for error (type 0x06 = Rejected)
-        if (response[0] & 0x7F) == 0x06:
-            raise ValueError("Request rejected by device")
+        echoed_address, echoed_size, magic, confirmation_crc = struct.unpack(
+            "<IIII", response[4:20]
+        )
+        if (echoed_address, echoed_size) != (address, size):
+            raise ValueError(
+                "MemoryRead confirmation does not echo the requested address and size"
+            )
+        if magic != 0xFFFFFFFF:
+            raise ValueError(f"Unexpected MemoryRead magic value: 0x{magic:08x}")
+        expected_crc = crc32(response[4:16])
+        if confirmation_crc != expected_crc:
+            raise ValueError(
+                f"MemoryRead confirmation CRC mismatch: "
+                f"0x{confirmation_crc:08x} != 0x{expected_crc:08x}"
+            )
 
-        # Check encryption flag (bit 16)
-        data_encrypted = (response[2] & 0x01) == 1
+        encrypted_size = (size + AES.block_size - 1) // AES.block_size * AES.block_size
+        encrypted = bytearray()
+        while len(encrypted) < encrypted_size:
+            transfer = self._recv(timeout=3000)
+            if not transfer:
+                raise ValueError("Received an empty MemoryRead data transfer")
+            encrypted.extend(transfer)
+            if len(encrypted) > encrypted_size:
+                raise ValueError(
+                    f"MemoryRead returned {len(encrypted)} bytes, expected {encrypted_size}"
+                )
 
-        # Read data packet
-        data_packet = self._recv(timeout=3000)
-
-        if data_encrypted and len(data_packet) % 16 == 0:
-            return decrypt_ecb(data_packet)
-        return data_packet
+        return decrypt_ecb(bytes(encrypted))[:size]
 
     def initialize(self):
         """Run minimal initialization sequence."""
