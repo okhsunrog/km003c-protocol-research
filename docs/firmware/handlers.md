@@ -82,11 +82,18 @@ undefined4 aes128_ecb_encrypt(uint *source, uint size, uint *key, uint *output) 
 if (memcmp(&decrypted[8], (void*)0x40010450, 12) == 0) {
     DAT_20004041 = 1;  // Level 1 - device authenticated
 }
-// Or check against calibration data (0x03000c00)
-else if (decrypted matches calibration_data) {
+// Or check bytes 8-19 against the first 12 bytes of the selected
+// calibration record. Prefer 0x03000d80 when it is not erased;
+// otherwise use 0x03000c00.
+else if (memcmp(&decrypted[8], selected_calibration_record, 12) == 0) {
     DAT_20004041 = 2;  // Level 2 - calibration authenticated
 }
 ```
+
+The response attribute contains the actual level in bits 1-2:
+`auth_level = (attribute >> 1) & 0x03`. Consequently level 1 produces the
+observed attribute `0x0203`, while level 2 would produce `0x0205`; testing only
+bit 1 incorrectly treats a level-2 response as failure.
 
 ### Level Enforcement Examples
 
@@ -133,9 +140,9 @@ are left unnamed unless corroborated by the device UI or a host capture.
 
 | Operation | Auth checked in handler | Effect |
 |-----------|-------------------------|--------|
-| `0x01` | none | Set settings-A word 0 bit 0 |
-| `0x02` | none | Clear settings-A word 0 bit 2 |
-| `0x03` | none | Set settings-A word 0 bits 3-9 from a 7-bit value |
+| `0x01` | none | Set language selection in settings-A word 0 bit 0 |
+| `0x02` | none | Clear the uncalibrated/calibration-required flag in settings-A word 0 bit 2 |
+| `0x03` | none | Set display brightness percentage in settings-A word 0 bits 3-9 |
 | `0x04` | none | Set settings-A word 0 bits 10-11 |
 | `0x05` | none | Set settings-A word 0 bits 12-13 |
 | `0x06`, `0x1C` | none | Set settings-A word 0 bits 14-15, then apply runtime state |
@@ -150,8 +157,8 @@ are left unnamed unless corroborated by the device UI or a host capture.
 | `0x14` | none | Set screen orientation in settings-B word 0 bits 0-1; persist |
 | `0x15` | none | Set settings-B word 0 bits 2-3 and apply it immediately; persist |
 | `0x16` | none | Set settings-B word 0 bits 4-5; persist |
-| `0x17` | none | Set settings-B word 0 bits 6-9; persist |
-| `0x28` | none | Write consecutive 48-byte payload records to a file, stopping before offset `0x780`; file purpose remains unknown |
+| `0x17` | none | Set the persisted main-page selection in settings-B word 0 bits 6-9; persist |
+| `0x28` | none | Append consecutive 48-byte LogMetadata catalog entries, stopping before catalog offset `0x780` (40 entries) |
 | `0x7FFF` | none | Persist settings-A without changing a field |
 
 Operations `0x10`-`0x13`, `0x18`-`0x1B`, `0x1D`-`0x27` currently fall
@@ -267,32 +274,40 @@ framed requests or responses for them are present in the current capture set.
 These layouts therefore remain firmware-derived rather than interoperable
 protocol guarantees.
 
-Attribute `0x0020` drains two independent queues. Each queue is encoded as one
-byte containing its following byte length, then zero or more fixed five-byte
-records:
+Attribute `0x0020` drains two USB PD state-machine trace queues. Each queue is
+encoded as one byte containing its following byte length, then zero or more
+fixed five-byte records:
 
 ```text
-[queue_1_bytes: u8][queue_1: N * 5 bytes]
-[queue_2_bytes: u8][queue_2: M * 5 bytes]
+[queue_1_bytes: u8][event_code: u8][uptime_seconds: u32 LE]...
+[queue_2_bytes: u8][event_code: u8][uptime_seconds: u32 LE]...
 ```
 
-The firmware caps each copied queue at 200 bytes. The purpose and record fields
-remain unknown.
+The firmware caps each copied queue at 200 bytes. Producers show the first
+queue receiving PD state-transition codes and the second receiving protocol
+and message-event codes, including `0x82` and `0x83` during extended-message
+processing. The numeric code enumeration is not mapped yet. The timestamp is
+the firmware millisecond uptime counter divided by 1000.
 
-Attribute `0x0040` starts with a 12-byte preamble followed by records drained
-from a variable-length event ring:
+Attribute `0x0040` is the UFCS trace attribute. This is confirmed by the owning
+state object, its `TASK_UFCS` initializer, and the RX/TX producers of the event
+ring. It starts with a 12-byte preamble followed by variable records:
 
 ```text
-[timestamp: u32]
+[uptime_ms_low32: u32]
 [measurement_1: u16][measurement_2: u16]
 [measurement_3: u16][measurement_4: u16]
-[event records: variable]
+[event descriptor: 8 bytes][optional frame bytes]...
 ```
 
-Its structure parallels the PD event path but reads different measurement
-fields and a different ring buffer. The association with Quick Charge remains
-a hypothesis until captured traffic or stronger call-site evidence confirms
-it.
+Each descriptor is `[timestamp_ms: u32][offset_or_value: u8][end_or_value: u8]`
+`[payload_len: u8][kind: u8]`. Kind `0` records a received UFCS frame and kind
+`1` a transmitted UFCS frame; these descriptors are immediately followed by
+`payload_len` frame bytes. Kind `0x40` records a UFCS state event and carries no
+trailing frame. Kinds `2` and `3` are supported by the ring code but have no
+identified producer in V1.9.9. The four measurement fields are still unnamed.
+No framed `0x0040` capture is available, so this exact layout remains
+firmware-derived.
 
 ---
 

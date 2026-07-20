@@ -19,9 +19,9 @@ exposed yet.
 | MemoryRead (`0x44`) | Implemented | Parse helpers only | Rust validates confirmation and collects multi-transfer ciphertext |
 | Offline log workflow | Implemented | Research script | Typed `uom` samples, per-entry offsets, CSV/JSON CLI export |
 | StreamingAuth level 1 (`0x4C`) | Implemented | Crypto parsing helpers | HardwareID-based AdcQueue authentication |
-| Authentication level 2 | Not implemented | Not implemented | Firmware-derived flow is not reproduced |
+| Authentication level 2 | Not implemented | Not implemented | Exact V1.9.9 credential selection and response bits are firmware-derived; hardware reproduction is pending |
 | Enable/Disable PD monitor | Implemented | Constants/parsing | Exact device-side effect remains unknown |
-| QC/extra attributes | Not implemented | Not implemented | Firmware-derived, not confirmed in framed captures |
+| PD/UFCS trace attributes (`0x0020`/`0x0040`) | Not implemented | Not implemented | Record layouts and producers are firmware-derived, not confirmed in framed captures |
 | Flash write / command `0x4B` / settings writes `0x48` / `0x4D` | Not implemented | Not implemented | Nested settings layout is firmware-confirmed, but writes remain research-only until safe semantics and hardware behavior are confirmed |
 | Bootloader/firmware update | Not implemented | Not implemented | Separate protocol flow |
 | CDC transport | Not implemented | Not implemented | Rust supports vendor bulk and HID interfaces |

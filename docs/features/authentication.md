@@ -238,10 +238,27 @@ From firmware at `FUN_0004eaf0` case 0x4C:
 if (memcmp(&decrypted[8], (void*)0x40010450, 12) == 0) {
     DAT_20004041 = 1;  // Level 1 - device authenticated
 }
-// Or check against calibration data (0x03000c00)
-else if (decrypted matches calibration_data) {
+// Otherwise prefer the record at 0x03000d80 when its first word is not
+// 0xffffffff; fall back to 0x03000c00. Compare its first 12 bytes.
+else if (memcmp(&decrypted[8], selected_calibration_record, 12) == 0) {
     DAT_20004041 = 2;  // Level 2
 }
+```
+
+Level 2 therefore uses the same StreamingAuth request format as level 1. The
+only credential difference is bytes `8..20`: HardwareID selects level 1, while
+the first 12 bytes of the selected calibration record select level 2. This is
+confirmed from reverse engineering V1.9.9 but has not yet been exercised on a
+device.
+
+The response header encodes the level, rather than a Boolean grant, in
+attribute bits 1-2:
+
+```text
+auth_level = (attribute >> 1) & 0x03
+level 0 attribute: 0x0201
+level 1 attribute: 0x0203
+level 2 attribute: 0x0205
 ```
 
 ### Level Enforcement
@@ -277,7 +294,8 @@ V1.9.9 (`KM003C_V1.9.9_key0_ecb.bin`).
 | 0x40008020 | Hardware AES key register |
 | DAT_20004041 | Authentication level (0/1/2) |
 | 0x40010450 | HardwareID (12 bytes) |
-| 0x03000c00 | Calibration data table |
+| 0x03000c00 | Fallback calibration record used for level 2 |
+| 0x03000d80 | Preferred calibration record used for level 2 when not erased |
 
 ### Key Transformation
 
@@ -339,9 +357,9 @@ def parse_auth_response(response: bytes) -> dict:
     decrypted = cipher.decrypt(response[4:36])
 
     return {
-        "success": (attr & 0x02) != 0,  # Bit 1 = AdcQueue enabled
+        "success": ((attr >> 1) & 0x03) != 0,
         "attr": attr,
-        "auth_level": 1 if (attr & 0x02) else 0,
+        "auth_level": (attr >> 1) & 0x03,
         "decrypted_timestamp": struct.unpack('<Q', decrypted[0:8])[0],
     }
 

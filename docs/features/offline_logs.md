@@ -59,6 +59,11 @@ as concatenated entries. On a device with A01, A02, and A03, the offsets were
 base-plus-offset address produced the declared sample count, and both final
 accumulators matched its metadata exactly.
 
+Reverse engineering of KM003C V1.9.9 also connects settings-batch operation
+`0x28` to this catalog: it appends consecutive 48-byte entries to the same
+internal file read for attribute `0x0200`, up to `0x780` bytes (40 entries).
+This write path is firmware-confirmed but has not been sent to hardware.
+
 ### Active Recordings
 
 An active recording is already present in the catalog, but its entry remains

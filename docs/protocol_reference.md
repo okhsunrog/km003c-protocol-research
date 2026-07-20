@@ -398,16 +398,19 @@ important when comparing captures or attempting to decode fields.
 | 0x70 | 64 | char[] | device_name | UTF-8, null-terminated |
 | 0xB0 | 4 | u32 | settings_b_checksum | Hardware CRC over bytes `0x60..0xAF` |
 
-Known settings-A flag fields are bit 0, bit 2, bits 3-9, bits 10-11,
-bits 12-13, bits 14-15, and bits 16-18. The nested settings command has a
-dedicated setter for each. The bits 3-9 getter clamps values above 100, but its
-user-facing name is not yet independently confirmed.
+Known settings-A flag fields are bit 0 (language selection), bit 2
+(uncalibrated/calibration-required), bits 3-9 (display brightness percentage),
+bits 10-11, bits 12-13, bits 14-15, and bits 16-18. The nested settings command
+has a dedicated setter for each. Firmware UI consumers confirm the first three
+names: localization selects one of two string columns, startup displays
+`Uncalibrated` for bit 2, and the brightness UI uses a 10-100 slider.
 
 Known settings-B flag fields are bits 0-1, 2-3, 4-5, 6-9, 10-12, bit 13,
 bits 14-16, and bits 17-21. V1.9.9 firmware uses bits 0-1 for screen
 orientation and applies them through the LCD `0x36` address-mode command.
-Mtools uses bits 2-3 as the device mode. Firmware nested operations
-`0x14`-`0x17` write the first four fields respectively.
+Mtools uses bits 2-3 as the device mode. Bits 6-9 persist the selected main UI
+page. Firmware nested operations `0x14`-`0x17` write the first four fields
+respectively.
 
 **Example values:**
 
