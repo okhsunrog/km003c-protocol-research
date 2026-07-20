@@ -14,11 +14,12 @@ import argparse
 import binascii
 import struct
 import time
+from dataclasses import dataclass
+from enum import Enum
+
 import usb.core
 import usb.util
 from Crypto.Cipher import AES
-from dataclasses import dataclass
-from enum import Enum
 
 # Device identifiers
 VID = 0x5FC9
@@ -43,13 +44,35 @@ KNOWN_ADDRESSES = {
 
 # Boundary addresses to scan
 BOUNDARY_ADDRESSES = [
-    0x00000000, 0x00000100, 0x00000200, 0x00000400, 0x00000800,
-    0x00001000, 0x00002000, 0x00004000, 0x00008000, 0x00010000,
-    0x00100000, 0x01000000, 0x02000000, 0x03000000, 0x04000000,
-    0x08000000, 0x10000000, 0x20000000,
-    0x40000000, 0x40010000, 0x40020000,
-    0x80000000, 0x90000000, 0x98000000, 0x9F000000,
-    0xA0000000, 0xE0000000, 0xF0000000, 0xFFFFFF00,
+    0x00000000,
+    0x00000100,
+    0x00000200,
+    0x00000400,
+    0x00000800,
+    0x00001000,
+    0x00002000,
+    0x00004000,
+    0x00008000,
+    0x00010000,
+    0x00100000,
+    0x01000000,
+    0x02000000,
+    0x03000000,
+    0x04000000,
+    0x08000000,
+    0x10000000,
+    0x20000000,
+    0x40000000,
+    0x40010000,
+    0x40020000,
+    0x80000000,
+    0x90000000,
+    0x98000000,
+    0x9F000000,
+    0xA0000000,
+    0xE0000000,
+    0xF0000000,
+    0xFFFFFF00,
 ]
 
 
@@ -142,7 +165,9 @@ class KM003C:
     def _send_cmd(self, cmd_type: int, data_word: int) -> bytes | None:
         """Send 4-byte command and return response."""
         tid = self._next_tid()
-        packet = bytes([cmd_type & 0x7F, tid, data_word & 0xFF, (data_word >> 8) & 0xFF])
+        packet = bytes(
+            [cmd_type & 0x7F, tid, data_word & 0xFF, (data_word >> 8) & 0xFF]
+        )
         self._send(packet)
         try:
             return self._recv()
@@ -152,9 +177,9 @@ class KM003C:
     def _build_memory_read_request(self, address: int, size: int) -> bytes:
         """Build encrypted MemoryRead (0x44) request."""
         # Build plaintext: address + size + magic + CRC + padding
-        payload = struct.pack('<III', address, size, 0xFFFFFFFF)
+        payload = struct.pack("<III", address, size, 0xFFFFFFFF)
         checksum = crc32(payload)
-        full_payload = payload + struct.pack('<I', checksum) + (b'\xFF' * 16)
+        full_payload = payload + struct.pack("<I", checksum) + (b"\xff" * 16)
 
         # Encrypt
         encrypted = encrypt_ecb(full_payload)
@@ -178,7 +203,9 @@ class KM003C:
                 return ScanResult(ReadResult.TIMEOUT)
 
             if len(response) < 4:
-                return ScanResult(ReadResult.ERROR, error_msg=f"short response: {len(response)}B")
+                return ScanResult(
+                    ReadResult.ERROR, error_msg=f"short response: {len(response)}B"
+                )
 
             resp_type = response[0] & 0x7F
 
@@ -201,7 +228,9 @@ class KM003C:
                 else:
                     return ScanResult(ReadResult.DATA, size=len(data_packet))
             else:
-                return ScanResult(ReadResult.ERROR, error_msg=f"unexpected type 0x{resp_type:02X}")
+                return ScanResult(
+                    ReadResult.ERROR, error_msg=f"unexpected type 0x{resp_type:02X}"
+                )
 
         except usb.core.USBError as e:
             return ScanResult(ReadResult.ERROR, error_msg=str(e))
@@ -217,17 +246,19 @@ class KM003C:
     def close(self):
         try:
             usb.util.release_interface(self.dev, INTERFACE_NUM)
-        except:
+        except usb.core.USBError:
             pass
         try:
             usb.util.dispose_resources(self.dev)
-        except:
+        except usb.core.USBError:
             pass
 
 
 def main():
     parser = argparse.ArgumentParser(description="Scan KM003C memory regions")
-    parser.add_argument("--quick", action="store_true", help="Only scan known addresses")
+    parser.add_argument(
+        "--quick", action="store_true", help="Only scan known addresses"
+    )
     parser.add_argument("--no-reset", action="store_true", help="Skip USB reset")
     args = parser.parse_args()
 
@@ -261,7 +292,10 @@ def main():
                 time.sleep(0.05)
 
                 # Stop if device disconnected
-                if result.result == ReadResult.ERROR and "disconnect" in result.error_msg.lower():
+                if (
+                    result.result == ReadResult.ERROR
+                    and "disconnect" in result.error_msg.lower()
+                ):
                     print("\n  Device disconnected! Stopping scan.")
                     break
 
@@ -297,6 +331,7 @@ def main():
     except Exception as e:
         print(f"\nError: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

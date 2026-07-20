@@ -14,10 +14,11 @@ Key findings:
 - AdcQueue only works on vendor interface (not HID)
 """
 
+import time
+
 import usb.core
 import usb.util
-import time
-from km003c_lib import VID, PID
+from km003c import PID, VID
 
 INTERFACE_NUM = 0  # Vendor/Bulk interface
 ENDPOINT_OUT = 0x01
@@ -86,7 +87,11 @@ def main():
 
     # Unknown76 (tid=2) - REQUIRED
     print("  Unknown76...", end=" ")
-    resp = send_raw(bytes.fromhex("4c0200025538815b69a452c83e54ef1d70f3bc9ae6aac1b12a6ac07c20fde58c7bf517ca"))
+    resp = send_raw(
+        bytes.fromhex(
+            "4c0200025538815b69a452c83e54ef1d70f3bc9ae6aac1b12a6ac07c20fde58c7bf517ca"
+        )
+    )
     print("OK" if resp else "timeout")
 
     # # GetData PD status - NOT required for AdcQueue
@@ -142,10 +147,14 @@ def main():
                 payload = data[8:]
                 num_samples = len(payload) // 20
                 remainder = len(payload) % 20
-                print(f"  Payload: {len(payload)} bytes ({num_samples} samples, {remainder} remainder)")
+                print(
+                    f"  Payload: {len(payload)} bytes ({num_samples} samples, {remainder} remainder)"
+                )
 
                 if num_samples > 0:
-                    print(f"\n{'Seq':>6} {'VBUS (V)':>10} {'IBUS (A)':>10} {'Power (W)':>10}")
+                    print(
+                        f"\n{'Seq':>6} {'VBUS (V)':>10} {'IBUS (A)':>10} {'Power (W)':>10}"
+                    )
                     print("=" * 42)
 
                     for i in range(min(10, num_samples)):  # Show up to 10 samples
@@ -160,7 +169,9 @@ def main():
                         ibus_a = ibus_ua / 1e6
                         power_w = vbus_v * ibus_a
 
-                        print(f"{seq:>6} {vbus_v:>10.3f} {ibus_a:>10.3f} {power_w:>10.3f}")
+                        print(
+                            f"{seq:>6} {vbus_v:>10.3f} {ibus_a:>10.3f} {power_w:>10.3f}"
+                        )
 
                     if num_samples > 10:
                         print(f"... ({num_samples - 10} more samples)")

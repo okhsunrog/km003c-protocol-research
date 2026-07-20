@@ -7,9 +7,10 @@ let's extract all of them from the SQLite data and analyze the power profiles.
 """
 
 import sqlite3
-import usbpdpy
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
+
+import usbpdpy
 
 
 def extract_source_capabilities_from_sqlite():
@@ -52,7 +53,7 @@ def extract_source_capabilities_from_sqlite():
                 break
 
             # Read 6-byte event header
-            event_header = raw_data[cursor_pos:cursor_pos + 6]
+            event_header = raw_data[cursor_pos : cursor_pos + 6]
             if len(event_header) < 6:
                 break
 
@@ -65,16 +66,14 @@ def extract_source_capabilities_from_sqlite():
 
             # Extract PD wire message
             cursor_pos += 6  # Skip event header
-            wire_bytes = raw_data[cursor_pos:cursor_pos + wire_size]
+            wire_bytes = raw_data[cursor_pos : cursor_pos + wire_size]
             cursor_pos += wire_size
 
             if len(wire_bytes) == 26:  # Source_Capabilities candidate
                 wire_hex = wire_bytes.hex()
-                all_26byte_messages.append({
-                    'timestamp': time_val,
-                    'hex': wire_hex,
-                    'bytes': wire_bytes
-                })
+                all_26byte_messages.append(
+                    {"timestamp": time_val, "hex": wire_hex, "bytes": wire_bytes}
+                )
 
                 parse_attempts += 1
                 try:
@@ -82,14 +81,16 @@ def extract_source_capabilities_from_sqlite():
                     successful_parses += 1
 
                     if msg.header.message_type == "Source_Capabilities":
-                        source_caps_found.append({
-                            'timestamp': time_val,
-                            'hex': wire_hex,
-                            'message': msg,
-                            'pdos': msg.data_objects
-                        })
+                        source_caps_found.append(
+                            {
+                                "timestamp": time_val,
+                                "hex": wire_hex,
+                                "message": msg,
+                                "pdos": msg.data_objects,
+                            }
+                        )
 
-                except Exception as e:
+                except Exception:
                     # Ignore parse errors for now
                     pass
 
@@ -108,20 +109,22 @@ def extract_source_capabilities_from_sqlite():
         power_profiles = defaultdict(list)
 
         for i, cap in enumerate(source_caps_found):
-            print(f"--- Source_Capabilities #{i+1} (t={cap['timestamp']}ms) ---")
+            print(f"--- Source_Capabilities #{i + 1} (t={cap['timestamp']}ms) ---")
             print(f"Hex: {cap['hex']}")
 
             # Create power profile signature
             profile_sig = []
-            for j, pdo in enumerate(cap['pdos']):
+            for j, pdo in enumerate(cap["pdos"]):
                 pdo_desc = f"{pdo.pdo_type}_{pdo.voltage_v}V_{pdo.max_current_a}A"
                 profile_sig.append(pdo_desc)
-                print(f"  PDO{j+1}: {pdo.pdo_type} {pdo.voltage_v}V @ {pdo.max_current_a}A = {pdo.max_power_w}W")
-                if hasattr(pdo, 'unconstrained_power') and pdo.unconstrained_power:
-                    print(f"    (Unconstrained power)")
+                print(
+                    f"  PDO{j + 1}: {pdo.pdo_type} {pdo.voltage_v}V @ {pdo.max_current_a}A = {pdo.max_power_w}W"
+                )
+                if hasattr(pdo, "unconstrained_power") and pdo.unconstrained_power:
+                    print("    (Unconstrained power)")
 
             profile_key = " | ".join(profile_sig)
-            power_profiles[profile_key].append(cap['timestamp'])
+            power_profiles[profile_key].append(cap["timestamp"])
             print()
 
         print("=== UNIQUE POWER PROFILES ===")
@@ -137,13 +140,15 @@ def extract_source_capabilities_from_sqlite():
 
     for msg_data in all_26byte_messages:
         try:
-            msg = usbpdpy.parse_pd_message(msg_data['bytes'])
+            msg = usbpdpy.parse_pd_message(msg_data["bytes"])
             if msg.header.message_type == "Source_Capabilities":
                 direct_source_caps += 1
-        except:
+        except Exception:
             pass
 
-    print(f"Direct parsing: {direct_source_caps}/{len(all_26byte_messages)} are Source_Capabilities")
+    print(
+        f"Direct parsing: {direct_source_caps}/{len(all_26byte_messages)} are Source_Capabilities"
+    )
 
     return source_caps_found
 

@@ -189,7 +189,7 @@ that field begins at bit 17, its value appears shifted left by one in wire byte 
 | 3 | 0x06 | 1000 SPS |
 
 APIs that construct the bitfield header, including Python's
-`km003c_lib.create_packet()`, take the logical index and perform this encoding
+`km003c.create_packet()`, take the logical index and perform this encoding
 automatically.
 
 **Prerequisite:** StreamingAuth (0x4C) must be sent first.

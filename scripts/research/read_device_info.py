@@ -3,13 +3,14 @@
 Read and decrypt device info blocks from KM003C device.
 """
 
+import binascii
+import struct
+import time
+
 import usb.core
 import usb.util
-import time
-import struct
-import binascii
 from Crypto.Cipher import AES
-from km003c_lib import VID, PID
+from km003c import PID, VID
 
 INTERFACE_NUM = 0
 ENDPOINT_OUT = 0x01
@@ -21,11 +22,11 @@ AES_KEY_0 = b"Lh2yfB7n6X7d9a5Z"
 def build_unknown68_request(address: int, size: int, tid: int = 0x02) -> bytes:
     """Build Unknown68 memory download request packet."""
     plaintext = bytearray(32)
-    struct.pack_into('<I', plaintext, 0, address)
-    struct.pack_into('<I', plaintext, 4, size)
-    struct.pack_into('<I', plaintext, 8, 0xFFFFFFFF)
+    struct.pack_into("<I", plaintext, 0, address)
+    struct.pack_into("<I", plaintext, 4, size)
+    struct.pack_into("<I", plaintext, 8, 0xFFFFFFFF)
     crc = binascii.crc32(bytes(plaintext[0:12])) & 0xFFFFFFFF
-    struct.pack_into('<I', plaintext, 12, crc)
+    struct.pack_into("<I", plaintext, 12, crc)
     for i in range(16, 32):
         plaintext[i] = 0xFF
 
@@ -66,10 +67,10 @@ def main():
 
     def read_memory(address, size, tid, description):
         """Read memory and parse response."""
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"{description}")
         print(f"Address: 0x{address:08X}, Size: 0x{size:02X}")
-        print("="*60)
+        print("=" * 60)
 
         packet = build_unknown68_request(address, size, tid)
         dev.write(ENDPOINT_OUT, packet, timeout=2000)
@@ -87,14 +88,16 @@ def main():
                     if resp_type in [0x1A, 0x2C, 0x3A, 0x75]:
                         data = resp_bytes[4:]  # Skip 4-byte header
                         all_data.extend(data)
-                        print(f"Data packet (type 0x{resp_type:02X}): {len(data)} bytes")
+                        print(
+                            f"Data packet (type 0x{resp_type:02X}): {len(data)} bytes"
+                        )
                     elif resp_type == 0x44:
-                        print(f"Confirmation (0x44)")
+                        print("Confirmation (0x44)")
                     elif resp_type == 0x06:
-                        print(f"REJECTED (0x06)")
+                        print("REJECTED (0x06)")
                         return None
                     elif resp_type == 0x27:
-                        print(f"Not readable (0x27)")
+                        print("Not readable (0x27)")
                         return None
             except usb.core.USBTimeoutError:
                 break
@@ -105,29 +108,31 @@ def main():
             print(f"  {all_data.hex()}")
 
             # Try decrypting with AES-ECB
-            print(f"\nDecrypted (AES-ECB):")
+            print("\nDecrypted (AES-ECB):")
             decrypted = bytearray()
             for i in range(0, len(all_data), 16):
-                block = all_data[i:i+16]
+                block = all_data[i : i + 16]
                 if len(block) == 16:
                     dec_block = cipher.decrypt(bytes(block))
                     decrypted.extend(dec_block)
-                    print(f"  Block {i//16}: {dec_block.hex()}")
+                    print(f"  Block {i // 16}: {dec_block.hex()}")
                     # Try to decode as ASCII
                     try:
-                        ascii_str = dec_block.decode('ascii', errors='replace')
-                        printable = ''.join(c if c.isprintable() else '.' for c in ascii_str)
+                        ascii_str = dec_block.decode("ascii", errors="replace")
+                        printable = "".join(
+                            c if c.isprintable() else "." for c in ascii_str
+                        )
                         print(f"         ASCII: {printable}")
-                    except:
+                    except UnicodeError:
                         pass
 
             # Also show as raw ASCII
-            print(f"\nRaw as ASCII:")
+            print("\nRaw as ASCII:")
             try:
-                ascii_str = all_data.decode('ascii', errors='replace')
-                printable = ''.join(c if c.isprintable() else '.' for c in ascii_str)
+                ascii_str = all_data.decode("ascii", errors="replace")
+                printable = "".join(c if c.isprintable() else "." for c in ascii_str)
                 print(f"  {printable}")
-            except:
+            except UnicodeError:
                 pass
 
         return all_data
@@ -160,7 +165,7 @@ def main():
         time.sleep(0.15)
 
     usb.util.release_interface(dev, INTERFACE_NUM)
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Done!")
     return 0
 

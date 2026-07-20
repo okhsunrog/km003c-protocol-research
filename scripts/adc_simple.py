@@ -16,11 +16,11 @@ Usage:
 """
 
 import argparse
+
 import usb.core
 import usb.util
-from km003c_lib import VID, PID, parse_packet, create_packet, CMD_GET_DATA, ATT_ADC
+from km003c import ATT_ADC, CMD_GET_DATA, PID, VID, create_packet, parse_packet
 from km003c_helpers import get_adc_data
-
 
 # USB Interface configurations
 # Based on km003c-lib/src/device.rs documentation
@@ -66,14 +66,16 @@ class KM003C:
                     try:
                         self.dev.detach_kernel_driver(intf.bInterfaceNumber)
                     except usb.core.USBError as e:
-                        raise RuntimeError(f"Could not detach kernel driver from interface {intf.bInterfaceNumber}: {e}")
+                        raise RuntimeError(
+                            f"Could not detach kernel driver from interface {intf.bInterfaceNumber}: {e}"
+                        )
 
         # Set configuration and claim interface
         self.dev.set_configuration()
         usb.util.claim_interface(self.dev, self.interface_num)
 
         self.transaction_id = 0
-        print(f"Connected to POWER-Z KM003C")
+        print("Connected to POWER-Z KM003C")
 
     def _next_transaction_id(self):
         """Get next transaction ID (8-bit rollover)."""
@@ -129,7 +131,8 @@ def main():
         description="Simple ADC data reader for POWER-Z KM003C"
     )
     parser.add_argument(
-        "-i", "--interface",
+        "-i",
+        "--interface",
         choices=["vendor", "hid"],
         default="hid",
         help="USB interface: 'vendor' (fast, ~0.6ms) or 'hid' (compatible, ~3.8ms)",
@@ -161,6 +164,7 @@ def main():
     except Exception as e:
         print(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

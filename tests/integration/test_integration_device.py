@@ -9,33 +9,31 @@ Or: pytest tests/integration/ -v -s
 """
 
 import sys
+import time
 from pathlib import Path
 
 import pytest
 import usb.core
 import usb.util
-import time
-from km003c_lib import (
-    VID,
-    PID,
-    AdcData,
-    AdcQueueData,
-    parse_packet,
-    parse_raw_packet,
-    create_packet,
+from km003c import (
+    ATT_ADC,
+    ATT_ADC_QUEUE,
     CMD_CONNECT,
     CMD_GET_DATA,
     CMD_START_GRAPH,
     CMD_STOP_GRAPH,
-    ATT_ADC,
-    ATT_ADC_QUEUE,
+    PID,
     RATE_50_SPS,
+    VID,
+    AdcData,
+    create_packet,
+    parse_packet,
+    parse_raw_packet,
 )
 
 # Import helpers for dict-based API navigation
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
-from km003c_helpers import get_packet_type, get_adc_data, get_adcqueue_data
-
+from km003c_helpers import get_adc_data, get_adcqueue_data, get_packet_type
 
 # Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration
@@ -92,7 +90,7 @@ def device():
         try:
             response = bytes(dev.read(endpoint_in, 1024, timeout=2000))
             return tid, response
-        except Exception as e:
+        except Exception:
             return tid, None
 
     def reset_device_state():
@@ -126,7 +124,7 @@ def device():
             dev.write(endpoint_out, bytes.fromhex(cmd_hex))
             try:
                 dev.read(endpoint_in, 1024, timeout=2000)
-            except:
+            except usb.core.USBError:
                 pass
             time.sleep(0.05)
 
@@ -139,7 +137,7 @@ def device():
         )
         try:
             dev.read(endpoint_in, 1024, timeout=2000)
-        except:
+        except usb.core.USBError:
             pass
         time.sleep(0.05)
 
@@ -157,7 +155,7 @@ def device():
         try:
             while True:
                 dev.read(endpoint_in, 1024, timeout=100)
-        except:
+        except usb.core.USBError:
             pass  # Timeout means no more data
 
     # Initial cleanup
@@ -176,13 +174,13 @@ def device():
     try:
         send_command(CMD_STOP_GRAPH, 0)
         time.sleep(0.1)
-    except:
+    except usb.core.USBError:
         pass
 
     usb.util.release_interface(dev, interface_num)
     try:
         dev.reset()
-    except:
+    except usb.core.USBError:
         pass
     usb.util.dispose_resources(dev)
 
@@ -365,7 +363,7 @@ class TestRustLibraryBindings:
         assert header["id"] == tid
         assert len(lps) > 0
         assert lps[0]["attribute"] == 1  # ATT_ADC
-        assert lps[0]["next"] == False
+        assert lps[0]["next"] is False
         assert lps[0]["size"] == 44  # ADC payload size
 
     def test_packet_creation(self):

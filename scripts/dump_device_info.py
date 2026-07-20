@@ -18,12 +18,13 @@ import argparse
 import binascii
 import struct
 import time
-import usb.core
-import usb.util
-from Crypto.Cipher import AES
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+import usb.core
+import usb.util
+from Crypto.Cipher import AES
 
 # Device identifiers
 VID = 0x5FC9
@@ -49,6 +50,7 @@ MEMORY_BLOCKS = {
 @dataclass
 class DeviceInfo:
     """Parsed device information."""
+
     model: str
     hw_version: str
     mfg_date: str
@@ -80,7 +82,7 @@ def crc32(data: bytes) -> int:
 
 def extract_string(data: bytes, start: int, end: int) -> str:
     """Extract null-terminated string from bytes."""
-    return data[start:end].split(b'\x00')[0].decode('ascii', errors='replace')
+    return data[start:end].split(b"\x00")[0].decode("ascii", errors="replace")
 
 
 class KM003C:
@@ -130,7 +132,9 @@ class KM003C:
     def _send_cmd(self, cmd_type: int, data_word: int) -> bytes | None:
         """Send 4-byte command and return response."""
         tid = self._next_tid()
-        packet = bytes([cmd_type & 0x7F, tid, data_word & 0xFF, (data_word >> 8) & 0xFF])
+        packet = bytes(
+            [cmd_type & 0x7F, tid, data_word & 0xFF, (data_word >> 8) & 0xFF]
+        )
         self._send(packet)
         try:
             return self._recv()
@@ -140,13 +144,13 @@ class KM003C:
     def _build_download_request(self, address: int, size: int) -> bytes:
         """Build encrypted Unknown68 download request."""
         # Build plaintext payload
-        payload = struct.pack('<III', address, size, 0xFFFFFFFF)
+        payload = struct.pack("<III", address, size, 0xFFFFFFFF)
         # Add padding for CRC calculation
-        padded = payload + b'\xFF' * 4
+        padded = payload + b"\xff" * 4
         checksum = crc32(padded)
 
         # Full 32-byte payload
-        full_payload = payload + struct.pack('<I', checksum) + (b'\xFF' * 16)
+        full_payload = payload + struct.pack("<I", checksum) + (b"\xff" * 16)
 
         # Encrypt
         encrypted = encrypt_ecb(full_payload)
@@ -169,7 +173,7 @@ class KM003C:
 
         # Check for error (type 0x06 = Rejected)
         if (response[0] & 0x7F) == 0x06:
-            raise ValueError(f"Request rejected by device")
+            raise ValueError("Request rejected by device")
 
         # Check encryption flag (bit 16)
         data_encrypted = (response[2] & 0x01) == 1
@@ -191,7 +195,7 @@ class KM003C:
         usb.util.release_interface(self.dev, INTERFACE_NUM)
         try:
             self.dev.reset()
-        except:
+        except usb.core.USBError:
             pass
         usb.util.dispose_resources(self.dev)
 
@@ -212,7 +216,7 @@ def parse_device_info(blocks: dict[int, bytes]) -> DeviceInfo:
     if 0x4420 in blocks:
         data = blocks[0x4420]
         # Check if valid (first 4 bytes not 0xFFFFFFFF)
-        if struct.unpack('<I', data[0:4])[0] != 0xFFFFFFFF:
+        if struct.unpack("<I", data[0:4])[0] != 0xFFFFFFFF:
             fw_version = extract_string(data, 0x1C, 0x28)
             fw_date = extract_string(data, 0x28, 0x38)
         else:
@@ -223,8 +227,8 @@ def parse_device_info(blocks: dict[int, bytes]) -> DeviceInfo:
     # Parse Calibration (0x3000C00)
     if 0x3000C00 in blocks:
         data = blocks[0x3000C00]
-        serial_id = data[0:7].decode('ascii', errors='replace').strip()
-        uuid = data[7:39].decode('ascii', errors='replace').strip()
+        serial_id = data[0:7].decode("ascii", errors="replace").strip()
+        uuid = data[7:39].decode("ascii", errors="replace").strip()
         ts_str = extract_string(data, 39, 51)
         calibration_timestamp = int(ts_str) if ts_str.isdigit() else None
     else:
@@ -234,11 +238,11 @@ def parse_device_info(blocks: dict[int, bytes]) -> DeviceInfo:
     # Parse HardwareID (0x40010450) - authentication blob, NOT a serial number
     if 0x40010450 in blocks:
         data = blocks[0x40010450]
-        hardware_id_prefix = data[0:6].decode('ascii', errors='replace')
+        hardware_id_prefix = data[0:6].decode("ascii", errors="replace")
         hardware_id_suffix = data[6:12]
     else:
         hardware_id_prefix = "N/A"
-        hardware_id_suffix = b''
+        hardware_id_suffix = b""
 
     return DeviceInfo(
         model=model,
@@ -256,7 +260,9 @@ def parse_device_info(blocks: dict[int, bytes]) -> DeviceInfo:
 
 def main():
     parser = argparse.ArgumentParser(description="Dump device info from POWER-Z KM003C")
-    parser.add_argument("--raw", action="store_true", help="Save raw decrypted data to files")
+    parser.add_argument(
+        "--raw", action="store_true", help="Save raw decrypted data to files"
+    )
     args = parser.parse_args()
 
     try:
@@ -301,7 +307,9 @@ def main():
         print(f"UUID:               {info.uuid}")
         if info.calibration_timestamp:
             dt = datetime.utcfromtimestamp(info.calibration_timestamp)
-            print(f"Calibration Time:   {info.calibration_timestamp} ({dt.isoformat()} UTC)")
+            print(
+                f"Calibration Time:   {info.calibration_timestamp} ({dt.isoformat()} UTC)"
+            )
         print()
         print(f"HardwareID Prefix:  {info.hardware_id_prefix} (NOT a serial)")
         print(f"HardwareID Suffix:  {info.hardware_id_suffix.hex()}")
@@ -314,9 +322,9 @@ def main():
             name = MEMORY_BLOCKS[address][0]
             print(f"\n{name} (0x{address:08X}):")
             for i in range(0, len(data), 16):
-                chunk = data[i:i+16]
-                hex_part = ' '.join(f'{b:02x}' for b in chunk)
-                ascii_part = ''.join(chr(b) if 32 <= b < 127 else '.' for b in chunk)
+                chunk = data[i : i + 16]
+                hex_part = " ".join(f"{b:02x}" for b in chunk)
+                ascii_part = "".join(chr(b) if 32 <= b < 127 else "." for b in chunk)
                 print(f"  {i:04x}: {hex_part:<48} {ascii_part}")
 
         return 0
@@ -324,6 +332,7 @@ def main():
     except Exception as e:
         print(f"\nError: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

@@ -3,13 +3,14 @@
 Probe peripheral address ranges to find readable areas.
 """
 
+import binascii
+import struct
+import time
+
 import usb.core
 import usb.util
-import time
-import struct
-import binascii
 from Crypto.Cipher import AES
-from km003c_lib import VID, PID
+from km003c import PID, VID
 
 INTERFACE_NUM = 0
 ENDPOINT_OUT = 0x01
@@ -20,11 +21,11 @@ AES_KEY_0 = b"Lh2yfB7n6X7d9a5Z"
 
 def build_unknown68_request(address: int, size: int, tid: int = 0x02) -> bytes:
     plaintext = bytearray(32)
-    struct.pack_into('<I', plaintext, 0, address)
-    struct.pack_into('<I', plaintext, 4, size)
-    struct.pack_into('<I', plaintext, 8, 0xFFFFFFFF)
+    struct.pack_into("<I", plaintext, 0, address)
+    struct.pack_into("<I", plaintext, 4, size)
+    struct.pack_into("<I", plaintext, 8, 0xFFFFFFFF)
     crc = binascii.crc32(bytes(plaintext[0:12])) & 0xFFFFFFFF
-    struct.pack_into('<I', plaintext, 12, crc)
+    struct.pack_into("<I", plaintext, 12, crc)
     for i in range(16, 32):
         plaintext[i] = 0xFF
 
@@ -109,31 +110,25 @@ def main():
         (0x40010400, "Unknown 0x40010400"),
         (0x40010450, "Unknown 0x40010450 (known working)"),
         (0x40010800, "Unknown 0x40010800"),
-
         # USB controller area (might have ID)
         (0x40040000, "USB controller base"),
         (0x400401FC, "USB controller ID?"),
-
         # Try some potential device ID locations
         (0x0FFF0000, "Device ID area 1?"),
         (0x1FFF0000, "Device ID area 2?"),
         (0x1FFFF000, "Device ID area 3?"),
-
         # Kinetis-style SIM device ID
         (0x40048024, "SIM_SDID"),
-
         # Alternative peripheral ID registers
         (0x400FF000, "GPIO peripheral ID?"),
         (0x40000FF0, "Peripheral ID 0?"),
         (0x400FFFF0, "Peripheral ID 1?"),
-
         # Info flash areas
         (0x00000400, "Flash config 0x400"),
         (0x00000410, "Flash config 0x410"),
         (0x00000420, "Flash config 0x420 (known working)"),
         (0x00000430, "Flash config 0x430"),
         (0x00000440, "Flash config 0x440"),
-
         # Extended flash info
         (0x00004400, "Flash 0x4400"),
         (0x00004410, "Flash 0x4410"),
@@ -154,7 +149,7 @@ def main():
             "REJECT": "✗ REJECTED",
             "NOREAD": "✗ NOT READABLE",
             "CONFIRM": "? CONFIRM ONLY",
-            None: "? NO RESPONSE"
+            None: "? NO RESPONSE",
         }.get(result, f"? {result}")
 
         print(f"0x{address:08X}  {status:25s}  {description}")
@@ -166,9 +161,9 @@ def main():
         tid += 1
         time.sleep(0.08)
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("READABLE ADDRESSES SUMMARY")
-    print("="*70)
+    print("=" * 70)
     for addr, desc, data in readable_addresses:
         print(f"\n0x{addr:08X}: {desc}")
         print(f"  Data ({len(data)} bytes): {data.hex()}")
@@ -176,7 +171,7 @@ def main():
         # Try to interpret as words
         for i in range(0, min(len(data), 32), 4):
             if i + 4 <= len(data):
-                word = struct.unpack_from('<I', data, i)[0]
+                word = struct.unpack_from("<I", data, i)[0]
                 print(f"    +{i:02X}: 0x{word:08X}")
 
     usb.util.release_interface(dev, INTERFACE_NUM)

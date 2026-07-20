@@ -6,35 +6,33 @@ A modern web interface for analyzing KM003C USB protocol transactions
 with interactive tables, detailed transaction views, and data visualization.
 """
 
-import streamlit as st
-import polars as pl
-import plotly.graph_objects as go
-from plotly import subplots
 from pathlib import Path
 from typing import Any
 
-# Local package imports
-from ..core.usb_transaction_splitter import split_usb_transactions
-from ..core.transaction_tagger import tag_transactions
+import plotly.graph_objects as go
+import polars as pl
+import streamlit as st
 
 # Import the proper Rust library for packet parsing
-from km003c_lib import parse_packet, parse_raw_packet
+from km003c import parse_packet, parse_raw_packet
+from plotly import subplots
+
+from ..core.transaction_tagger import tag_transactions
+
+# Local package imports
+from ..core.usb_transaction_splitter import split_usb_transactions
 
 try:
     # When running from project root
     from scripts.km003c_helpers import (
-        get_packet_type,
         get_adc_data,
-        get_pd_status,
-        get_pd_events,
+        get_packet_type,
     )
 except Exception:
     # Fallback if scripts isn't on sys.path
     from km003c_helpers import (
-        get_packet_type,
         get_adc_data,
-        get_pd_status,
-        get_pd_events,
+        get_packet_type,
     )
 
 

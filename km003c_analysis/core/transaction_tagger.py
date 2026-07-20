@@ -6,8 +6,9 @@ their composition and patterns. It is designed to be a flexible, post-processing
 step after transaction splitting.
 """
 
-import polars as pl
 from typing import List
+
+import polars as pl
 
 
 def _tag_composition(transaction_group: pl.DataFrame) -> List[str]:

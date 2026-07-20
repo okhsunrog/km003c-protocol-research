@@ -1,14 +1,15 @@
-import pytest
-import polars as pl
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import List, Tuple
+
+import polars as pl
+import pytest
 
 # Add project root to path to allow direct import of the package
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from km003c_analysis.core.usb_transaction_splitter import split_usb_transactions
 from km003c_analysis.core.transaction_tagger import tag_transactions
+from km003c_analysis.core.usb_transaction_splitter import split_usb_transactions
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit

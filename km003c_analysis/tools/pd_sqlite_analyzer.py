@@ -36,14 +36,15 @@ import json
 import sqlite3
 import sys
 from collections import Counter
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 import usbpdpy
 
 try:
     import polars as pl
+
     POLARS_AVAILABLE = True
 except ImportError:
     POLARS_AVAILABLE = False
@@ -52,6 +53,7 @@ except ImportError:
 @dataclass
 class PowerNegotiation:
     """Represents a complete power negotiation sequence."""
+
     source_capabilities: Optional[usbpdpy.PdMessage] = None
     request: Optional[usbpdpy.PdMessage] = None
     accept: Optional[usbpdpy.PdMessage] = None
@@ -63,12 +65,7 @@ class PowerNegotiation:
 
     def is_complete(self) -> bool:
         """Check if negotiation has all required messages."""
-        return all([
-            self.source_capabilities,
-            self.request,
-            self.accept,
-            self.ps_rdy
-        ])
+        return all([self.source_capabilities, self.request, self.accept, self.ps_rdy])
 
     def duration_ms(self) -> float:
         """Get negotiation duration in milliseconds."""
@@ -82,6 +79,7 @@ class PowerNegotiation:
 @dataclass
 class AnalysisResults:
     """Complete analysis results from SQLite PD export."""
+
     total_events: int = 0
     pd_messages: List[Dict[str, Any]] = None
     source_capabilities: List[Dict[str, Any]] = None
@@ -127,12 +125,14 @@ class SQLitePDAnalyzer:
                     ts = int.from_bytes(b[i + 1 : i + 4], "little")
                     reserved = b[i + 4]
                     event_data = b[i + 5]
-                    events.append({
-                        "kind": "connection",
-                        "timestamp": ts,
-                        "reserved": reserved,
-                        "event_data": event_data,
-                    })
+                    events.append(
+                        {
+                            "kind": "connection",
+                            "timestamp": ts,
+                            "reserved": reserved,
+                            "event_data": event_data,
+                        }
+                    )
                     i += 6
                 else:
                     break
@@ -156,13 +156,15 @@ class SQLitePDAnalyzer:
                 wire = b[i : i + wire_len]
                 i += wire_len
 
-                events.append({
-                    "kind": "pd_message",
-                    "timestamp": ts,
-                    "sop": sop,
-                    "wire_len": wire_len,
-                    "wire_bytes": wire,
-                })
+                events.append(
+                    {
+                        "kind": "pd_message",
+                        "timestamp": ts,
+                        "sop": sop,
+                        "wire_len": wire_len,
+                        "wire_bytes": wire,
+                    }
+                )
             else:
                 break
 
@@ -175,7 +177,7 @@ class SQLitePDAnalyzer:
             raise FileNotFoundError(f"SQLite file not found: {sqlite_path}")
 
         if self.verbose:
-            print(f"=== KM003C SQLITE PD ANALYZER ===")
+            print("=== KM003C SQLITE PD ANALYZER ===")
             print(f"Using usbpdpy v{usbpdpy.__version__}")
             print(f"Analyzing: {sqlite_path}")
             print()
@@ -186,8 +188,10 @@ class SQLitePDAnalyzer:
         # Check schema
         cursor.execute("PRAGMA table_info(pd_table)")
         columns = [row[1] for row in cursor.fetchall()]
-        if not all(col in columns for col in ['Time', 'Vbus', 'Ibus', 'Raw']):
-            raise ValueError(f"Invalid SQLite schema. Expected columns: Time, Vbus, Ibus, Raw. Found: {columns}")
+        if not all(col in columns for col in ["Time", "Vbus", "Ibus", "Raw"]):
+            raise ValueError(
+                f"Invalid SQLite schema. Expected columns: Time, Vbus, Ibus, Raw. Found: {columns}"
+            )
 
         # Load all data
         cursor.execute("SELECT Time, Vbus, Ibus, Raw FROM pd_table ORDER BY Time")
@@ -217,10 +221,12 @@ class SQLitePDAnalyzer:
                         msg = usbpdpy.parse_pd_message(wire_bytes)
 
                         # Enhanced parsing for Request messages (with PDO state)
-                        if msg.header.message_type == "Request" and last_source_capabilities:
+                        if (
+                            msg.header.message_type == "Request"
+                            and last_source_capabilities
+                        ):
                             msg = usbpdpy.parse_pd_message_with_state(
-                                wire_bytes,
-                                last_source_capabilities.data_objects
+                                wire_bytes, last_source_capabilities.data_objects
                             )
 
                         # Store message with context
@@ -248,7 +254,7 @@ class SQLitePDAnalyzer:
                             current_negotiation = PowerNegotiation(
                                 source_capabilities=msg,
                                 timestamp_start=time_s,
-                                voltage_before=vbus_v
+                                voltage_before=vbus_v,
                             )
                             last_source_capabilities = msg
 
@@ -297,11 +303,11 @@ class SQLitePDAnalyzer:
                     }
 
                     # Add type-specific fields
-                    if hasattr(pdo, 'unconstrained_power'):
+                    if hasattr(pdo, "unconstrained_power"):
                         pdo_dict["unconstrained_power"] = pdo.unconstrained_power
-                    if hasattr(pdo, 'min_voltage_v'):
+                    if hasattr(pdo, "min_voltage_v"):
                         pdo_dict["min_voltage_v"] = pdo.min_voltage_v
-                    if hasattr(pdo, 'max_voltage_v'):
+                    if hasattr(pdo, "max_voltage_v"):
                         pdo_dict["max_voltage_v"] = pdo.max_voltage_v
 
                     pdo_list.append(pdo_dict)
@@ -354,18 +360,26 @@ class SQLitePDAnalyzer:
                     if pdo.get("unconstrained_power"):
                         extra = " (Unconstrained)"
                     elif pdo.get("min_voltage_v") and pdo.get("max_voltage_v"):
-                        extra = f" ({pdo['min_voltage_v']}-{pdo['max_voltage_v']}V range)"
+                        extra = (
+                            f" ({pdo['min_voltage_v']}-{pdo['max_voltage_v']}V range)"
+                        )
 
-                    print(f"  PDO{pdo['position']}: {pdo['type']} {pdo['voltage_v']}V @ {pdo['max_current_a']}A = {pdo['max_power_w']}W{extra}")
+                    print(
+                        f"  PDO{pdo['position']}: {pdo['type']} {pdo['voltage_v']}V @ {pdo['max_current_a']}A = {pdo['max_power_w']}W{extra}"
+                    )
             print()
 
         # Request Analysis
-        requests = [msg for msg in results.pd_messages if msg["message_type"] == "Request"]
+        requests = [
+            msg for msg in results.pd_messages if msg["message_type"] == "Request"
+        ]
         if requests:
             print("=== REQUEST MESSAGE ANALYSIS ===")
             for req_info in requests:
                 msg = req_info["message"]
-                print(f"Request at {req_info['time_s']:.3f}s (Vbus: {req_info['vbus_v']:.3f}V):")
+                print(
+                    f"Request at {req_info['time_s']:.3f}s (Vbus: {req_info['vbus_v']:.3f}V):"
+                )
 
                 if msg.request_objects:
                     rdo = msg.request_objects[0]
@@ -375,9 +389,13 @@ class SQLitePDAnalyzer:
 
                     # Cross-reference with PDO
                     source_caps = next((sc for sc in results.source_capabilities), None)
-                    if source_caps and 1 <= rdo.object_position <= len(source_caps["pdos"]):
+                    if source_caps and 1 <= rdo.object_position <= len(
+                        source_caps["pdos"]
+                    ):
                         requested_pdo = source_caps["pdos"][rdo.object_position - 1]
-                        print(f"  └─ Requested PDO: {requested_pdo['type']} {requested_pdo['voltage_v']}V @ {requested_pdo['max_current_a']}A")
+                        print(
+                            f"  └─ Requested PDO: {requested_pdo['type']} {requested_pdo['voltage_v']}V @ {requested_pdo['max_current_a']}A"
+                        )
                 print()
 
         # Power Negotiation Analysis
@@ -387,23 +405,35 @@ class SQLitePDAnalyzer:
             for i, neg in enumerate(complete_negotiations, 1):
                 print(f"Negotiation {i}:")
                 print(f"  Duration: {neg.duration_ms():.0f}ms")
-                print(f"  Voltage transition: {neg.voltage_before:.3f}V → {neg.voltage_after:.3f}V")
+                print(
+                    f"  Voltage transition: {neg.voltage_before:.3f}V → {neg.voltage_after:.3f}V"
+                )
 
                 if neg.request and neg.request.request_objects:
                     rdo = neg.request.request_objects[0]
-                    if neg.source_capabilities and 1 <= rdo.object_position <= len(neg.source_capabilities.data_objects):
-                        pdo = neg.source_capabilities.data_objects[rdo.object_position - 1]
-                        print(f"  Negotiated power: PDO{rdo.object_position} ({pdo.voltage_v}V @ {pdo.max_current_a}A)")
+                    if neg.source_capabilities and 1 <= rdo.object_position <= len(
+                        neg.source_capabilities.data_objects
+                    ):
+                        pdo = neg.source_capabilities.data_objects[
+                            rdo.object_position - 1
+                        ]
+                        print(
+                            f"  Negotiated power: PDO{rdo.object_position} ({pdo.voltage_v}V @ {pdo.max_current_a}A)"
+                        )
                         print(f"  Maximum available power: {pdo.max_power_w}W")
                 print()
 
         # Summary Statistics
         print("=== SUMMARY STATISTICS ===")
         print(f"Complete negotiations detected: {len(complete_negotiations)}")
-        print(f"Source Capabilities messages: {results.message_types.get('Source_Capabilities', 0)}")
+        print(
+            f"Source Capabilities messages: {results.message_types.get('Source_Capabilities', 0)}"
+        )
         print(f"Request messages: {results.message_types.get('Request', 0)}")
         if complete_negotiations:
-            avg_voltage_change = sum(n.voltage_change() for n in complete_negotiations) / len(complete_negotiations)
+            avg_voltage_change = sum(
+                n.voltage_change() for n in complete_negotiations
+            ) / len(complete_negotiations)
             print(f"Average voltage change: {avg_voltage_change:+.3f}V")
 
     def export_json(self, output_path: Path) -> None:
@@ -440,10 +470,10 @@ class SQLitePDAnalyzer:
                     "wire_len": msg["wire_len"],
                 }
                 for msg in self.results.pd_messages
-            ]
+            ],
         }
 
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(export_data, f, indent=2)
 
         if self.verbose:
@@ -453,21 +483,25 @@ class SQLitePDAnalyzer:
         """Export PD messages to Parquet format (requires polars)."""
 
         if not POLARS_AVAILABLE:
-            raise ImportError("Polars is required for Parquet export. Install with: uv add polars")
+            raise ImportError(
+                "Polars is required for Parquet export. Install with: uv add polars"
+            )
 
         # Convert to DataFrame
         df_data = []
         for msg in self.results.pd_messages:
-            df_data.append({
-                "time_s": msg["time_s"],
-                "vbus_v": msg["vbus_v"],
-                "ibus_a": msg["ibus_a"],
-                "message_type": msg["message_type"],
-                "wire_hex": msg["wire_hex"],
-                "wire_len": msg["wire_len"],
-                "timestamp": msg["timestamp"],
-                "sop": msg["sop"],
-            })
+            df_data.append(
+                {
+                    "time_s": msg["time_s"],
+                    "vbus_v": msg["vbus_v"],
+                    "ibus_a": msg["ibus_a"],
+                    "message_type": msg["message_type"],
+                    "wire_hex": msg["wire_hex"],
+                    "wire_len": msg["wire_len"],
+                    "timestamp": msg["timestamp"],
+                    "sop": msg["sop"],
+                }
+            )
 
         df = pl.DataFrame(df_data)
         df.write_parquet(output_path)
@@ -487,45 +521,44 @@ Examples:
   %(prog)s --export-json results.json           # Export to JSON
   %(prog)s --export-parquet messages.parquet    # Export to Parquet
   %(prog)s --input custom.sqlite --verbose      # Analyze custom SQLite file
-        """
+        """,
     )
 
     parser.add_argument(
-        "--input", "-i",
+        "--input",
+        "-i",
         type=Path,
         default="data/sqlite/pd_new.sqlite",
-        help="Input SQLite file path (default: data/sqlite/pd_new.sqlite)"
+        help="Input SQLite file path (default: data/sqlite/pd_new.sqlite)",
     )
 
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
-        help="Enable verbose output with detailed analysis"
+        help="Enable verbose output with detailed analysis",
     )
 
     parser.add_argument(
-        "--export-json",
-        type=Path,
-        help="Export analysis results to JSON file"
+        "--export-json", type=Path, help="Export analysis results to JSON file"
     )
 
     parser.add_argument(
-        "--export-parquet",
-        type=Path,
-        help="Export PD messages to Parquet file"
+        "--export-parquet", type=Path, help="Export PD messages to Parquet file"
     )
 
     parser.add_argument(
-        "--quiet", "-q",
+        "--quiet",
+        "-q",
         action="store_true",
-        help="Suppress analysis output (useful with export options)"
+        help="Suppress analysis output (useful with export options)",
     )
 
     args = parser.parse_args()
 
     try:
         analyzer = SQLitePDAnalyzer(verbose=args.verbose)
-        results = analyzer.analyze_sqlite(args.input)
+        analyzer.analyze_sqlite(args.input)
 
         if not args.quiet:
             analyzer.print_analysis()

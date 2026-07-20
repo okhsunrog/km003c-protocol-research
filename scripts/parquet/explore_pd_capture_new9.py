@@ -10,30 +10,31 @@ From previous research: pd_capture_new.9 contains PD-related activity between
 transactions, including ADC+PD combined packets and PD-only responses.
 """
 
-import polars as pl
 import sys
 from pathlib import Path
+
+import polars as pl
 import usbpdpy
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+from km003c import parse_packet, parse_raw_packet
+
 from km003c_analysis.core import split_usb_transactions, tag_transactions
-from km003c_lib import parse_packet, parse_raw_packet
+
 try:
     from scripts.km003c_helpers import (
         get_packet_type,
-        get_adc_data,
-        get_pd_status,
         get_pd_events,
+        get_pd_status,
     )
 except Exception:
     from km003c_helpers import (
         get_packet_type,
-        get_adc_data,
-        get_pd_status,
         get_pd_events,
+        get_pd_status,
     )
 
 
@@ -76,16 +77,18 @@ def explore_pd_capture_new9():
 
     # Extract payloads with sufficient length
     payload_df = tagged_transactions.filter(
-        pl.col("payload_hex").is_not_null() &
-        (pl.col("payload_hex").str.len_chars() >= 16)  # At least 8 bytes
-    ).select([
-        "transaction_id",
-        "timestamp",
-        "payload_hex",
-        "endpoint_address",
-        "transfer_type",
-        "urb_type"
-    ])
+        pl.col("payload_hex").is_not_null()
+        & (pl.col("payload_hex").str.len_chars() >= 16)  # At least 8 bytes
+    ).select(
+        [
+            "transaction_id",
+            "timestamp",
+            "payload_hex",
+            "endpoint_address",
+            "transfer_type",
+            "urb_type",
+        ]
+    )
 
     print(f"Payloads to analyze: {len(payload_df)}")
 
@@ -141,7 +144,7 @@ def explore_pd_capture_new9():
         print(f"Found {len(adc_pd_combined)} ADC+PD combined packets")
 
         for i, packet in enumerate(adc_pd_combined[:3]):  # Show first 3
-            print(f"--- ADC+PD #{i+1} (tx {packet['transaction_id']}) ---")
+            print(f"--- ADC+PD #{i + 1} (tx {packet['transaction_id']}) ---")
             print(f"Timestamp: {packet['timestamp']:.6f}s")
             print(f"Total length: {packet['payload_len']} bytes")
             print(f"Size field: {packet['size_bytes']} bytes")
@@ -186,7 +189,7 @@ def explore_pd_capture_new9():
         # Group by size
         by_size = {}
         for packet in pd_only_responses:
-            size = packet['size_bytes']
+            size = packet["size_bytes"]
             if size not in by_size:
                 by_size[size] = []
             by_size[size].append(packet)
@@ -197,7 +200,7 @@ def explore_pd_capture_new9():
             print(f"\n--- PD-only responses with size={size} bytes ---")
 
             for i, packet in enumerate(packets[:2]):  # Show first 2 of each size
-                print(f"Packet #{i+1} (tx {packet['transaction_id']}):")
+                print(f"Packet #{i + 1} (tx {packet['transaction_id']}):")
                 print(f"  Timestamp: {packet['timestamp']:.6f}s")
                 print(f"  Total length: {packet['payload_len']} bytes")
 
@@ -235,7 +238,7 @@ def explore_pd_capture_new9():
     return {
         "pd_candidates": pd_candidates,
         "adc_pd_combined": adc_pd_combined,
-        "pd_only_responses": pd_only_responses
+        "pd_only_responses": pd_only_responses,
     }
 
 

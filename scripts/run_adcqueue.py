@@ -15,12 +15,12 @@ Usage:
     uv run python scripts/run_adcqueue.py
 """
 
-import time
 import sys
+import time
 
 import usb.core
 import usb.util
-from km003c_lib import CMD_START_GRAPH, PID, VID, create_packet
+from km003c import CMD_START_GRAPH, PID, VID, create_packet
 
 INTERFACE_NUM = 0
 ENDPOINT_OUT = 0x01

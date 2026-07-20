@@ -1,8 +1,9 @@
-import pytest
-import polars as pl
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import List, Tuple
+
+import polars as pl
+import pytest
 
 # Add project root to path to allow direct import of the package
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
