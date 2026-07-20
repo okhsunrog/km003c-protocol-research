@@ -11,11 +11,11 @@ evidence.
 |------|----------|---------------|--------------|
 | EnablePdMonitor (`0x10`) | Captured request/Accept pairs | PD polling also works without it | Determine the state it changes |
 | DisablePdMonitor (`0x11`) | Captured request/Accept pairs | Paired with `0x10` | Determine observable effects |
-| Commands `0x48` / `0x4D` | Shared firmware handler at `FUN_00042df4` | Nested extended-header operations mutate the two settings blocks; `0x4D` requires auth level 2 | Correlate operation bitfields with user-facing setting names and capture safe read/write exchanges |
+| Commands `0x48` / `0x4D` | V1.9.9 `handle_settings_batch` (0x00042df4) | Nested extended-header operations mutate the two settings blocks; `0x4D` requires auth level 2 | Correlate operation bitfields with user-facing setting names and capture safe read/write exchanges |
 | Command `0x4B` | Shares the memory handler with a `0x98000000` offset | Appears related to stored data | Confirm framing and relation to offline logs |
 | Authentication level 2 | Firmware state and checks | Distinct from HardwareID-based level 1 | Reproduce the accepted challenge |
-| Attribute `0x0020` | Firmware-derived | Separate PD-related handler exists | Confirm in framed USB traffic |
-| Attribute `0x0040` | Firmware-derived | Quick Charge-related handler exists | Confirm layout in framed USB traffic |
+| Attribute `0x0020` | V1.9.9 `handle_get_data` | Two length-prefixed queues of fixed five-byte records | Identify record semantics and confirm in framed USB traffic |
+| Attribute `0x0040` | V1.9.9 `handle_get_data` | 12-byte measurement preamble followed by a variable event ring | Identify event semantics, test the Quick Charge hypothesis, and confirm in framed USB traffic |
 | Attribute `0x0004` | Public/vendor naming and host UI | Not used by captured 1000 SPS traffic | Determine whether any firmware implements it |
 
 Settings (`0x0008`) is confirmed to concatenate independently checksummed

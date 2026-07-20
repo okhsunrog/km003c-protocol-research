@@ -264,12 +264,15 @@ if (DAT_20004041 != 2) goto REJECT;
 
 ## Firmware Implementation
 
+The function addresses below are from reverse engineering KM003C firmware
+V1.9.9 (`KM003C_V1.9.9_key0_ecb.bin`).
+
 ### Key Addresses
 
 | Address | Purpose |
 |---------|---------|
-| FUN_00000fb0 | AES encrypt (hardware crypto) |
-| FUN_00001090 | AES decrypt (hardware crypto) |
+| `aes128_ecb_decrypt` (0x00000fb0) | Decrypt incoming authentication and command payloads |
+| `aes128_ecb_encrypt` (0x00001090) | Encrypt outgoing memory data |
 | 0x40008010 | Hardware AES input register |
 | 0x40008020 | Hardware AES key register |
 | DAT_20004041 | Authentication level (0/1/2) |

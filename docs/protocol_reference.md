@@ -2,6 +2,13 @@
 
 Application-layer protocol reference for the ChargerLAB POWER-Z KM003C.
 
+Firmware-derived statements in this document come from reverse engineering the
+decrypted KM003C V1.9.9 image `KM003C_V1.9.9_key0_ecb.bin` (SHA-256
+`9ce6125da454585fde1b5744018f94edc697a23941292cbf55d2a411d4df7517`).
+They describe that firmware version specifically; behavior in other releases
+must be confirmed independently. Capture-derived statements are not limited to
+that image unless explicitly noted.
+
 For USB transport details (descriptors, endpoints), see [USB Transport](usb_transport.md).
 For library coverage, see [Implementation Status](implementation_status.md).
 
@@ -397,8 +404,10 @@ dedicated setter for each. The bits 3-9 getter clamps values above 100, but its
 user-facing name is not yet independently confirmed.
 
 Known settings-B flag fields are bits 0-1, 2-3, 4-5, 6-9, 10-12, bit 13,
-bits 14-16, and bits 17-21. Mtools uses bits 2-3 as the device mode. Firmware
-nested operations `0x14`-`0x17` write the first four fields respectively.
+bits 14-16, and bits 17-21. V1.9.9 firmware uses bits 0-1 for screen
+orientation and applies them through the LCD `0x36` address-mode command.
+Mtools uses bits 2-3 as the device mode. Firmware nested operations
+`0x14`-`0x17` write the first four fields respectively.
 
 **Example values:**
 

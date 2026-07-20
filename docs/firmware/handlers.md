@@ -1,6 +1,10 @@
 # Device Firmware Command Handlers
 
-Ghidra analysis of device firmware USB command processing.
+Ghidra analysis of device firmware USB command processing. All addresses and
+firmware behavior on this page refer specifically to reverse engineering of
+KM003C V1.9.9, decrypted image `KM003C_V1.9.9_key0_ecb.bin` (SHA-256
+`9ce6125da454585fde1b5744018f94edc697a23941292cbf55d2a411d4df7517`).
+Other firmware versions may differ.
 
 For Mtools.exe (Windows app) analysis, see [Mtools Analysis](mtools_analysis.md).
 
@@ -13,18 +17,18 @@ The main USB command processor at `0x0004eaf0` uses a switch on `command_type & 
 | Command | Hex | Handler | Notes |
 |---------|-----|---------|-------|
 | Connect | 0x02 | Inline | Returns Accept (0x05) |
-| GetData | 0x0C | FUN_0004286c | Builds ADC/PD/Settings responses |
+| GetData | 0x0C | `handle_get_data` | Builds ADC/PD/Settings responses |
 | GetFile | 0x0D | FUN_00042c4a | File-transfer command |
 | StartGraph | 0x0E | Inline | Starts streaming |
 | StopGraph | 0x0F | Inline | Stops streaming |
 | PdEnable | 0x10 | Inline | Enable PD monitoring |
 | PdDisable | 0x11 | Inline | Disable PD monitoring |
-| MemoryRead | 0x44 | FUN_00042cac | Memory read with validation |
-| SettingsBatch | 0x48 | FUN_00042df4 | Executes nested settings operations |
+| MemoryRead | 0x44 | `handle_memory_read` | Memory read with validation |
+| SettingsBatch | 0x48 | `handle_settings_batch` | Executes nested settings operations |
 | FlashWrite | 0x4A | Inline | Requires auth level > 0 |
-| Command 0x4B | 0x4B | FUN_00042cac | Memory-style read with 0x98000000 offset |
-| StreamingAuth | 0x4C | FUN_00000fb0 | AES authentication |
-| PrivilegedSettingsBatch | 0x4D | FUN_00042df4 | Same payload as 0x48; requires auth level 2 |
+| Command 0x4B | 0x4B | `handle_memory_read` | Memory-style read with 0x98000000 offset |
+| StreamingAuth | 0x4C | `aes128_ecb_decrypt` | AES authentication |
+| PrivilegedSettingsBatch | 0x4D | `handle_settings_batch` | Same payload as 0x48; requires auth level 2 |
 
 ---
 
@@ -32,8 +36,8 @@ The main USB command processor at `0x0004eaf0` uses a switch on `command_type & 
 
 | Function | Address | Purpose | Control Bit |
 |----------|---------|---------|-------------|
-| FUN_00000fb0 | 0x00000fb0 | AES Encrypt | uRam42100004 = 1 |
-| FUN_00001090 | 0x00001090 | AES Decrypt/Read | uRam42100004 = 0 |
+| `aes128_ecb_decrypt` | 0x00000fb0 | AES decrypt of incoming protocol data | uRam42100004 = 1 |
+| `aes128_ecb_encrypt` | 0x00001090 | AES encrypt of outgoing memory data | uRam42100004 = 0 |
 
 ### Hardware Registers
 
@@ -45,8 +49,8 @@ The main USB command processor at `0x0004eaf0` uses a switch on `command_type & 
 ### Usage Pattern
 
 ```c
-// FUN_00001090 - AES decrypt/memory read
-undefined4 FUN_00001090(uint *source, uint size, uint *key, uint *output) {
+// aes128_ecb_encrypt (0x00001090) - encrypt memory for transport
+undefined4 aes128_ecb_encrypt(uint *source, uint size, uint *key, uint *output) {
     // Validate: size 16-byte aligned, pointers 4-byte aligned
     if (((size & 0xf) == 0) && (((uint)source | (uint)key | (uint)output) & 3) == 0) {
         // Write key to hardware
@@ -143,11 +147,11 @@ are left unnamed unless corroborated by the device UI or a host capture.
 | `0x0D` | level 2 | Write `u32[]` at settings-A offset `0x44`; force the 7-bit field above to 50; persist |
 | `0x0E` | level 1 or 2 | Invoke a low-level signed-byte control; exact device effect remains unknown |
 | `0x0F` | level 2 | Set settings-A offset `0x58`; persist |
-| `0x14` | none | Set settings-B word 0 bits 0-1; persist |
+| `0x14` | none | Set screen orientation in settings-B word 0 bits 0-1; persist |
 | `0x15` | none | Set settings-B word 0 bits 2-3 and apply it immediately; persist |
 | `0x16` | none | Set settings-B word 0 bits 4-5; persist |
 | `0x17` | none | Set settings-B word 0 bits 6-9; persist |
-| `0x28` | none | Pass the payload to a separate handler; payload semantics remain unknown |
+| `0x28` | none | Write consecutive 48-byte payload records to a file, stopping before offset `0x780`; file purpose remains unknown |
 | `0x7FFF` | none | Persist settings-A without changing a field |
 
 Operations `0x10`-`0x13`, `0x18`-`0x1B`, `0x1D`-`0x27` currently fall
@@ -181,7 +185,7 @@ if ((param_3 == -1) &&           // Magic: 0xFFFFFFFF
 ### Two-Stage Access Control
 
 1) **Firmware gate (above):** Enforces magic, size, and address ceilings; failures return REJECT (0x06).
-2) **Hardware read (FUN_00001090 @ 0x00001090):** Uses the AES engine registers at `0x40008010/0x40008020`. Requirements: size 16-byte aligned and pointers 4-byte aligned. Bus faults during the read map to error code 8 → NOT_READABLE (0x27).
+2) **Hardware encryption (`aes128_ecb_encrypt` @ 0x00001090):** Reads the requested memory through the AES engine at `0x40008010/0x40008020` and encrypts it for transport. Requirements: size 16-byte aligned and pointers 4-byte aligned. Bus faults during the read map to error code 8 -> NOT_READABLE (0x27).
 
 ### Response Types
 
@@ -256,6 +260,40 @@ This limits unauthenticated access to:
 
 Higher attributes (AdcQueue 0x02, etc.) require authentication.
 
+### Firmware-only extra attributes
+
+The V1.9.9 handler also builds attributes `0x0020` and `0x0040`, although no
+framed requests or responses for them are present in the current capture set.
+These layouts therefore remain firmware-derived rather than interoperable
+protocol guarantees.
+
+Attribute `0x0020` drains two independent queues. Each queue is encoded as one
+byte containing its following byte length, then zero or more fixed five-byte
+records:
+
+```text
+[queue_1_bytes: u8][queue_1: N * 5 bytes]
+[queue_2_bytes: u8][queue_2: M * 5 bytes]
+```
+
+The firmware caps each copied queue at 200 bytes. The purpose and record fields
+remain unknown.
+
+Attribute `0x0040` starts with a 12-byte preamble followed by records drained
+from a variable-length event ring:
+
+```text
+[timestamp: u32]
+[measurement_1: u16][measurement_2: u16]
+[measurement_3: u16][measurement_4: u16]
+[event records: variable]
+```
+
+Its structure parallels the PD event path but reads different measurement
+fields and a different ring buffer. The association with Quick Charge remains
+a hypothesis until captured traffic or stronger call-site evidence confirms
+it.
+
 ---
 
 ## Key Addresses Summary
@@ -264,18 +302,22 @@ Higher attributes (AdcQueue 0x02, etc.) require authentication.
 
 | Address | Name | Purpose |
 |---------|------|---------|
-| 0x0004eaf0 | dispatcher | Main command switch |
-| 0x0004286c | get_data | GetData handler |
-| 0x00042cac | memory_read | Memory read with validation |
-| 0x00000fb0 | aes_encrypt | Hardware AES encrypt |
-| 0x00001090 | aes_decrypt | Hardware AES decrypt |
+| 0x0004eaf0 | `dispatch_usb_command` | Main command switch |
+| 0x0004286c | `handle_get_data` | GetData handler |
+| 0x00042cac | `handle_memory_read` | Memory read with validation |
+| 0x00042df4 | `handle_settings_batch` | Shared 0x48/0x4D nested settings handler |
+| 0x00000fb0 | `aes128_ecb_decrypt` | Decrypt incoming protocol data |
+| 0x00001090 | `aes128_ecb_encrypt` | Encrypt outgoing memory data |
+| 0x00017c88 | `crc32_hardware` | Hardware CRC-32/ISO-HDLC |
 | 0x0000ced4 | error_map | Error code to response |
 
 ### Data
 
 | Address | Purpose |
 |---------|---------|
+| 0x20003598 | Settings-B runtime block (84 bytes) |
 | 0x20004041 | Auth level (0/1/2) |
+| 0x200047d4 | Settings-A runtime block (96 bytes) |
 | 0x40010450 | Hardware device ID (12 bytes) |
 | 0x03000c00 | Calibration table |
 | 0x40008010 | AES input register |

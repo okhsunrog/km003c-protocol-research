@@ -2,6 +2,10 @@
 
 Reverse engineering documentation for the KM003C device firmware and official Windows application.
 
+Unless a page says otherwise, device-firmware addresses and behavior refer to
+the decrypted KM003C V1.9.9 image `KM003C_V1.9.9_key0_ecb.bin` (SHA-256
+`9ce6125da454585fde1b5744018f94edc697a23941292cbf55d2a411d4df7517`).
+
 ---
 
 ## Documents
@@ -41,11 +45,12 @@ Two binaries have been analyzed:
 
 | Address | Purpose |
 |---------|---------|
-| FUN_0004eaf0 | Main USB command dispatcher |
-| FUN_00042cac | Memory read handler |
-| FUN_00000fb0 | AES encrypt (hardware) |
-| FUN_00001090 | AES decrypt (hardware) |
-| DAT_20004041 | Authentication level (0/1/2) |
+| `dispatch_usb_command` (0x0004eaf0) | Main USB command dispatcher |
+| `handle_memory_read` (0x00042cac) | Memory read handler |
+| `handle_settings_batch` (0x00042df4) | Shared command 0x48/0x4D handler |
+| `aes128_ecb_decrypt` (0x00000fb0) | AES decrypt of incoming protocol data |
+| `aes128_ecb_encrypt` (0x00001090) | AES encrypt of outgoing memory data |
+| `g_auth_level` (0x20004041) | Authentication level (0/1/2) |
 
 ### Key Mtools.exe Addresses
 
