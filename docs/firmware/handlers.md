@@ -284,11 +284,14 @@ fixed five-byte records:
 ```
 
 The firmware caps each copied queue at 200 bytes. Producers show the first
-queue receiving PD state-transition codes and the second receiving protocol
-and message-event codes, including `0x82` and `0x83` during extended-message
-processing. The first queue's codes `0x00..0x24` are mapped by an ordered name
-table embedded in the firmware; code `0x25` is emitted but remains unnamed. See
-[USB PD State Trace](../features/pd_trace.md) for the complete table. The
+queue receiving PD state-transition codes. The second queue mixes internal
+protocol-engine state transitions with direct receive markers. State `0x00` is
+the detached/disabled protocol reset state; `0x82` records completion of
+received-message processing, while `0x83` records construction and scheduling
+of an extended-message chunk request. The first queue's codes
+`0x00..0x24` are mapped by an ordered name table embedded in the firmware; code
+`0x25` is emitted by an attached-source CC recheck path but remains unnamed.
+See [USB PD State Trace](../features/pd_trace.md) for the complete table. The
 timestamp is the firmware millisecond uptime counter divided by 1000.
 
 The logical extended header leaves its size field at zero. A host must derive

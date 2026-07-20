@@ -391,7 +391,17 @@ payload boundary from both queue prefixes. A zero top-level object count also
 does not imply an empty response when USB payload bytes remain. Both behaviors
 are confirmed by framed V1.9.9 hardware responses, including a chained
 response. See [USB PD State Trace](features/pd_trace.md) for the Type-C state
-table, capture evidence, and remaining unknown protocol-event codes.
+table and capture evidence. The second queue contains internal protocol-engine
+states plus these confirmed direct markers:
+
+| Code | Meaning |
+|------|---------|
+| `0x00` | Protocol engine disabled/reset on Type-C detach |
+| `0x82` | A received PD message or extended-message chunk was processed |
+| `0x83` | A request for the next extended-message chunk was queued |
+
+All other second-queue values must be preserved as firmware-specific unknown
+states until independently named.
 
 ### Settings (180 bytes)
 

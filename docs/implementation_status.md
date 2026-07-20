@@ -21,7 +21,7 @@ exposed yet.
 | StreamingAuth level 1 (`0x4C`) | Implemented | Crypto parsing helpers | HardwareID-based AdcQueue authentication |
 | Authentication level 2 | Implemented | Crypto parsing helpers | Preferred/fallback credential selection, `0x0205` response, and post-auth AdcQueue were verified on V1.9.9 hardware |
 | Enable/Disable PD monitor | Implemented | Constants/parsing | Exact device-side effect remains unknown |
-| PD state trace (`0x0020`) | Implemented in [km003c-rs PR #21](https://github.com/okhsunrog/km003c-rs/pull/21) | Implemented | Typed V1.9.9 state and protocol events; empty, full, zero-count, connect/disconnect, and chained responses are capture-backed |
+| PD state trace (`0x0020`) | Implemented | Implemented | Typed V1.9.9 Type-C states and confirmed receive markers; unknown protocol-engine states remain lossless; empty, full, zero-count, connect/disconnect, and chained responses are capture-backed |
 | UFCS trace (`0x0040`) | Not implemented | Not implemented | Record layout and producers are firmware-derived, not confirmed in framed captures |
 | Flash write / command `0x4B` / settings writes `0x48` / `0x4D` | Not implemented | Not implemented | Nested settings layout is firmware-confirmed, but writes remain research-only until safe semantics and hardware behavior are confirmed |
 | Bootloader/firmware update | Not implemented | Not implemented | Separate protocol flow |

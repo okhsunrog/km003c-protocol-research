@@ -56,13 +56,33 @@ also emits `0x25`, but no corresponding name is present; it remains unknown.
 The `Deb` spelling is preserved from the firmware strings rather than expanded
 speculatively.
 
+Code `0x25` is emitted by a short handler reached from the attached-source poll
+path after a delayed CC ADC recheck. The handler toggles two low-level Type-C
+controls, but neither the ordered string table nor another independent symbol
+provides a semantic state name. Naming it from that behavior alone would be
+speculative, so consumers must continue to preserve it as unknown.
+
 ## Protocol Event Queue
 
-The second queue records protocol and message-processing events. Its producer
-is called from more than 100 sites and accepts a raw byte code. Codes `0x82` and
-`0x83` are emitted while processing extended messages, but a complete name
-table has not been found. Consumers should preserve unknown codes rather than
-assigning names based only on individual call sites.
+The second queue mixes internal protocol-engine state transitions with two
+direct receive-path markers. The state transition helper stores its argument as
+the current protocol-engine state and appends that same byte to the queue. It is
+called from more than 100 sites, and no corresponding state-name table has been
+found.
+
+One state and two direct markers are independently identified:
+
+| Code | Meaning | Evidence |
+|------|---------|----------|
+| `0x00` | Disabled | Set by the protocol reset path called as the Type-C state detaches; also present in the hardware disconnect trace |
+| `0x82` | ReceivedMessage | Appended at the common completion path after processing a received PD message or extended-message chunk |
+| `0x83` | ExtendedChunkRequest | Appended after constructing an extended header with the Chunked and Request Chunk bits and signalling the request to the protocol task |
+
+`0x82` is also present throughout the V1.9.9 Pixel 8 Pro hardware capture. The
+`0x83` meaning is firmware-confirmed but has not yet been observed in a trace
+response. Other values, including observed states `0x52` and `0x76..0x78`, must
+remain lossless unknown values until their complete state semantics can be
+established rather than guessed from isolated transitions.
 
 ## Firmware Locations
 
@@ -74,6 +94,9 @@ assigning names based only on individual call sites.
 | `0x0000DFDA` | `enqueue_pd_trace_event` | Appends one code/timestamp record |
 | `0x0000ABB8` | `trace_pd_state_event` | Produces Type-C state transitions |
 | `0x0000A81C` | `update_and_trace_pd_event` | Produces protocol events |
+| `0x00008900` | `process_received_pd_message` | Emits receive markers `0x82` and `0x83` |
+| `0x0000CDB2` | `reset_pd_protocol` | Selects protocol state `0x00` while detaching |
+| `0x0000CED4` | `run_pd_protocol_state_machine` | Dispatches internal protocol-engine states |
 | `0x0006A6A2` | Type-C name table | Ordered state names beginning with `Disabled = 0` |
 
 ## Hardware Validation
@@ -93,5 +116,7 @@ both queue prefixes must be consumed before parsing the next extended header.
 
 ## Remaining Validation
 
-- Identify the protocol-event enumeration without guessing from isolated uses.
+- Recover names for the remaining protocol-engine states without guessing from
+  isolated transitions.
+- Capture an extended-message exchange that produces marker `0x83`.
 - Check whether other firmware versions use the same state codes and framing.
