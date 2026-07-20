@@ -79,35 +79,35 @@
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0002": {
           "bit_0_adc": false,
           "bit_1_adcqueue": true,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0003": {
           "bit_0_adc": true,
           "bit_1_adcqueue": true,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0008": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": true,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0200": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": true
+          "bit_9_log_metadata": true
         }
       }
     }
@@ -192,35 +192,35 @@
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0002": {
           "bit_0_adc": false,
           "bit_1_adcqueue": true,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0003": {
           "bit_0_adc": true,
           "bit_1_adcqueue": true,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0008": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": true,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0200": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": true
+          "bit_9_log_metadata": true
         }
       }
     }
@@ -306,35 +306,35 @@
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0002": {
           "bit_0_adc": false,
           "bit_1_adcqueue": true,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0003": {
           "bit_0_adc": true,
           "bit_1_adcqueue": true,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0008": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": true,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0200": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": true
+          "bit_9_log_metadata": true
         }
       }
     }
@@ -392,21 +392,21 @@
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0008": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": true,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0200": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": true
+          "bit_9_log_metadata": true
         }
       }
     }
@@ -464,21 +464,21 @@
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0008": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": true,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0200": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": true
+          "bit_9_log_metadata": true
         }
       }
     }
@@ -563,35 +563,35 @@
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0008": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": true,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0010": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": true,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0011": {
           "bit_0_adc": true,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": true,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0200": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": true
+          "bit_9_log_metadata": true
         }
       }
     }
@@ -677,35 +677,35 @@
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0002": {
           "bit_0_adc": false,
           "bit_1_adcqueue": true,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0003": {
           "bit_0_adc": true,
           "bit_1_adcqueue": true,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0008": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": true,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0200": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": true
+          "bit_9_log_metadata": true
         }
       }
     }
@@ -764,21 +764,21 @@
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0010": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": true,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0011": {
           "bit_0_adc": true,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": true,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         }
       }
     }
@@ -837,21 +837,21 @@
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0010": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": true,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0011": {
           "bit_0_adc": true,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": true,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         }
       }
     }
@@ -909,21 +909,21 @@
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0008": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": true,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0200": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": true
+          "bit_9_log_metadata": true
         }
       }
     }
@@ -981,21 +981,21 @@
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0008": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": true,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0200": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": true
+          "bit_9_log_metadata": true
         }
       }
     }
@@ -1053,21 +1053,21 @@
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0008": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": true,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0200": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": true
+          "bit_9_log_metadata": true
         }
       }
     }
@@ -1125,21 +1125,21 @@
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0008": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": true,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0200": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": true
+          "bit_9_log_metadata": true
         }
       }
     }
@@ -1251,49 +1251,49 @@
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0002": {
           "bit_0_adc": false,
           "bit_1_adcqueue": true,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0003": {
           "bit_0_adc": true,
           "bit_1_adcqueue": true,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0008": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": true,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0010": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": true,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0011": {
           "bit_0_adc": true,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": true,
-          "bit_9_unknown512": false
+          "bit_9_log_metadata": false
         },
         "0x0200": {
           "bit_0_adc": false,
           "bit_1_adcqueue": false,
           "bit_3_settings": false,
           "bit_4_pdpacket": false,
-          "bit_9_unknown512": true
+          "bit_9_log_metadata": true
         }
       }
     }

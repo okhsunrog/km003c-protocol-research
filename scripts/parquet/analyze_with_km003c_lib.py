@@ -8,16 +8,21 @@
 - Валидации структуры chained logical packets
 - Глубокого анализа ADC и PD данных
 
-Run: uv run python scripts/parquet/analyze_with_km003c_lib.py
+Run: uv run --locked python scripts/parquet/analyze_with_km003c_lib.py
 """
 
 from __future__ import annotations
 
 import json
+import sys
 from collections import defaultdict
 from pathlib import Path
 
 import polars as pl
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 # Rust library imports
 try:
@@ -39,13 +44,51 @@ except ImportError as e:
 # Python library imports
 from km003c_helpers import (
     get_adc_data,
-    get_adcqueue_data,
     get_packet_type,
     get_pd_events,
     get_pd_status,
 )
 
 from km003c_analysis.core import split_usb_transactions
+
+
+def is_framed_protocol_packet(payload: bytes, endpoint_address: str) -> bool:
+    """Reject raw MemoryRead ciphertext before invoking the packet parser."""
+    if len(payload) < 4:
+        return False
+    packet_type = payload[0] & 0x7F
+    if packet_type == 0x41:
+        return endpoint_address == "0x81" and len(payload) >= 4
+    if packet_type == 0x44:
+        return (endpoint_address == "0x01" and len(payload) == 36) or (
+            endpoint_address == "0x81" and len(payload) == 20
+        )
+    if packet_type == 0x4C:
+        return len(payload) == 36
+    return (
+        packet_type
+        in {
+            0x01,
+            0x02,
+            0x03,
+            0x04,
+            0x05,
+            0x06,
+            0x07,
+            0x08,
+            0x09,
+            0x0A,
+            0x0B,
+            0x0C,
+            0x0D,
+            0x0E,
+            0x0F,
+            0x10,
+            0x11,
+            0x27,
+        }
+        and len(payload) == 4
+    )
 
 
 def analyze_with_rust_lib():
@@ -100,6 +143,8 @@ def analyze_with_rust_lib():
             continue
 
         payload_bytes = bytes.fromhex(row["payload_hex"])
+        if not is_framed_protocol_packet(payload_bytes, row["endpoint_address"]):
+            continue
         stats["total_packets"] += 1
 
         try:
@@ -128,7 +173,7 @@ def analyze_with_rust_lib():
                         if isinstance(raw_packet, dict) and "Ctrl" in raw_packet:
                             req_id = raw_packet["Ctrl"].get("header", {}).get("id")
                         if req_id is not None:
-                            pending_requests[req_id] = {
+                            pending_requests[(row["source_file"], req_id)] = {
                                 "mask": mask,
                                 "mask_hex": f"0x{mask:04X}",
                                 "timestamp": row["timestamp"],
@@ -140,13 +185,14 @@ def analyze_with_rust_lib():
                 if get_packet_type(packet) == "DataResponse":
                     # Analyze chained logical packets (Data variant)
                     if isinstance(raw_packet, dict) and "Data" in raw_packet:
-                        # Collect attributes seen in the response
-                        response_attrs = []
+                        response_attrs = [
+                            logical_packet["attribute"]
+                            for logical_packet in raw_packet["Data"]["logical_packets"]
+                        ]
 
                         # Extract from high-level parsed packet
                         adc = get_adc_data(packet)
                         if adc is not None:
-                            response_attrs.append(1)  # ADC attribute
                             stats["adc_data_samples"].append(
                                 {
                                     "vbus_v": adc.vbus_v,
@@ -156,13 +202,8 @@ def analyze_with_rust_lib():
                                 }
                             )
 
-                        adcq = get_adcqueue_data(packet)
-                        if adcq is not None:
-                            response_attrs.append(2)  # AdcQueue attribute
-
                         pdst = get_pd_status(packet)
                         if pdst is not None:
-                            response_attrs.append(16)  # PdPacket attribute
                             stats["pd_status_samples"].append(
                                 {
                                     "timestamp": pdst.timestamp,
@@ -173,7 +214,6 @@ def analyze_with_rust_lib():
 
                         pdev = get_pd_events(packet)
                         if pdev is not None:
-                            response_attrs.append(16)  # PdPacket attribute (events)
                             try:
                                 stats["pd_events_count"] += len(pdev.events)
                             except Exception:
@@ -190,8 +230,9 @@ def analyze_with_rust_lib():
 
                         # Correlate with request by matching RawPacket IDs
                         resp_id = raw_packet["Data"].get("header", {}).get("id")
-                        if resp_id in pending_requests:
-                            req_info = pending_requests.pop(resp_id)
+                        request_key = (row["source_file"], resp_id)
+                        if request_key in pending_requests:
+                            req_info = pending_requests.pop(request_key)
                             latency_us = (
                                 row["timestamp"] - req_info["timestamp"]
                             ) * 1_000_000
@@ -246,7 +287,7 @@ def analyze_with_rust_lib():
         if mask_val & 0x0010:
             bits_set.append("PdPacket(16)")
         if mask_val & 0x0200:
-            bits_set.append("Unknown512")
+            bits_set.append("LogMetadata")
 
         bits_str = ", ".join(bits_set) if bits_set else "None"
         print(f"  {mask}: {count:>6,} times  [{bits_str}]")
@@ -327,6 +368,13 @@ def analyze_with_rust_lib():
     output_path = Path("data/processed/rust_lib_analysis.json")
     print(f"💾 Exporting results to: {output_path}")
 
+    correlation_counts = defaultdict(lambda: defaultdict(int))
+    for pair in stats["request_response_pairs"]:
+        correlation_counts[pair["request_mask_hex"]][
+            str(sorted(pair["response_attributes"]))
+        ] += 1
+    latencies = [pair["latency_us"] for pair in stats["request_response_pairs"]]
+
     # Convert defaultdicts to regular dicts for JSON
     export_data = {
         "total_packets": stats["total_packets"],
@@ -335,7 +383,16 @@ def analyze_with_rust_lib():
         "packet_types": dict(stats["packet_types"]),
         "attributes_in_requests": dict(stats["attributes_in_requests"]),
         "attributes_in_responses": dict(stats["attributes_in_responses"]),
-        "request_response_pairs": stats["request_response_pairs"],
+        "request_response_pair_count": len(stats["request_response_pairs"]),
+        "request_response_correlation": {
+            mask: dict(patterns) for mask, patterns in correlation_counts.items()
+        },
+        "latency_us": {
+            "min": min(latencies) if latencies else None,
+            "median": sorted(latencies)[len(latencies) // 2] if latencies else None,
+            "mean": sum(latencies) / len(latencies) if latencies else None,
+            "max": max(latencies) if latencies else None,
+        },
         "chained_packets_stats": dict(stats["chained_packets_stats"]),
         "data_sample_counts": {
             "adc_samples": len(stats["adc_data_samples"]),

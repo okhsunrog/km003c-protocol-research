@@ -17,7 +17,7 @@ parse success ratio.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, List
 
 import polars as pl
 import usbpdpy
@@ -31,31 +31,6 @@ from scripts.km003c_helpers import (
     get_pd_events,
     get_pd_status,
 )
-
-
-def parse_pd_status_12(b: bytes) -> Dict[str, int]:
-    # 12B: [0]=type_id, [1..3]=ts24, [4..5]=vbus_mV, [6..7]=ibus_mA, [8..9]=cc1_mV, [10..11]=cc2_mV
-    return {
-        "type_id": b[0],
-        "ts24": b[1] | (b[2] << 8) | (b[3] << 16),
-        "vbus_mV": int.from_bytes(b[4:6], "little", signed=False),
-        "ibus_mA": int.from_bytes(
-            b[6:8], "little", signed=False
-        ),  # observed non-negative here
-        "cc1_mV": int.from_bytes(b[8:10], "little", signed=False),
-        "cc2_mV": int.from_bytes(b[10:12], "little", signed=False),
-    }
-
-
-def parse_pd_preamble_12(b: bytes) -> Dict[str, int]:
-    # 12B: [0..3]=ts32, [4..5]=vbus_mV, [6..7]=ibus_mA(signed), [8..9]=cc1_mV, [10..11]=cc2_mV
-    return {
-        "ts32": int.from_bytes(b[0:4], "little", signed=False),
-        "vbus_mV": int.from_bytes(b[4:6], "little", signed=False),
-        "ibus_mA": int.from_bytes(b[6:8], "little", signed=True),
-        "cc1_mV": int.from_bytes(b[8:10], "little", signed=False),
-        "cc2_mV": int.from_bytes(b[10:12], "little", signed=False),
-    }
 
 
 def _extract_pd_messages_from_stream(pdev: Any) -> List[bytes]:
