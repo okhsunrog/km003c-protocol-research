@@ -13,7 +13,6 @@ evidence.
 | DisablePdMonitor (`0x11`) | Captured request/Accept pairs | Paired with `0x10` | Determine observable effects |
 | Commands `0x48` / `0x4D` | V1.9.9 `handle_settings_batch` (0x00042df4) | Nested operations mutate settings; language, uncalibrated flag, brightness, orientation, device mode, selected page, and LogMetadata append are identified; `0x4D` requires auth level 2 | Name the remaining bitfields and capture safe read/write exchanges |
 | Command `0x4B` | Shares the memory handler with a `0x98000000` offset | Appears related to stored data | Confirm framing and relation to offline logs |
-| Authentication level 2 | V1.9.9 StreamingAuth dispatcher | Same request as level 1, but bytes 8-19 match the first 12 bytes of selected calibration record `0x03000d80` or fallback `0x03000c00`; response bits encode level 2 | Reproduce safely on hardware and add a captured regression fixture |
 | Attribute `0x0020` | V1.9.9 PD trace producers and `handle_get_data` | Two length-prefixed PD state-machine queues; records are event code plus uptime seconds | Map event-code enums and confirm in framed USB traffic |
 | Attribute `0x0040` | V1.9.9 `TASK_UFCS`, RX/TX producers, and `handle_get_data` | UFCS measurement preamble and variable RX/TX/state event stream | Name four measurements, map all event kinds, and confirm in framed USB traffic |
 | Attribute `0x0004` | Public/vendor naming and host UI | Not used by captured 1000 SPS traffic | Determine whether any firmware implements it |

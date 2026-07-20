@@ -91,9 +91,10 @@ else if (memcmp(&decrypted[8], selected_calibration_record, 12) == 0) {
 ```
 
 The response attribute contains the actual level in bits 1-2:
-`auth_level = (attribute >> 1) & 0x03`. Consequently level 1 produces the
-observed attribute `0x0203`, while level 2 would produce `0x0205`; testing only
-bit 1 incorrectly treats a level-2 response as failure.
+`auth_level = (attribute >> 1) & 0x03`. Consequently level 1 produces
+attribute `0x0203`, while level 2 produces `0x0205`; both values have now been
+observed on firmware V1.9.9 hardware. Testing only bit 1 incorrectly treats a
+level-2 response as failure.
 
 ### Level Enforcement Examples
 

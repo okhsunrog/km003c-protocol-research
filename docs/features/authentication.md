@@ -247,9 +247,9 @@ else if (memcmp(&decrypted[8], selected_calibration_record, 12) == 0) {
 
 Level 2 therefore uses the same StreamingAuth request format as level 1. The
 only credential difference is bytes `8..20`: HardwareID selects level 1, while
-the first 12 bytes of the selected calibration record select level 2. This is
-confirmed from reverse engineering V1.9.9 but has not yet been exercised on a
-device.
+the first 12 bytes of the selected calibration record select level 2. This was
+first derived from V1.9.9 firmware and then verified on real hardware: the
+device returned level 2 with attribute `0x0205`.
 
 The response header encodes the level, rather than a Boolean grant, in
 attribute bits 1-2:
@@ -260,6 +260,14 @@ level 0 attribute: 0x0201
 level 1 attribute: 0x0203
 level 2 attribute: 0x0205
 ```
+
+### Hardware Validation
+
+On a KM003C running firmware V1.9.9, normal HardwareID authentication first
+returned level 1 (`0x0203`). Re-authenticating with the first 12 bytes of the
+non-erased record at `0x03000d80` returned level 2 (`0x0205`). AdcQueue remained
+available after elevation: a 50 SPS stream returned 10 parsed samples after a
+200 ms accumulation interval. No device-memory or settings write was involved.
 
 ### Level Enforcement
 
