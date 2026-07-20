@@ -287,8 +287,14 @@ fixed five-byte records:
 The firmware caps each copied queue at 200 bytes. Producers show the first
 queue receiving PD state-transition codes and the second receiving protocol
 and message-event codes, including `0x82` and `0x83` during extended-message
-processing. The numeric code enumeration is not mapped yet. The timestamp is
-the firmware millisecond uptime counter divided by 1000.
+processing. The first queue's codes `0x00..0x24` are mapped by an ordered name
+table embedded in the firmware; code `0x25` is emitted but remains unnamed. See
+[USB PD State Trace](../features/pd_trace.md) for the complete table. The
+timestamp is the firmware millisecond uptime counter divided by 1000.
+
+The logical extended header leaves its size field at zero. A host must derive
+the payload boundary from both queue-length prefixes instead of treating the
+payload as empty or consuming the remainder of a chained response.
 
 Attribute `0x0040` is the UFCS trace attribute. This is confirmed by the owning
 state object, its `TASK_UFCS` initializer, and the RX/TX producers of the event

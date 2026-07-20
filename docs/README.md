@@ -29,6 +29,7 @@ Capture-backed reverse engineering documentation for the **ChargerLAB POWER-Z KM
 |----------|-------------|
 | [Authentication](features/authentication.md) | Streaming auth (0x4C) and memory access (0x44) |
 | [AdcQueue Streaming](features/adcqueue.md) | High-rate power logging (up to 1000 SPS) |
+| [USB PD State Trace](features/pd_trace.md) | Internal Type-C state and protocol event queues |
 | [Offline Logs](features/offline_logs.md) | Downloading device-stored measurement logs |
 | [PD Analysis](features/pd_analysis.md) | USB Power Delivery capture and SQLite export |
 
