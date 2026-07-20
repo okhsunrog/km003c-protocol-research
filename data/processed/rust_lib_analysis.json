@@ -5,8 +5,10 @@
   "packet_types": {
     "Disconnect": 5,
     "Connect": 15,
-    "Accept": 146,
-    "Generic": 134,
+    "Accept": 48,
+    "MemoryRead": 49,
+    "Generic": 170,
+    "StreamingAuth": 13,
     "StreamingAuthResponse": 13,
     "GetData": 4790,
     "DataResponse": 4789,
