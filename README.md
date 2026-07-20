@@ -12,14 +12,17 @@ Reverse engineering the ChargerLAB POWER-Z KM003C USB-C power analyzer protocol.
 ## Architecture
 
 ### Data Pipeline
-- Rust-based pcapng to Parquet converter 
+
+- Rust-based pcapng to Parquet converter
 - Extracts 41 USB protocol fields using tshark
 - Handles multiple devices and capture sessions
 
 ### Dataset
+
 `data/processed/usb_master_dataset.parquet` - 20,862 USB packets from 14 capture files, containing 8 distinct USB device-address values.
 
 ### Analysis Tools
+
 - `km003c_analysis/` - Python library for reusable USB transaction processing and GUI
 - `scripts/` - Analysis and data export scripts for research workflows
 - `notebooks/` - Jupyter notebooks for manual protocol exploration
@@ -48,6 +51,7 @@ sudo udevadm trigger
 **USB monitoring (`99-usbmon.rules`):** Grants the `wireshark` group access to `usbmon` devices for USB packet capture. Add your user to the `wireshark` group: `sudo usermod -aG wireshark $USER` (logout/login required).
 
 ### Environment Setup
+
 ```bash
 uv sync
 ```
@@ -56,11 +60,13 @@ uv sync
 `km003c-rs` release in `uv.lock`.
 
 ### PCAP Conversion
+
 ```bash
 ./rust_pcap_converter/target/debug/pcap_to_parquet --input capture.pcapng
 ```
 
 ### Analysis Library
+
 ```python
 from km003c_analysis import split_usb_transactions, tag_transactions
 import polars as pl
@@ -71,28 +77,31 @@ df_tagged = tag_transactions(df_with_transactions)
 ```
 
 ### Production Tools
+
 ```bash
 # Comprehensive SQLite PD export analyzer
-uv run python -m km003c_analysis.tools.pd_sqlite_analyzer --verbose
+uv run --locked python -m km003c_analysis.tools.pd_sqlite_analyzer --verbose
 
 # Export PD analysis to JSON/Parquet
-uv run python -m km003c_analysis.tools.pd_sqlite_analyzer --export-json results.json
-uv run python -m km003c_analysis.tools.pd_sqlite_analyzer --export-parquet messages.parquet
+uv run --locked python -m km003c_analysis.tools.pd_sqlite_analyzer --export-json results.json
+uv run --locked python -m km003c_analysis.tools.pd_sqlite_analyzer --export-parquet messages.parquet
 ```
 
 ### Analysis Scripts
+
 ```bash
 # Complete KM003C protocol analysis
-uv run python scripts/parquet/analyze_km003c_protocol.py
+uv run --locked python scripts/parquet/analyze_km003c_protocol.py
 
 # Export PD messages to Parquet
-uv run python scripts/parquet/export_pd_messages.py
+uv run --locked python scripts/parquet/export_pd_messages.py
 
 # Wrapped PD format parsing
-uv run python scripts/parquet/parse_pd_wrapped.py
+uv run --locked python scripts/parquet/parse_pd_wrapped.py
 ```
 
 ### Web Interface
+
 ```bash
 just app  # Launch Streamlit analyzer
 ```
@@ -100,15 +109,15 @@ just app  # Launch Streamlit analyzer
 ## Protocol Parsing and Attribute Masks
 
 - Use the Rust-backed `km003c` package for protocol parsing in scripts and tools. Prefer `parse_packet()` for semantic payloads (ADC, AdcQueue, PD status/events) and `parse_raw_packet()` for low-level headers and logical packets when needed.
-- Control header layout (wire):
-  - `type` 7 bits, `reserved_flag` 1 bit, `id` 8 bits, 1 unnamed bit, then `att` 15 bits.
+- Control header layout (wire): `type` 7 bits, `reserved_flag` 1 bit, `id` 8 bits, 1 unnamed bit, then `att` 15 bits.
 - The 15-bit `att` field holds attribute values directly (no shifting). Examples: `0x0001` ADC, `0x0002` AdcQueue, `0x0008` Settings, `0x0010` PdPacket.
- - Byte layout gotcha (for humans/agents reading hex): the `att` field starts at bit 17 of the 32-bit little‑endian header. For `att=0x0001` (ADC), the third byte often appears as `0x02` — this is correct and does not mean `0x0002` (AdcQueue). Always parse via the 32-bit little-endian bitfield or use `km003c`.
-  - `reserved_flag` is vendor-specific and is NOT an indicator of extended headers. PutData (0x41) responses always include chained logical packets.
+- Byte layout gotcha (for humans/agents reading hex): the `att` field starts at bit 17 of the 32-bit little-endian header. For `att=0x0001` (ADC), the third byte often appears as `0x02` — this is correct and does not mean `0x0002` (AdcQueue). Always parse via the 32-bit little-endian bitfield or use `km003c`.
+- `reserved_flag` is vendor-specific and is not an indicator of extended headers. PutData (`0x41`) responses use extended logical-packet headers regardless of this bit.
 - Extended header (per logical packet): `att:15 | next:1 | chunk:6 | size:10`.
 
 Recommended usage:
-```
+
+```python
 from km003c import parse_packet, parse_raw_packet
 from scripts.km003c_helpers import get_packet_type, get_adc_data, get_pd_status, get_pd_events
 
@@ -126,13 +135,14 @@ if isinstance(raw, dict) and "Data" in raw:
 ```
 
 Important: Avoid manual bit/byte parsing for KM003C headers in Python. Agents and scripts should use the Rust parser to prevent off-by-one mistakes in attribute masks and misinterpretation of `reserved_flag`.
+
 ## Protocol Insights
 
 - USB VID: 0x5FC9, PID: 0x0063
 - Bulk transfer endpoints: 0x01 (OUT), 0x81 (IN)
 - Application layer protocol with extended headers
 - Dual ADC measurement and Power Delivery analysis modes
-- URB ID reuse pattern requires Submit/Complete pair analysis
+- USB analysis scopes each capture separately and pairs pending Submit/Complete URBs chronologically
 
 ## Related Projects
 

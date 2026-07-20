@@ -14,15 +14,15 @@ The main USB command processor at `0x0004eaf0` uses a switch on `command_type & 
 |---------|-----|---------|-------|
 | Connect | 0x02 | Inline | Returns Accept (0x05) |
 | GetData | 0x0C | FUN_0004286c | Builds ADC/PD/Settings responses |
-| Unknown | 0x0D | FUN_00042c4a | Data command |
+| GetFile | 0x0D | FUN_00042c4a | File-transfer command |
 | StartGraph | 0x0E | Inline | Starts streaming |
 | StopGraph | 0x0F | Inline | Stops streaming |
 | PdEnable | 0x10 | Inline | Enable PD monitoring |
 | PdDisable | 0x11 | Inline | Disable PD monitoring |
 | MemoryRead | 0x44 | FUN_00042cac | Memory read with validation |
-| Unknown72 | 0x48 | FUN_00042df4 | Unknown purpose |
+| Command 0x48 | 0x48 | FUN_00042df4 | Purpose not yet identified |
 | FlashWrite | 0x4A | Inline | Requires auth level > 0 |
-| Unknown75 | 0x4B | FUN_00042cac | Memory read + 0x98000000 offset |
+| Command 0x4B | 0x4B | FUN_00042cac | Memory-style read with 0x98000000 offset |
 | StreamingAuth | 0x4C | FUN_00000fb0 | AES authentication |
 
 ---
@@ -173,17 +173,10 @@ switch(error_code & 0x1f) {
 }
 ```
 
-### Data Response Types
+### MemoryRead Data
 
-**Note:** Data responses are AES-128-ECB encrypted with `MEMORY_READ_KEY`.
-The "type" values are coincidental first bytes of encrypted data, not type prefixes.
-
-| Type | Hex | Memory Region |
-|------|-----|---------------|
-| Unknown26 | 0x1A | 0x420 (device info 1) |
-| Unknown58 | 0x3A | 0x4420 (firmware info) |
-| Head | 0x40 | 0x3000C00 (calibration) |
-| Unknown117 | 0x75 | 0x40010450 (device ID) |
+After the framed `0xC4` confirmation, the device sends unframed AES-128-ECB
+ciphertext with no application packet header.
 
 ---
 
@@ -199,6 +192,7 @@ if (auth_level == 0) {
 ```
 
 This limits unauthenticated access to:
+
 - 0x01 (ADC)
 - 0x08 (Settings)
 - 0x10 (PdPacket)

@@ -33,6 +33,7 @@ The KM003C implements 4 USB interfaces:
 | Transfer Type | Bulk |
 
 **Endpoints:**
+
 - `0x01 OUT` - Bulk, 64 bytes
 - `0x81 IN` - Bulk, 64 bytes
 
@@ -47,6 +48,7 @@ The KM003C implements 4 USB interfaces:
 | Driver | `cdc_acm` |
 
 **Endpoint:**
+
 - `0x83 IN` - Interrupt, 8 bytes, 10ms interval
 
 ### Interface 2: CDC Data
@@ -57,6 +59,7 @@ The KM003C implements 4 USB interfaces:
 | Driver | `cdc_acm` (paired with IF1) |
 
 **Endpoints:**
+
 - `0x02 OUT` - Bulk, 64 bytes
 - `0x82 IN` - Bulk, 64 bytes
 
@@ -69,6 +72,7 @@ The KM003C implements 4 USB interfaces:
 | Driver | `usbhid` |
 
 **Endpoints:**
+
 - `0x05 OUT` - Interrupt, 64 bytes, 1ms interval
 - `0x85 IN` - Interrupt, 64 bytes, 1ms interval
 
@@ -78,7 +82,7 @@ The KM003C implements 4 USB interfaces:
 
 ## Descriptor Hierarchy
 
-```
+```text
 Device Descriptor (18 bytes)
 └── Configuration Descriptor (130 bytes)
     ├── Interface 0 (Vendor Specific)
@@ -103,6 +107,7 @@ Device Descriptor (18 bytes)
 ### BOS Descriptor
 
 Platform Device Capability:
+
 - **UUID:** `{d8dd60df-4589-4cc7-9cd2-659d9e648a9f}`
 - **Data:** `00 00 03 06 aa 00 20 00`
 
@@ -126,7 +131,7 @@ Platform Device Capability:
 
 ### URB Transaction Pattern
 
-```
+```text
 Host → Device: Submit OUT (command)
 Device → Host: Complete (status=0, acknowledged)
 
@@ -151,9 +156,14 @@ Device → Host: Complete IN (response data)
 
 ### URB ID Warning
 
-The `urb_id` in USB monitoring tools (Wireshark/usbmon) is a **kernel memory address**, not a transaction ID. It gets reused.
+The `urb_id` in USB monitoring tools (Wireshark/usbmon) is a **kernel memory
+address**, not an application transaction ID. It is useful for pairing one
+pending Submit with its Complete, but can be reused afterward.
 
-**Correct grouping:** Match Submit → Complete pairs by timestamp order, not by URB ID.
+**Correct grouping:** Partition by `source_file`, then pair each Complete with
+the chronologically pending Submit having the same URB ID and compatible
+endpoint/direction. Never group an entire capture by URB ID alone, and never
+sort frames from different source files together.
 
 ---
 
@@ -180,7 +190,7 @@ The `urb_id` in USB monitoring tools (Wireshark/usbmon) is a **kernel memory add
 
 ### System Paths
 
-```
+```text
 /sys/bus/usb/devices/1-X.X/          # Device sysfs
 /sys/class/hwmon/hwmonX/             # hwmon interface
 /dev/ttyACM*                         # CDC serial
@@ -200,7 +210,8 @@ echo '1-1.3:1.0' | sudo tee /sys/bus/usb/drivers/powerz/unbind
 ```
 
 Or use udev rules:
-```
+
+```text
 # /etc/udev/rules.d/99-km003c.rules
 ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="5fc9", ATTR{idProduct}=="0063", \
     RUN+="/bin/sh -c 'echo 1-*:1.0 > /sys/bus/usb/drivers/powerz/unbind'"
@@ -212,35 +223,14 @@ ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="5fc9", ATTR{idProduct}=="0063"
 
 - **Standard flow:** Device and configuration descriptors are requested twice (short header then full 130B config). String descriptors are queried at multiple lengths (4/255/258 bytes).
 - **VM redirection:** In passthrough setups, a three-stage sequence occurs (host enumerate → guest enumerate → app start), followed by a proprietary control transfer.
-- **Vendor request 0x32:** `bmRequestType=0xC2`, `bRequest=0x32`, `wLength=170` — returns a 170-byte blob (likely capability/calibration query).
+- **Vendor request 0x32:** `bmRequestType=0xC2`, `bRequest=0x32`, `wLength=170` — returns a 170-byte blob. Its semantics are unknown.
 - **Other control probes observed:** type 0x10 attr 0x0001 (zero-length), type 0x11 attr 0x0000 (zero-length), and GetData attr 0x0011 during init.
-
----
-
-## Traffic Analysis (usbmon)
-
-| Endpoint | Transfer Type | Packet Count | Usage |
-|----------|---------------|--------------|-------|
-| 0x01/0x81 | Bulk | 11,710 | Primary protocol (Interface 0) |
-| 0x80/0x00 | Control | 286 | Descriptor + vendor control |
-| 0x85 | Interrupt | 12 | HID interface (Interface 3) |
-
----
-
-## Performance Profiles (captures)
-
-| Device Addr | Packets | Rate (pps) | Avg Payload | Use Case |
-|-------------|---------|------------|-------------|----------|
-| 6 | 2,152 | 133.1 | 97.2 bytes | High-frequency ADC |
-| 13 | 2,030 | 66.0 | 8.7 bytes | Fast command-response |
-| 16 | 248 | 44.0 | 12.4 bytes | Low-volume monitoring |
-| 9 | 6,924 | 23.4 | 12.6 bytes | PD protocol analysis |
 
 ---
 
 ## Troubleshooting & Edge Cases
 
-- **URB ID reuse:** Kernel urb_id is an address, not a transaction identifier; always correlate Submit→Complete pairs instead of grouping by urb_id.
+- **URB ID reuse:** Pair one pending Submit/Complete at a time within a source capture; do not treat the address as a persistent transaction identifier.
 - **Empty Complete:** A 0-length IN Complete (status=0) is a normal acknowledgment path for control/bulk commands.
 - **ENOENT (-2):** Seen when operations are cancelled; not fatal if the next request succeeds.
 - **Driver conflicts:** If the `powerz` driver is bound, bulk interface 0 will NAK; unbind (see above) before direct access.
@@ -252,80 +242,10 @@ ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="5fc9", ATTR{idProduct}=="0063"
 | Use Case | Interface | Notes |
 |----------|-----------|-------|
 | High-performance streaming | IF0 (Bulk) | Requires driver unbind on Linux |
-| Cross-platform, no drivers | IF3 (HID) | Works everywhere, slightly slower |
+| Basic driverless access | IF3 (HID) | ADC/PD works in tested captures; full auth/streaming is unsupported |
 | Serial debugging | IF1+2 (CDC) | Limited to serial protocols |
 
 **Note:** AdcQueue streaming and full authentication only work on Interface 0 (vendor bulk).
-
----
-
-## Control Transfers
-
-### Standard Enumeration
-
-Device follows standard USB enumeration:
-1. Device Descriptor (18 bytes)
-2. Configuration Descriptor (9 bytes header, then 130 bytes full)
-3. String Descriptors (manufacturer, product, serial)
-
-### Vendor-Specific Control Request
-
-Discovered proprietary request during enumeration:
-
-```
-bmRequestType: 0xC2 (Vendor, Device-to-Host)
-bRequest:      0x32
-wValue:        0x0000
-wIndex:        0x0000
-wLength:       170
-```
-
-Purpose: Likely device capability or calibration query.
-
----
-
-## Traffic Analysis
-
-### Transfer Type Encoding (Wireshark)
-- `0` Isochronous, `1` Interrupt, `2` Control, `3` Bulk
-
-### Observed Counts (captures)
-
-| Endpoint | Type | Packets | Usage |
-|----------|------|---------|-------|
-| 0x01/0x81 | Bulk | 11,710 | Primary protocol |
-| 0x80/0x00 | Control | 286 | Enumeration |
-| 0x85 | Interrupt | 12 | HID (IF3) |
-
-### Handshakes & ZLP
-
-- **Data request:** Host posts IN URB (status -115 EINPROGRESS) → device completes with data.
-- **Ack only:** Host sends command → empty Complete status=0.
-- **Error:** Empty Complete status=-2 (ENOENT).
-- **URB IDs are kernel addresses**: never use `urb_id` for correlation; pair Submit→Complete by order.
-
-### Timing (typical)
-
-| Metric | Value |
-|--------|-------|
-| Command latency | 77–85 µs |
-| ADC polling interval | ~200 ms |
-| PD capture interval | ~40 ms |
-| Max sustained throughput | ~133 packets/s |
-
-### Performance Profiles
-
-| Device Addr | Packets | Rate (pps) | Avg Payload | Use Case |
-|-------------|---------|------------|-------------|---------|
-| 6 | 2,152 | 133.1 | 97.2 B | High-frequency ADC |
-| 13 | 2,030 | 66.0 | 8.7 B | Fast command/response |
-| 16 | 248 | 44.0 | 12.4 B | Low-volume monitoring |
-| 9 | 6,924 | 23.4 | 12.6 B | PD analysis |
-
-### Troubleshooting
-
-- Mis-grouping by `urb_id` leads to corrupted flows; always match Submit→Complete pairs.
-- Interface 0 gives best latency; HID (IF3) is slower but driverless; CDC mostly for serial/debug.
 
 ---
 

@@ -21,6 +21,7 @@ Complete reverse engineering documentation for the **ChargerLAB POWER-Z KM003C**
 |----------|-------------|
 | **[Protocol Reference](protocol_reference.md)** | Complete protocol specification - commands, attributes, data structures, cryptography |
 | [USB Transport](usb_transport.md) | USB descriptors, endpoints, bulk transfer details |
+| [Implementation Status](implementation_status.md) | Coverage in km003c-lib and Python bindings |
 
 ### Feature Deep-Dives
 
@@ -45,7 +46,7 @@ Complete reverse engineering documentation for the **ChargerLAB POWER-Z KM003C**
 
 | Document | Description |
 |----------|-------------|
-| [Unknown Commands](research/unknown_commands.md) | Partially understood commands, bootloader protocol |
+| [Protocol Gaps](research/protocol_gaps.md) | Confirmed gaps, hypotheses, and bootloader research |
 | [Transaction Correlation](research/transaction_correlation.md) | Bitmask/latency validation across captures |
 | [Code Organization](research/code_organization_strategy.md) | Repo layout: production vs research vs experiments |
 | [Research Notes](research/notes.md) | Ongoing investigation notes |
@@ -55,7 +56,7 @@ Complete reverse engineering documentation for the **ChargerLAB POWER-Z KM003C**
 | Document | Description |
 |----------|-------------|
 | [KM002C&3C API Description.pdf](official/KM002C%263C%20API%20Description.pdf) | Vendor API documentation |
-| [Protocol Trigger Instructions.pdf](official/KM003C_002C%20Protocol%20Trigger%20by%20Virtual%20Serial%20Port%20(Instructions).pdf) | Serial port trigger protocol |
+| [Protocol Trigger Instructions.pdf](official/KM003C_002C%20Protocol%20Trigger%20by%20Virtual%20Serial%20Port%20%28Instructions%29.pdf) | Serial port trigger protocol |
 
 ---
 
@@ -76,8 +77,9 @@ send([0x0C, tid, 0x02, 0x00])  # GetData, attr=0x0001
 ```python
 # 1. Connect
 send([0x02, tid, 0x00, 0x00])
-# 2. Auth (required for streaming)
-send([0x4C, tid, 0x00, 0x02] + bytes(32))
+# 2. Auth (required for streaming; use this device's HardwareID)
+hardware_id = read_memory(0x40010450, 12)
+send(build_streaming_auth(tid, hardware_id))
 # 3. Start streaming at 50 SPS
 send([0x0E, tid, 0x04, 0x00])
 # 4. Poll for samples
@@ -104,6 +106,7 @@ See [Protocol Reference](protocol_reference.md) for complete details.
 ### Linux Kernel
 
 The `powerz` hwmon driver provides basic voltage/current monitoring:
+
 - [drivers/hwmon/powerz.c](https://github.com/torvalds/linux/blob/master/drivers/hwmon/powerz.c)
 
 ---

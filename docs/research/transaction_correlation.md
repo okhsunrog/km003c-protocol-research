@@ -1,6 +1,7 @@
 # Transaction Correlation Analysis
 
-Bitmask and latency validation across usb_master_dataset.parquet (2,836 request/response pairs).
+Bitmask and latency validation across `usb_master_dataset.parquet` (4,789
+GetData/PutData pairs from 13 source captures).
 
 ## Key Findings
 
@@ -12,28 +13,29 @@ Bitmask and latency validation across usb_master_dataset.parquet (2,836 request/
 
 | Request Mask | Response Attributes | Occurrences |
 |--------------|--------------------|-------------|
-| 0x0001 | [ADC] | 1,825 |
-| 0x0010 | [PdPacket] | 657 |
-| 0x0011 | [ADC, PdPacket] | 36 |
-| 0x0003 | [ADC, AdcQueue] | 17 |
-| 0x0002 | [AdcQueue] | 290 |
-| 0x0008 | [Settings] | 7 |
-| 0x0200 | [LogMetadata] | 7 |
+| 0x0001 | [ADC] | 2,752 |
+| 0x0010 | [PdPacket] | 1,213 |
+| 0x0011 | [ADC, PdPacket] | 65 |
+| 0x0003 | [ADC, AdcQueue] | 44 |
+| 0x0002 | [AdcQueue] | 688 |
+| 0x0002 | [] | 4 |
+| 0x0008 | [Settings] | 11 |
+| 0x0200 | [LogMetadata] | 12 |
 
 ### Timing (median)
 
 | Request Type | Median Latency |
 |--------------|----------------|
-| ADC (0x0001) | 182 µs |
-| PD (0x0010) | 158 µs |
-| ADC+PD (0x0011) | 198.5 µs |
-| AdcQueue (0x0002) | 1,061.5 µs |
+| ADC (0x0001) | 164 µs |
+| PD (0x0010) | 123 µs |
+| ADC+PD (0x0011) | 171 µs |
+| AdcQueue (0x0002) | 510 µs |
 
 ### Per-Capture Highlights
 
-- `orig_adc_1000hz.6`: 299 pairs, AdcQueue-heavy (220 requests) for high-rate sampling.
-- `pd_capture_new.9`: 1,731 pairs, mixed ADC (1,402) + PD (310); ADC ~200 ms, PD ~40 ms cadence.
-- `orig_with_pd.13`: 503 pairs, PD-dominant (347) alongside power monitoring.
+- `orig_adc_1000hz.6`: 291 pairs, AdcQueue-heavy (220 requests) for high-rate sampling.
+- `pd_capture_new.9`: 1,729 pairs, mixed ADC (1,401) + PD (310); ADC ~200 ms, PD ~40 ms cadence.
+- `orig_with_pd.13`: 495 pairs, PD-dominant (347) alongside power monitoring.
 
 ## Rules Confirmed
 
@@ -46,8 +48,8 @@ Bitmask and latency validation across usb_master_dataset.parquet (2,836 request/
 
 ## Validation & Tooling
 
-- **Dataset:** `data/processed/usb_master_dataset.parquet` (≈12k packets, 2,836 pairs).
-- **Parsers:** Python analysis + Rust `km003c-rs` achieved 0 parse errors across 5,824 packets.
+- **Dataset:** `data/processed/usb_master_dataset.parquet` (20,862 USB rows from 14 source captures; 4,789 GetData/PutData pairs from 13 sources).
+- **Parser:** the correlation generator uses the pinned Rust `km003c` parser and rejects MemoryRead request/confirmation traffic before attribute analysis.
 - **Exports:** `data/processed/transaction_pairs.parquet`, `request_response_analysis.json`, `bitmask_correlation_validation.json`, `rust_lib_analysis.json`.
 - **Scripts:** `scripts/parquet/analyze_request_response_correlation.py`, `scripts/parquet/analyze_with_km003c_lib.py`, `scripts/parquet/validate_bitmask_correlation.py`, `scripts/parquet/visualize_request_response.py`.
 

@@ -64,7 +64,7 @@ QByteArray* get_crypto_key(QByteArray* result, int key_index) {
 
 Keys are embedded within longer random-looking strings:
 
-```
+```text
 0x140184ac8: "NmR0R.uz3KgNOu4xufpWLh2yfB7n6X7d9a5ZBwLe/CZ.iz8"
                                 ^^^^^^^^^^^^^^^^
                                 offset 0x14 = Key 0
@@ -95,12 +95,13 @@ Keys are embedded within longer random-looking strings:
 | Offset | Size | Content |
 |--------|------|---------|
 | 0 | 8 | Timestamp (QDateTime::toMSecsSinceEpoch) |
-| 8 | 8 | Device-specific data |
-| 16 | 8 | Random (QRandomGenerator64) |
+| 8 | 12 | HardwareID read from 0x40010450 |
+| 20 | 12 | Random bytes |
 
-This 24-byte plaintext is AES-128-ECB encrypted to 32 bytes.
+This 32-byte plaintext is AES-128-ECB encrypted as two complete blocks.
 
 **Verification flow:**
+
 1. Build challenge with timestamp + device_id + random
 2. Encrypt with key 3 (`Fa0b4tA25f4R038a`)
 3. Send packet
@@ -190,6 +191,7 @@ These are **host-side polling intervals** in milliseconds, not device sample rat
 ### build_download_request_packet (0x14006b5f0)
 
 Builds 0x44 memory read request:
+
 1. Create 16-byte plaintext: address + size + 0xFFFFFFFF + CRC32
 2. Pad to 32 bytes with 0xFF
 3. Encrypt with key 0
@@ -198,9 +200,10 @@ Builds 0x44 memory read request:
 ### download_large_data (0x14006f870)
 
 Orchestrates multi-chunk downloads:
+
 1. Send 0x44 request
 2. Receive 20-byte confirmation
-3. Collect data chunks (0x34, 0x4E, 0x76, 0x68)
+3. Collect raw ciphertext until the AES-aligned requested size is complete
 4. Decrypt chunks with key 0
 5. Concatenate and return
 
@@ -252,6 +255,7 @@ The attribute 0x0004 (AdcQueue10k) appears in code but is **not implemented**:
 ## Transaction ID
 
 Global counter at 0x140277089:
+
 - Incremented per packet
 - 8-bit rollover (0-255)
 - Response ID should match request ID

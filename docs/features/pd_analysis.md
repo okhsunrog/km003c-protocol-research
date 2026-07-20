@@ -15,28 +15,25 @@ The KM003C can capture USB PD messages and export them to SQLite. PD data appear
 
 ---
 
-## PD Status vs Preamble (12 bytes)
+## PD Measurement Block (12 bytes)
 
-PD data shows up in two distinct 12-byte forms. They are not interchangeable:
+Standalone PD status, the PD part of a chained ADC+PD response, and the
+preamble of a PD event stream all use the same layout:
 
-- **PD Status (ADC+PD combo, 68B total):**
-  - `[0] type_id (u8)`
-  - `[1..3] timestamp24 (u24, ~40ms/tick)`
-  - `[4..5] vbus_mV (u16)`
-  - `[6..7] ibus_mA (u16)`
-  - `[8..9] cc1_mV (u16)`
-  - `[10..11] cc2_mV (u16)`
-  - Follows an ADC logical packet; no PD events follow in the common 68B packets.
+- `[0..3] timestamp_ms (u32 LE, monotonic device time)`
+- `[4..5] vbus_mV (u16)`
+- `[6..7] ibus_mA (i16, signed)`
+- `[8..9] cc1_mV (u16)`
+- `[10..11] cc2_mV (u16)`
 
-- **PD Preamble (PD-only/event streams):**
-  - `[0..3] timestamp_ms (u32, ms base)`
-  - `[4..5] vbus_mV (u16)`
-  - `[6..7] ibus_mA (i16, signed)`
-  - `[8..9] cc1_mV (u16)`
-  - `[10..11] cc2_mV (u16)`
-  - Immediately followed by repeated 6-byte event headers + PD wire bytes.
+This was checked across 1,278 captured PD blocks: 1,182 standalone/chained
+12-byte blocks and 96 event streams. Within each capture the counter was
+monotonic, and its delta tracked host elapsed milliseconds at a median ratio
+of approximately 1.00005.
 
-**Empty PD response:** When no new PD data is available, the device returns an 18-byte PdPacket: 12-byte preamble + a single empty 6-byte event header (`wire_len=0`).
+When no event is queued, the PdPacket payload is just this 12-byte block.
+Observed 18-byte payloads contain a real 6-byte `0x45` connection/disconnection
+event; they are not empty-event sentinels.
 
 ---
 
@@ -54,6 +51,7 @@ Two event kinds appear in PD payloads:
 | 5 | 1 | Event code |
 
 **Event codes:**
+
 - `0x21` - Connect (33 decimal)
 - `0x22` - Disconnect (34 decimal)
 
@@ -74,10 +72,9 @@ The wire bytes are standard USB PD messages (2-byte header + data objects).
 
 ## Examples & Correlation
 
-- **Empty PD response:** 18-byte payload = 12-byte preamble + one 6-byte header with `wire_len=0`; indicates no new PD wire data.
 - **Preamble+event sample:** `preamble: e5 e8 5b 00 00 00 00 00 76 06 03 00` + `event: 45 e2 e8 5b 00 21` (connect). Disconnect uses code `0x22`.
 - **Wrapped message sample:** size_flag `0x9F` → `wire_len=21`; parsed messages observed: GoodCRC, Source_Capabilities, Request, Accept, PS_RDY.
-- **USB ↔ SQLite:** PD events in `pd_table.Raw` match USB PD-only payloads minus the 12-byte preamble; timestamps align with the 32-bit preamble ts (the 24-bit ADC+PD status counter is separate).
+- **USB ↔ SQLite:** PD events in `pd_table.Raw` match USB PD-only payloads minus the 12-byte measurement preamble; timestamps align with the same millisecond timebase.
 
 ## SQLite Export Format
 
@@ -92,6 +89,7 @@ CREATE TABLE pd_table_key(key integer);
 ### pd_chart Table
 
 Time-series ADC samples during PD capture:
+
 - `Time` - seconds since capture start
 - `VBUS` - volts
 - `IBUS` - amps
@@ -100,6 +98,7 @@ Time-series ADC samples during PD capture:
 ### pd_table Table
 
 PD events with binary payload:
+
 - `Time` - event timestamp
 - `Vbus`, `Ibus` - instantaneous readings
 - `Raw` - binary blob with PD event(s)
@@ -129,9 +128,9 @@ while i < len(raw):
         break
 ```
 
-**Timestamp alignment:** SQLite `timestamp_ms` aligns with the 32-bit preamble timestamps in USB PD-only payloads. The 24-bit PD status timestamp from ADC+PD packets is a coarse counter (~40 ms/tick) and should not be conflated with the SQLite timestamps.
-
-**Empty PD rows:** The empty 18-byte PD USB response normally produces no SQLite row unless accompanied by a separate `0x45` status event.
+**Timestamp alignment:** SQLite `timestamp_ms`, standalone/chained PD status,
+and USB PD event-stream preambles use the same device-relative millisecond
+timebase.
 
 ---
 
@@ -140,6 +139,7 @@ while i < len(raw):
 PD wire messages are standard USB PD frames:
 
 **Header (2 bytes LE):**
+
 - Message type (5 bits)
 - Num data objects (3 bits)
 - Message ID (3 bits)
@@ -182,7 +182,7 @@ if hasattr(msg, 'pdos'):
 
 Include attribute 0x0010 in GetData:
 
-```
+```text
 0C TID 20 00  # GetData attr=0x0010 (PD only)
 0C TID 22 00  # GetData attr=0x0011 (ADC + PD)
 ```
@@ -191,7 +191,7 @@ The device buffers PD events and returns them via polling. No special enable com
 
 ### Enable/Disable PD Monitor (0x10/0x11) - Optional
 
-```
+```text
 10 TID 02 00  # Enable PD capture
 11 TID 00 00  # Disable PD capture
 ```
@@ -202,12 +202,10 @@ The device buffers PD events and returns them via polling. No special enable com
 
 ## Correlation: USB to SQLite
 
-- USB PdPacket (18+ bytes) = 12-byte preamble + events
+- USB PdPacket (>12 bytes) = 12-byte measurement preamble + one or more events
 - SQLite Raw blob = events only (no preamble)
 - Timestamps align between sources
 - Connect/disconnect events present in both
-
-**Empty PD responses:** USB may return 18-byte packet (12B preamble + 6B empty event header) indicating no new PD data.
 
 ---
 

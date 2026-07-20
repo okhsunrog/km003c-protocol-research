@@ -11,7 +11,7 @@ How to separate production tools from research/experiments.
 
 ### Layout (reference)
 
-```
+```text
 km003c_analysis/            # 🏭 production
 ├── tools/                  # CLI tools (export, analyzers)
 ├── core/                   # reusable parsing logic
@@ -31,6 +31,7 @@ notebooks/                  # 📓 exploration only
 - Experiment: one-off validation; keep small and deletable.
 
 Documentation expectations:
+
 - Production → listed in README/CLAUDE with examples; has CLI help and docstring.
 - Research → brief header description; may be mentioned in findings.
 - Experiments → no main README entry; keep deletion criteria in-file if needed.
@@ -56,6 +57,6 @@ Documentation expectations:
 
 ## Usage Examples
 
-- Production: `uv run python -m km003c_analysis.tools.pd_sqlite_analyzer --help`
-- Research: `uv run python scripts/parquet/analyze_km003c_protocol.py`
-- Experiment: `uv run python scripts/experiments/test_new_feature.py`
+- Production: `uv run --locked python -m km003c_analysis.tools.pd_sqlite_analyzer --help`
+- Research: `uv run --locked python scripts/parquet/analyze_km003c_protocol.py`
+- Experiment: `uv run --locked python scripts/experiments/test_new_feature.py`

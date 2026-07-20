@@ -16,6 +16,7 @@ Encrypted firmware file format used by ChargerLAB Mtools.
 ### Qt QString Format
 
 Each QString is serialized as:
+
 - 4-byte big-endian length (bytes, not characters)
 - UTF-16BE encoded string data
 - Null QString has length 0xFFFFFFFF
@@ -66,7 +67,7 @@ Keys are embedded as substrings in obfuscation strings at 0x140184ac8-0x140184b6
 
 ## Header Example (KM003C_V1.9.9.mencrypt)
 
-```
+```text
 00000000: 0000 000a 0000 001a 0046 0069 0072 006d
 00000010: 0077 0061 0072 0065 0020 0066 0069 006c
 00000020: 0065 0000 0014 0043 0068 0061 0072 0067

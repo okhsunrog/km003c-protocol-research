@@ -4,7 +4,7 @@ Tests are separated into unit and integration tests for efficient development wo
 
 ## Test Structure
 
-```
+```text
 tests/
 ├── unit/              # Fast tests, no hardware required
 │   ├── test_packet_parsing.py       # km003c_lib parsing (ADC, AdcQueue, PD)
@@ -24,16 +24,16 @@ tests/
 
 ```bash
 # Run all unit tests (default)
-uv run pytest
+uv run --locked pytest
 
 # Or explicitly
-uv run pytest -m unit
+uv run --locked pytest -m unit
 
 # Or by directory
-uv run pytest tests/unit/
+uv run --locked pytest tests/unit/
 
 # Quick mode
-uv run pytest -m unit -q
+uv run --locked pytest -m unit -q
 ```
 
 **Run time:** ~30-40 seconds  
@@ -43,10 +43,10 @@ uv run pytest -m unit -q
 
 ```bash
 # Run all integration tests
-uv run pytest -m integration -v -s
+uv run --locked pytest -m integration -v -s
 
 # Or by directory
-uv run pytest tests/integration/ -v -s
+uv run --locked pytest tests/integration/ -v -s
 ```
 
 **Run time:** ~10-20 seconds  
@@ -56,15 +56,16 @@ uv run pytest tests/integration/ -v -s
 
 ```bash
 # Run everything
-uv run pytest -m "unit or integration"
+uv run --locked pytest -m "unit or integration"
 
 # Or without markers
-pytest tests/ --override-ini="addopts="
+uv run --locked pytest tests/ --override-ini="addopts="
 ```
 
 ## What Each Suite Tests
 
 ### Unit Tests (48 tests)
+
 - ✅ Transaction splitter logic (7 tests)
 - ✅ Transaction tagger patterns (8 tests)  
 - ✅ Packet and PD parsing with km003c_lib (24 tests, including 4 capture-dependent cases)
@@ -73,11 +74,12 @@ pytest tests/ --override-ini="addopts="
 - ✅ Validates against 20,862-packet dataset
 
 ### Integration Tests (8 tests)
+
 - ✅ Device discovery and connection
 - ✅ Basic commands (Connect, GetData ADC)
 - ✅ Start/Stop Graph commands
 - ✅ km003c_lib bindings on real responses
-- ⚠️ AdcQueue streaming (xfail - use `scripts/run_adcqueue_single.py` instead)
+- ✅ Authenticated AdcQueue streaming, including responses larger than 1024 bytes
 
 ## CI/CD Configuration
 
@@ -90,13 +92,15 @@ addopts = "-v -m unit"  # Default: unit tests only
 ```
 
 For CI/CD pipelines, use:
+
 ```bash
-uv run pytest -m unit
+uv run --locked pytest -m unit
 ```
 
 ## Markers
 
 Tests are marked with:
+
 - `@pytest.mark.unit` - No hardware required
 - `@pytest.mark.integration` - Requires device
 

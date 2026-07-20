@@ -19,14 +19,13 @@ The KM003C can record power measurements to internal flash while offline. This p
 Initialization and transfer as observed in captures (reading_logs0.11):
 
 1. Connect (0x02) → Accept
-2. Unknown68 ×3 with small responses (challenge/echo)
-3. Head (0x40) and Unknown117/Unknown26 responses
-4. (Optional) Unknown76 auth
-5. GetData Settings (0x0008)
-6. GetData LogMetadata (0x0200) to fetch sizes
-7. MemoryRead (0x44, address 0x98100000) to start download
-8. Receive chunk sequence 0x34 → 0x4E → 0x76 → 0x68 (final, may be smaller)
-9. Concatenate, decrypt, parse 16-byte samples
+2. MemoryRead known device-information blocks
+3. StreamingAuth (0x4C)
+4. GetData Settings (0x0008)
+5. GetData LogMetadata (0x0200) to fetch sizes
+6. MemoryRead (0x44, address 0x98100000) to start download
+7. Receive raw ciphertext until the requested AES-aligned byte count is complete
+8. Concatenate, decrypt, parse 16-byte samples
 
 ---
 
@@ -34,7 +33,7 @@ Initialization and transfer as observed in captures (reading_logs0.11):
 
 ### Request
 
-```
+```text
 0C TID 00 04  # GetData attr=0x0200
 ```
 
@@ -47,11 +46,13 @@ Initialization and transfer as observed in captures (reading_logs0.11):
 | 0x12 | 2 | u16 | Sample count |
 | 0x14 | 2 | u16 | Interval (ms) |
 | 0x16 | 2 | u16 | Flags |
-| 0x18 | 4 | u32 | Estimated size |
+| 0x18 | 4 | u32 | Duration in seconds |
 | 0x1C | 20 | bytes | Additional metadata |
 
 **Data size:** `sample_count × 16` bytes
-**Duration:** `sample_count × interval_ms / 1000` seconds
+**Duration:** `(sample_count - 1) × interval_ms / 1000` seconds. In the
+recorded example, 521 samples at 10,000 ms span 5,200 seconds, matching the
+field at offset `0x18`.
 
 ---
 
@@ -63,7 +64,7 @@ Initialization and transfer as observed in captures (reading_logs0.11):
 |--------|------|-------|
 | 0 | 1 | Type: `0x44` |
 | 1 | 1 | TID |
-| 2 | 2 | Flags: `0x0101` |
+| 2 | 2 | Raw header word: `01 01` |
 | 4 | 32 | Encrypted payload |
 
 **Payload structure (plaintext before encryption):**
@@ -79,52 +80,49 @@ Initialization and transfer as observed in captures (reading_logs0.11):
 ### Known Addresses
 
 **Note:** Data responses are AES-128-ECB encrypted with `MEMORY_READ_KEY` (`Lh2yfB7n6X7d9a5Z`).
-Check bit 0 of the confirmation response flags to determine if decryption is needed.
+The bytes after the confirmation are raw ciphertext and must be decrypted.
 
-| Address | Response Type | Size | Description |
-|---------|---------------|------|-------------|
-| 0x00000420 | 0x1A | 64 | Device info block 1 |
-| 0x00004420 | 0x3A | 64 | Device info block 2 |
-| 0x03000C00 | 0x40 | 64 | Calibration data |
-| 0x40010450 | 0x75 | 12 | Hardware device ID |
-| 0x98100000 | 0x34+ | varies | **Offline log data** |
+| Address | Size | Description |
+|---------|------|-------------|
+| 0x00000420 | 64 | Device info block 1 |
+| 0x00004420 | 64 | Device info block 2 |
+| 0x03000C00 | 64 | Calibration data |
+| 0x40010450 | 12 | Hardware device ID |
+| 0x98100000 | varies | **Offline log data** |
 
 ### Response (20 bytes)
 
 | Offset | Size | Field |
 |--------|------|-------|
-| 0 | 1 | Type: `0xC4` (0x44 | 0x80) |
+| 0 | 1 | Type: `0xC4` (`0x44 \| 0x80`) |
 | 1 | 1 | TID |
-| 2 | 2 | Flags (bit 0 = data encrypted) |
+| 2 | 2 | Raw header word `01 01` |
 | 4 | 4 | Address echo |
 | 8 | 4 | Size echo |
 | 12 | 4 | `0xFFFFFFFF` |
-| 16 | 4 | CRC32 of data |
+| 16 | 4 | CRC32 of bytes 4-15 |
 
 ---
 
 ## Data Chunks
 
-After the 0x44 response, data arrives in sequential chunks:
-
-| Packet Type | Hex | Purpose |
-|-------------|-----|---------|
-| Unknown(52) | 0x34 | Data chunk 1 |
-| Unknown(78) | 0x4E | Data chunk 2 |
-| Unknown(118) | 0x76 | Data chunk 3 |
-| Unknown(104) | 0x68 | Final chunk (may be smaller) |
-
-Each chunk up to 2544 bytes, encrypted with AES-128 ECB.
+After the 0x44 confirmation, data arrives as unframed AES-128-ECB ciphertext.
+USB transfer boundaries are transport details, not application packet boundaries.
+In `reading_logs0.11`, an 8,336-byte response arrived as
+`2544 + 2544 + 2544 + 704` bytes.
 
 **Processing:**
-1. Concatenate all chunk payloads
+
+1. Concatenate complete raw transfers until `ceil(requested_size / 16) * 16`
+   bytes have arrived
 2. Decrypt with key `Lh2yfB7n6X7d9a5Z`
 3. Parse as 16-byte samples
 
 **Observed download statistics (reading_logs0.11):**
+
 - Duration: 29.5s; 618 packets total (290 requests, 308 responses)
-- Unknown68 exchanges: 4; large data chunks: 3 × 2544 bytes
-- Total encrypted log data ≈ 7632 bytes (521 samples × 16B)
+- MemoryRead exchanges: four initialization reads plus the log request
+- Encrypted log data: 8,336 bytes (`521 samples × 16 bytes`)
 - Normal ADC polling continued during download (135 GetData ADC)
 
 ---
@@ -139,7 +137,8 @@ Each chunk up to 2544 bytes, encrypted with AES-128 ECB.
 | 12 | 4 | i32 | Energy_Acc | µWh (accumulated) |
 
 **Accumulator relationship:**
-```
+
+```text
 Charge_Acc[n+1] - Charge_Acc[n] ≈ Current[n] × (interval_sec / 3600)
 Energy_Acc[n+1] - Energy_Acc[n] ≈ (V × I) × (interval_sec / 3600)
 ```
@@ -195,13 +194,18 @@ data_size = metadata['sample_count'] * 16
 send(build_log_request(tid, data_size))
 response = read()  # 20-byte ack
 
-# 3. Collect chunks
+# 3. Collect raw ciphertext transfers
 chunks = []
-while True:
+received = 0
+expected = (data_size + 15) // 16 * 16
+while received < expected:
     chunk = read()
     if not chunk:
-        break
-    chunks.append(chunk[4:])  # Skip header
+        raise RuntimeError("MemoryRead ended before the requested size")
+    received += len(chunk)
+    if received > expected:
+        raise RuntimeError("MemoryRead exceeded the requested size")
+    chunks.append(chunk)  # No protocol header to remove
 
 # 4. Decrypt and parse
 data = decrypt_log_data(chunks)
@@ -218,7 +222,7 @@ for i, s in enumerate(samples):
 
 From `reading_logs0.11` capture (521 samples @ 10s interval):
 
-```
+```text
 Sample 0:   5.000V  -1.905A  Q=-5.3mAh    E=-26.4mWh
 Sample 100: 9.022V  -0.908A  Q=-276.6mAh  E=-2066.9mWh
 Sample 520: 8.989V  -0.099A  Q=-810.3mAh  E=-5747.2mWh
@@ -230,6 +234,6 @@ Sample 520: 8.989V  -0.099A  Q=-810.3mAh  E=-5747.2mWh
 
 ## Open Questions
 
-- **Chunk type sequence:** Is 0x34→0x4E→0x76→0x68 fixed order?
+- **Transfer segmentation:** How chunk sizes vary across host USB stacks and interfaces
 - **Multiple logs:** How to select specific log when multiple exist?
 - **Log deletion:** Protocol for clearing logs from device

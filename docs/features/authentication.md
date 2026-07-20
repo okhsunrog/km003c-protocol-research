@@ -29,7 +29,7 @@ Required before AdcQueue streaming. The device decrypts the payload and checks i
 |--------|------|-------|-------------|
 | 0 | 1 | Type | `0x4C` |
 | 1 | 1 | TID | Transaction ID |
-| 2 | 2 | Attribute | `0x0002` (LE) |
+| 2 | 2 | Raw header word | `00 02`; special layout, not a shifted control attribute |
 | 4 | 32 | Encrypted Payload | AES-128-ECB encrypted (see below) |
 
 ### Plaintext Structure (32 bytes, before encryption)
@@ -54,6 +54,7 @@ The HardwareID is a 12-byte authentication blob stored in device memory. It is *
 | 10 | 2 | Padding | `0xFFFF` |
 
 Each device has a unique HardwareID. To authenticate, you must either:
+
 1. Read it first using MemoryRead (0x44) at address 0x40010450
 2. Or know it from a previous capture
 
@@ -63,7 +64,7 @@ Each device has a unique HardwareID. To authenticate, you must either:
 |--------|------|-------|-------------|
 | 0 | 1 | Type | `0x4C` |
 | 1 | 1 | TID | Always `0x00` |
-| 2 | 2 | Attribute | Auth result (see below) |
+| 2 | 2 | Raw result word | Auth result (see below) |
 | 4 | 32 | Encrypted Payload | AES(input_payload, device_key) |
 
 ### Response Attribute Values
@@ -85,6 +86,7 @@ The device acts as an AES-128-ECB encryption oracle - it encrypts whatever paylo
 | Decrypt (device→host) | `FX0b4tA25f4R038a` (byte[1] = 'X') |
 
 **Device operation:**
+
 1. Receive 32-byte encrypted payload
 2. Decrypt with key `Fa0b4tA25f4R038a`
 3. Compare bytes 8-19 against HardwareID at 0x40010450
@@ -94,6 +96,7 @@ The device acts as an AES-128-ECB encryption oracle - it encrypts whatever paylo
 ### What Mtools.exe Does
 
 The official software:
+
 1. Reads HardwareID from device (via MemoryRead 0x44 at 0x40010450)
 2. Constructs plaintext: `[timestamp 8B][HardwareID 12B][random 12B]`
 3. Encrypts with `Fa0b4tA25f4R038a`
@@ -113,7 +116,7 @@ Used for downloading device data (logs, calibration, device info).
 |--------|------|-------|-------------|
 | 0 | 1 | Type | `0x44` |
 | 1 | 1 | TID | Transaction ID |
-| 2 | 2 | Attribute | `0x0101` (LE) |
+| 2 | 2 | Raw header word | `01 01`; special layout, not a shifted control attribute |
 | 4 | 32 | Encrypted Payload | AES-128 ECB encrypted request |
 
 **Encrypted payload structure (32 bytes plaintext):**
@@ -140,21 +143,25 @@ Two packets are returned:
 |--------|------|-------|-------------|
 | 0 | 1 | Type | `0xC4` (0x44 \| 0x80) |
 | 1 | 1 | TID | Echo |
-| 2 | 2 | Attribute | Echo |
+| 2 | 2 | Raw header word | `01 01` |
 | 4 | 4 | Address | Echo |
 | 8 | 4 | Size | Echo |
-| 12 | 8 | Reserved | |
+| 12 | 4 | Magic | `0xFFFFFFFF` |
+| 16 | 4 | CRC32 | CRC32 of confirmation bytes 4-15 |
 
 **Data packet (varies):**
 
 The data response is AES-128-ECB encrypted using `MEMORY_READ_KEY` (`Lh2yfB7n6X7d9a5Z`).
-The encryption flag is indicated by bit 0 of byte 2 in the confirmation response.
+The data following the confirmation is always raw AES-128-ECB ciphertext in
+the observed MemoryRead flow. The `01 01` header word is not a separately
+established encryption flag.
 
 | Offset | Size | Field |
 |--------|------|-------|
-| 0 | N×16 | Encrypted blocks | AES-encrypted data (N = ceil(requested_size / 16)) |
+| 0 | N×16 | Encrypted blocks |
 
 **AES block alignment:** Responses are always padded to 16-byte boundaries. For example:
+
 - Request 12 bytes → receive 16 bytes (1 block)
 - Request 64 bytes → receive 64 bytes (4 blocks)
 
@@ -197,12 +204,14 @@ Based on empirical testing with MemoryRead (0x44):
 | Flash/Log | 0x98100000 | Readable | Log data region |
 
 **Important findings:**
+
 - The low memory region (0x00000000-0x20000000) appears to return data for any address, suggesting the device may have permissive memory access or memory mapping.
 - The peripheral region (0x40000000+) is unstable - accessing most addresses causes device timeout and disconnection.
 - Only the specific HardwareID address (0x40010450) works in the peripheral region.
 - Reading invalid addresses too aggressively can crash the device, requiring re-enumeration.
 
 **Recommended read strategy:**
+
 1. Read known addresses only (DeviceInfo, FirmwareInfo, Calibration, HardwareID, Log)
 2. Add delays between reads (50ms minimum) to avoid overwhelming the device
 3. Avoid scanning the peripheral region (0x40000000+) except for HardwareID
@@ -270,6 +279,7 @@ if (DAT_20004041 != 2) goto REJECT;
 ### Key Transformation
 
 Firmware confirms Mtools.exe analysis:
+
 - Encryption key base: `Fa0b4tA25f4R038a`
 - For decryption: byte[1] changed from `0x61` ('a') to `0x58` ('X')
 - Decryption key: `FX0b4tA25f4R038a`
@@ -381,12 +391,13 @@ def build_memory_read(address: int, size: int, tid: int = 0x02) -> bytes:
 
     return bytes([0x44, tid, 0x01, 0x01]) + encrypted
 
-def read_hardware_id(send_fn) -> bytes:
+def read_hardware_id(send_fn, recv_fn) -> bytes:
     """
     Read HardwareID from device memory.
 
     Args:
-        send_fn: Function that sends packet and returns response
+        send_fn: Function that sends a packet and returns its confirmation
+        recv_fn: Function that receives without writing another packet
 
     Returns:
         12-byte HardwareID
@@ -399,7 +410,7 @@ def read_hardware_id(send_fn) -> bytes:
         raise Exception(f"Unexpected confirmation: 0x{confirm[0]:02X}")
 
     # Second response is encrypted data (16 bytes)
-    encrypted = send_fn(bytes(4))  # Dummy read to get data packet
+    encrypted = recv_fn()
     if len(encrypted) != 16:
         raise Exception(f"Expected 16-byte encrypted block, got {len(encrypted)}")
 
@@ -421,11 +432,14 @@ def authenticate_device(dev):
         dev.write(0x01, data)
         return bytes(dev.read(0x81, 1024, timeout=2000))
 
+    def recv():
+        return bytes(dev.read(0x81, 4096, timeout=2000))
+
     # 1. Connect
     send_recv(bytes([0x02, 0x01, 0x00, 0x00]))
 
     # 2. Read HardwareID
-    hardware_id = read_hardware_id(send_recv)
+    hardware_id = read_hardware_id(send_recv, recv)
     print(f"HardwareID: {hardware_id.hex()}")
 
     # 3. Send StreamingAuth
