@@ -21,7 +21,8 @@ evidence.
 
 Settings (`0x0008`) has a partially verified layout and should remain raw until
 its fields are independently confirmed. LogMetadata (`0x0200`) is verified as a
-catalog of 48-byte entries; only its final eight reserved bytes remain opaque.
+catalog of 48-byte entries; the field at `0x10` and final eight reserved bytes
+remain opaque.
 
 ## Bootloader and Firmware Update
 
@@ -48,6 +49,8 @@ dispatcher case, or both.
 - Identify the log deletion/clear command.
 - Test MemoryRead transfer segmentation on HID and non-Linux host stacks.
 - Determine whether the final eight LogMetadata bytes are always reserved.
+- Decode the LogMetadata field at `0x10`; it changed from `0x0A00` during an
+  active recording to `0x0A45` after finalization.
 
 ## Hardware and Firmware
 

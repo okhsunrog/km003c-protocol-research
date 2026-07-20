@@ -457,6 +457,11 @@ Returned with attribute 0x0200. The payload is either empty (no stored logs) or
 an array of 48-byte entries. A live device with three recordings returned a
 144-byte payload.
 
+An active recording appears in the catalog with zero sample count, duration,
+and final accumulators. These fields are populated together when recording
+stops. A device from which all recordings had been deleted returned the empty
+logical payload form.
+
 | Offset | Size | Type | Field | Description |
 |--------|------|------|-------|-------------|
 | 0x00 | 16 | char[] | filename | e.g., "A01.d" |

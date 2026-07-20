@@ -59,6 +59,19 @@ as concatenated entries. On a device with A01, A02, and A03, the offsets were
 base-plus-offset address produced the declared sample count, and both final
 accumulators matched its metadata exactly.
 
+### Active Recordings
+
+An active recording is already present in the catalog, but its entry remains
+unfinalized: `sample_count`, duration, and final accumulators were all zero in
+the observed A04 entry. A MemoryRead based on that snapshot returned zero
+samples. After recording stopped, the same entry atomically changed to five
+samples spanning 40 seconds; its data downloaded successfully and both final
+accumulators matched the last sample.
+
+The field at offset `0x10` was `0x0A00` while A04 was active and `0x0A45` after
+finalization. This correlation is not yet sufficient to name its individual
+bits, so it remains an unknown raw field.
+
 **Data size:** `sample_count × 16` bytes
 **Duration:** `(sample_count - 1) × interval_ms / 1000` seconds. In the
 recorded example, 521 samples at 10,000 ms span 5,200 seconds, matching the
