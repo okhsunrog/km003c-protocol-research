@@ -11,16 +11,18 @@ evidence.
 |------|----------|---------------|--------------|
 | EnablePdMonitor (`0x10`) | Captured request/Accept pairs | PD polling also works without it | Determine the state it changes |
 | DisablePdMonitor (`0x11`) | Captured request/Accept pairs | Paired with `0x10` | Determine observable effects |
-| Command `0x48` | Firmware dispatcher case at `FUN_00042df4` | Dedicated handler exists | Identify request layout and purpose |
+| Commands `0x48` / `0x4D` | Shared firmware handler at `FUN_00042df4` | Nested extended-header operations mutate the two settings blocks; `0x4D` requires auth level 2 | Correlate operation bitfields with user-facing setting names and capture safe read/write exchanges |
 | Command `0x4B` | Shares the memory handler with a `0x98000000` offset | Appears related to stored data | Confirm framing and relation to offline logs |
-| Command `0x4D` | Firmware dispatcher and auth-level check | Requires authentication level 2 | Identify payload and factory use |
 | Authentication level 2 | Firmware state and checks | Distinct from HardwareID-based level 1 | Reproduce the accepted challenge |
 | Attribute `0x0020` | Firmware-derived | Separate PD-related handler exists | Confirm in framed USB traffic |
 | Attribute `0x0040` | Firmware-derived | Quick Charge-related handler exists | Confirm layout in framed USB traffic |
 | Attribute `0x0004` | Public/vendor naming and host UI | Not used by captured 1000 SPS traffic | Determine whether any firmware implements it |
 
-Settings (`0x0008`) has a partially verified layout and should remain raw until
-its fields are independently confirmed. LogMetadata (`0x0200`) is verified as a
+Settings (`0x0008`) is confirmed to concatenate independently checksummed
+96-byte and 84-byte firmware structures. Its storage boundaries, calibration
+arrays, checksums, and several bitfield locations are known, but most
+user-facing names still need independent confirmation; it should remain raw in
+the public library for now. LogMetadata (`0x0200`) is verified as a
 catalog of 48-byte entries; the field at `0x10` and final eight reserved bytes
 remain opaque.
 

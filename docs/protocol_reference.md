@@ -368,35 +368,58 @@ See [AdcQueue](features/adcqueue.md) for streaming details.
 
 Returned with attribute 0x0008.
 
+Firmware analysis shows that this payload is a byte-for-byte concatenation of
+two independently persisted structures: settings-A (96 bytes) followed by
+settings-B (84 bytes). Each block ends with its own checksum. This boundary is
+important when comparing captures or attempting to decode fields.
+
 | Offset | Size | Type | Field | Description |
 |--------|------|------|-------|-------------|
-| 0x00 | 4 | u32 | flags | Configuration flags |
-| 0x04 | 4 | u32 | reserved | Always 0 |
+| 0x00 | 4 | u32 | settings_a_flags | Several firmware-managed bitfields; see below |
+| 0x04 | 4 | u32 | unknown | Observed as 0 |
 | 0x08 | 2 | u16 | sample_interval | Microseconds (10000 = 10ms) |
-| 0x0A | 1 | u8 | display_brightness | 0-100 (65 default) |
-| 0x0B | 1 | u8 | unknown | Always 0xFF |
-| 0x0C | 4 | u32 | reserved | Always 0 |
-| 0x10 | 32 | i32[8] | thresholds | Alert thresholds (-1 = disabled) |
-| 0x30 | 40 | u32[10] | calibration | ADC calibration offsets |
-| 0x58 | 4 | u32 | counter | Settings version |
-| 0x5C | 4 | u32 | timestamp | Unix epoch |
-| 0x60 | 1 | u8 | mode_flags | Operating mode (bits 2-3) |
-| 0x61 | 15 | bytes | reserved | Zeros |
+| 0x0A | 1 | u8 | unknown | Observed as `0x41` in available captures |
+| 0x0B | 1 | u8 | unknown | Observed as `0xFF` in available captures |
+| 0x0C | 4 | u32 | unknown | Observed as 0 or a small value in captures |
+| 0x10 | 12 | i32[3] | unknown_limits | Observed as `-1` in available captures |
+| 0x1C | 20 | i32[5] | calibration_values_a | Written by privileged nested operation `0x0A` |
+| 0x30 | 40 | u32[10] | calibration_values_b | Written in two five-value groups by operations `0x0B`-`0x0D` |
+| 0x58 | 4 | i32 | calibration_adjustment | Firmware accepts a magnitude below 1000; persisted calibration loader clamps to roughly +/-499 |
+| 0x5C | 4 | u32 | settings_a_checksum | Hardware CRC over bytes `0x00..0x5B` |
+| 0x60 | 4 | u32 | settings_b_flags | Bits 2-3 are the Mtools device mode; other bitfields are firmware-managed |
+| 0x64 | 12 | bytes | unknown | Mostly zero in available captures; includes at least one persisted runtime selection |
 | 0x70 | 64 | char[] | device_name | UTF-8, null-terminated |
-| 0xB0 | 4 | u32 | checksum | Device-calculated |
+| 0xB0 | 4 | u32 | settings_b_checksum | Hardware CRC over bytes `0x60..0xAF` |
+
+Known settings-A flag fields are bit 0, bit 2, bits 3-9, bits 10-11,
+bits 12-13, bits 14-15, and bits 16-18. The nested settings command has a
+dedicated setter for each. The bits 3-9 getter clamps values above 100, but its
+user-facing name is not yet independently confirmed.
+
+Known settings-B flag fields are bits 0-1, 2-3, 4-5, 6-9, 10-12, bit 13,
+bits 14-16, and bits 17-21. Mtools uses bits 2-3 as the device mode. Firmware
+nested operations `0x14`-`0x17` write the first four fields respectively.
 
 **Example values:**
 
 ```text
-flags:              0xf8500161
+settings_a_flags:   0xf8500161
 sample_interval:    10000 µs (10 ms)
-display_brightness: 65
-thresholds:         [-1, -1, -1, -6, -6, -6, -6, -6]  // -1=disabled, -6=enabled
-mode_flags:         0x43 (bits 0,1,6 set, mode=(bits 2-3)=0)
+unknown_limits:     [-1, -1, -1]
+calibration A:      [-6, -6, -6, -6, -6]
+calibration B:      [1002221, 1002221, 1002221, 1002221, 1002221,
+                     1002221, 1002221, 1002221, 1002221, 1002221]
+calibration adjust: 94
+settings_b_flags:   0x43 (mode=0 in bits 2-3)
 device_name:        "POWER-Z"
 ```
 
-**Note on checksum:** The checksum is NOT verified by the host software. It's device-generated using an unknown algorithm. Safe to ignore when reading.
+**Checksums:** Both fields are standard CRC-32/ISO-HDLC values (the same result
+as Python's `zlib.crc32`). Settings-A covers bytes `0x00..0x5B`; settings-B
+covers bytes `0x60..0xAF`. This matches both the firmware's hardware-CRC path
+and recorded payloads. Firmware restores defaults when a stored block fails
+validation. A read-only host may preserve the checksum fields as opaque values;
+a writer must recompute them.
 
 ### PD Status (12 bytes)
 

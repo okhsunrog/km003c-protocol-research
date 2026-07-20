@@ -20,10 +20,11 @@ The main USB command processor at `0x0004eaf0` uses a switch on `command_type & 
 | PdEnable | 0x10 | Inline | Enable PD monitoring |
 | PdDisable | 0x11 | Inline | Disable PD monitoring |
 | MemoryRead | 0x44 | FUN_00042cac | Memory read with validation |
-| Command 0x48 | 0x48 | FUN_00042df4 | Purpose not yet identified |
+| SettingsBatch | 0x48 | FUN_00042df4 | Executes nested settings operations |
 | FlashWrite | 0x4A | Inline | Requires auth level > 0 |
 | Command 0x4B | 0x4B | FUN_00042cac | Memory-style read with 0x98000000 offset |
 | StreamingAuth | 0x4C | FUN_00000fb0 | AES authentication |
+| PrivilegedSettingsBatch | 0x4D | FUN_00042df4 | Same payload as 0x48; requires auth level 2 |
 
 ---
 
@@ -97,6 +98,62 @@ if (auth_level == 0) {
 // Command 0x4D - requires level 2
 if (DAT_20004041 != 2) goto REJECT;
 ```
+
+## Settings Batch Commands (0x48 and 0x4D)
+
+Both commands enter the same handler, `FUN_00042df4`. Command `0x4D` first
+requires authentication level 2; command `0x48` has no additional dispatcher
+check. They are therefore two authorization paths for one nested operation
+format, not two unrelated protocols.
+
+The outer data header is followed by one or more ordinary 4-byte extended
+headers and their payloads:
+
+```text
+[outer 0x48/0x4D header]
+  [operation:15 | next:1 | reserved:6 | size_bytes:10]
+  [payload, size_bytes]
+  ...
+```
+
+The handler uses `operation` as a switch value, advances by `size_bytes`, and
+continues only while `next` is set. Operations that consume arrays use
+`size_bytes / 4` little-endian `u32` values. On completion the device sends a
+four-byte `Finished` (`0x07`) response with the request transaction ID. The
+six reserved/chunk bits are not interpreted by this handler.
+
+### Confirmed operations
+
+The operation names below describe the firmware effect. User-facing meanings
+are left unnamed unless corroborated by the device UI or a host capture.
+
+| Operation | Auth checked in handler | Effect |
+|-----------|-------------------------|--------|
+| `0x01` | none | Set settings-A word 0 bit 0 |
+| `0x02` | none | Clear settings-A word 0 bit 2 |
+| `0x03` | none | Set settings-A word 0 bits 3-9 from a 7-bit value |
+| `0x04` | none | Set settings-A word 0 bits 10-11 |
+| `0x05` | none | Set settings-A word 0 bits 12-13 |
+| `0x06`, `0x1C` | none | Set settings-A word 0 bits 14-15, then apply runtime state |
+| `0x07` | none | Set settings-A word 0 bits 16-18 |
+| `0x08` | none | Reset/reinitialize system state |
+| `0x09` | none | Reset both settings blocks, then perform operation `0x08` |
+| `0x0A` | level 2 | Write `u32[]` at settings-A offset `0x1C`; update calibration state and persist |
+| `0x0B`, `0x0C` | level 2 | Write `u32[]` at settings-A offset `0x30`; persist |
+| `0x0D` | level 2 | Write `u32[]` at settings-A offset `0x44`; force the 7-bit field above to 50; persist |
+| `0x0E` | level 1 or 2 | Invoke a low-level signed-byte control; exact device effect remains unknown |
+| `0x0F` | level 2 | Set settings-A offset `0x58`; persist |
+| `0x14` | none | Set settings-B word 0 bits 0-1; persist |
+| `0x15` | none | Set settings-B word 0 bits 2-3 and apply it immediately; persist |
+| `0x16` | none | Set settings-B word 0 bits 4-5; persist |
+| `0x17` | none | Set settings-B word 0 bits 6-9; persist |
+| `0x28` | none | Pass the payload to a separate handler; payload semantics remain unknown |
+| `0x7FFF` | none | Persist settings-A without changing a field |
+
+Operations `0x10`-`0x13`, `0x18`-`0x1B`, `0x1D`-`0x27` currently fall
+through without a setting change. This is firmware-derived behavior; no write
+operation should be sent to hardware until its user-facing meaning and safe
+range have been established.
 
 ---
 

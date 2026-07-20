@@ -14,7 +14,7 @@ exposed yet.
 | PD 12-byte measurements | Implemented | Implemented | One layout/type for standalone, chained, and event preamble measurements |
 | PD event stream framing | Implemented | Implemented | Connect/disconnect and raw PD wire frames |
 | USB PD semantic decoding | Optional `usbpd` feature | Raw PD wire data | Shared typed decoder is used by km003c-egui and the CLI; Python receives SOP + wire bytes |
-| Settings (`0x0008`) | Raw | Raw | Documented fields are not yet a stable typed API |
+| Settings (`0x0008`) | Raw | Raw | Two firmware storage blocks and several field locations are known; user-facing semantics are not yet complete enough for a stable typed API |
 | LogMetadata (`0x0200`) | Implemented | Raw | Parses empty, single-entry, and multi-entry catalogs |
 | MemoryRead (`0x44`) | Implemented | Parse helpers only | Rust validates confirmation and collects multi-transfer ciphertext |
 | Offline log workflow | Implemented | Research script | Typed `uom` samples, per-entry offsets, CSV/JSON CLI export |
@@ -22,7 +22,7 @@ exposed yet.
 | Authentication level 2 | Not implemented | Not implemented | Firmware-derived flow is not reproduced |
 | Enable/Disable PD monitor | Implemented | Constants/parsing | Exact device-side effect remains unknown |
 | QC/extra attributes | Not implemented | Not implemented | Firmware-derived, not confirmed in framed captures |
-| Flash write / command `0x4B` / `0x48` / `0x4D` | Not implemented | Not implemented | Research-only until wire behavior is confirmed |
+| Flash write / command `0x4B` / settings writes `0x48` / `0x4D` | Not implemented | Not implemented | Nested settings layout is firmware-confirmed, but writes remain research-only until safe semantics and hardware behavior are confirmed |
 | Bootloader/firmware update | Not implemented | Not implemented | Separate protocol flow |
 | CDC transport | Not implemented | Not implemented | Rust supports vendor bulk and HID interfaces |
 
