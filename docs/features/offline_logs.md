@@ -22,10 +22,11 @@ Initialization and transfer as observed in captures (reading_logs0.11):
 2. MemoryRead known device-information blocks
 3. StreamingAuth (0x4C)
 4. GetData Settings (0x0008)
-5. GetData LogMetadata (0x0200) to fetch sizes
-6. MemoryRead (0x44, address 0x98100000) to start download
-7. Receive raw ciphertext until the requested AES-aligned byte count is complete
-8. Concatenate, decrypt, parse 16-byte samples
+5. GetData LogMetadata (0x0200) to fetch the catalog
+6. Select a catalog entry
+7. MemoryRead (0x44, address `0x98100000 + data_offset`) to start download
+8. Receive raw ciphertext until the requested AES-aligned byte count is complete
+9. Concatenate, decrypt, parse 16-byte samples
 
 ---
 
@@ -37,7 +38,7 @@ Initialization and transfer as observed in captures (reading_logs0.11):
 0C TID 00 04  # GetData attr=0x0200
 ```
 
-### Response Structure (48 bytes after 8-byte header)
+### Response Structure (zero or more 48-byte entries after the 8-byte header)
 
 | Offset | Size | Type | Field |
 |--------|------|------|-------|
@@ -47,7 +48,16 @@ Initialization and transfer as observed in captures (reading_logs0.11):
 | 0x14 | 2 | u16 | Interval (ms) |
 | 0x16 | 2 | u16 | Flags |
 | 0x18 | 4 | u32 | Duration in seconds |
-| 0x1C | 20 | bytes | Additional metadata |
+| 0x1C | 4 | i32 | Final accumulated charge (µAh) |
+| 0x20 | 4 | i32 | Final accumulated energy (µWh) |
+| 0x24 | 4 | u32 | Data offset from `0x98100000` |
+| 0x28 | 8 | bytes | Reserved (observed zero) |
+
+An empty logical payload means no stored logs. Multiple recordings are returned
+as concatenated entries. On a device with A01, A02, and A03, the offsets were
+`0x0000`, `0x2200`, and `0x2400`; downloading each entry from the corresponding
+base-plus-offset address produced the declared sample count, and both final
+accumulators matched its metadata exactly.
 
 **Data size:** `sample_count × 16` bytes
 **Duration:** `(sample_count - 1) × interval_ms / 1000` seconds. In the
@@ -88,7 +98,7 @@ The bytes after the confirmation are raw ciphertext and must be decrypted.
 | 0x00004420 | 64 | Device info block 2 |
 | 0x03000C00 | 64 | Calibration data |
 | 0x40010450 | 12 | Hardware device ID |
-| 0x98100000 | varies | **Offline log data** |
+| `0x98100000 + data_offset` | varies | **Offline log data** |
 
 ### Response (20 bytes)
 
@@ -154,8 +164,8 @@ import zlib
 
 AES_KEY = b"Lh2yfB7n6X7d9a5Z"
 
-def build_log_request(tid, size):
-    address = 0x98100000  # Log marker
+def build_log_request(tid, size, data_offset):
+    address = 0x98100000 + data_offset
     plaintext = struct.pack('<II', address, size)
     plaintext += struct.pack('<I', 0xFFFFFFFF)
     crc = zlib.crc32(plaintext) & 0xFFFFFFFF
@@ -191,7 +201,7 @@ metadata = parse_metadata(read())
 
 # 2. Request log download
 data_size = metadata['sample_count'] * 16
-send(build_log_request(tid, data_size))
+send(build_log_request(tid, data_size, metadata['data_offset']))
 response = read()  # 20-byte ack
 
 # 3. Collect raw ciphertext transfers
@@ -224,7 +234,7 @@ From `reading_logs0.11` capture (521 samples @ 10s interval):
 
 ```text
 Sample 0:   5.000V  -1.905A  Q=-5.3mAh    E=-26.4mWh
-Sample 100: 9.022V  -0.908A  Q=-276.6mAh  E=-2066.9mWh
+Sample 100: 9.022V  -0.908A  Q=-469.7mAh  E=-2687.5mWh
 Sample 520: 8.989V  -0.099A  Q=-810.3mAh  E=-5747.2mWh
 ```
 
@@ -235,5 +245,4 @@ Sample 520: 8.989V  -0.099A  Q=-810.3mAh  E=-5747.2mWh
 ## Open Questions
 
 - **Transfer segmentation:** How chunk sizes vary across host USB stacks and interfaces
-- **Multiple logs:** How to select specific log when multiple exist?
 - **Log deletion:** Protocol for clearing logs from device

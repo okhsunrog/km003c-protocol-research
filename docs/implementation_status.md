@@ -15,9 +15,9 @@ exposed yet.
 | PD event stream framing | Implemented | Implemented | Connect/disconnect and raw PD wire frames |
 | USB PD semantic decoding | Optional `usbpd` feature | Raw PD wire data | Shared typed decoder is used by km003c-egui and the CLI; Python receives SOP + wire bytes |
 | Settings (`0x0008`) | Raw | Raw | Documented fields are not yet a stable typed API |
-| LogMetadata (`0x0200`) | Raw | Raw | Core captured fields are documented; opaque tail remains |
+| LogMetadata (`0x0200`) | Implemented | Raw | Parses empty, single-entry, and multi-entry catalogs |
 | MemoryRead (`0x44`) | Implemented | Parse helpers only | Rust validates confirmation and collects multi-transfer ciphertext |
-| Offline log workflow | Partial | Research script | No high-level Rust metadata/sample API yet |
+| Offline log workflow | Implemented | Research script | Typed `uom` samples, per-entry offsets, CSV/JSON CLI export |
 | StreamingAuth level 1 (`0x4C`) | Implemented | Crypto parsing helpers | HardwareID-based AdcQueue authentication |
 | Authentication level 2 | Not implemented | Not implemented | Firmware-derived flow is not reproduced |
 | Enable/Disable PD monitor | Implemented | Constants/parsing | Exact device-side effect remains unknown |

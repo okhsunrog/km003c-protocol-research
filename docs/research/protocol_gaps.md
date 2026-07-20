@@ -19,9 +19,9 @@ evidence.
 | Attribute `0x0040` | Firmware-derived | Quick Charge-related handler exists | Confirm layout in framed USB traffic |
 | Attribute `0x0004` | Public/vendor naming and host UI | Not used by captured 1000 SPS traffic | Determine whether any firmware implements it |
 
-Settings (`0x0008`) and LogMetadata (`0x0200`) have verified core layouts, but
-several fields remain opaque. They should be exposed as raw bytes alongside any
-parsed fields until their semantics are independently confirmed.
+Settings (`0x0008`) has a partially verified layout and should remain raw until
+its fields are independently confirmed. LogMetadata (`0x0200`) is verified as a
+catalog of 48-byte entries; only its final eight reserved bytes remain opaque.
 
 ## Bootloader and Firmware Update
 
@@ -45,10 +45,9 @@ dispatcher case, or both.
 
 ## Offline Logs
 
-- Determine how to select among multiple stored logs.
 - Identify the log deletion/clear command.
 - Test MemoryRead transfer segmentation on HID and non-Linux host stacks.
-- Finish the opaque LogMetadata fields and checksums.
+- Determine whether the final eight LogMetadata bytes are always reserved.
 
 ## Hardware and Firmware
 

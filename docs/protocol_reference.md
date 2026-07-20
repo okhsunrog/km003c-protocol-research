@@ -288,7 +288,7 @@ See [Authentication](features/authentication.md) for full details.
 | 2 | 0x0002 | AdcQueue | 20 bytes/sample | Streaming measurements |
 | 8 | 0x0008 | Settings | 180 bytes | Device configuration |
 | 16 | 0x0010 | PdPacket | Variable | PD status or events |
-| 512 | 0x0200 | LogMetadata | 48 bytes | Offline log info |
+| 512 | 0x0200 | LogMetadata | 0 or N × 48 bytes | Offline log catalog |
 
 ### Attribute Bitmask Usage
 
@@ -451,9 +451,11 @@ Connection and disconnection records use a different 6-byte layout:
 
 See [PD Analysis](features/pd_analysis.md) for full details.
 
-### LogMetadata (48 bytes)
+### LogMetadata Catalog (48 bytes per entry)
 
-Returned with attribute 0x0200.
+Returned with attribute 0x0200. The payload is either empty (no stored logs) or
+an array of 48-byte entries. A live device with three recordings returned a
+144-byte payload.
 
 | Offset | Size | Type | Field | Description |
 |--------|------|------|-------|-------------|
@@ -463,7 +465,10 @@ Returned with attribute 0x0200.
 | 0x14 | 2 | u16 | interval_ms | Sample interval |
 | 0x16 | 2 | u16 | flags | |
 | 0x18 | 4 | u32 | duration_seconds | Elapsed time from first to last sample |
-| 0x1C | 20 | bytes | metadata | Checksums etc. |
+| 0x1C | 4 | i32 | final_charge_uah | Matches the final sample accumulator |
+| 0x20 | 4 | i32 | final_energy_uwh | Matches the final sample accumulator |
+| 0x24 | 4 | u32 | data_offset | Offset from `0x98100000` |
+| 0x28 | 8 | bytes | reserved | Observed as zero |
 
 See [Offline Logs](features/offline_logs.md) for download protocol.
 
@@ -603,7 +608,7 @@ These transfers have no protocol header or packet type. Collect exactly
 | 0x00004420 | 64 bytes | Firmware version and build information |
 | 0x03000C00 | 64 bytes | Serial, UUID, timestamp |
 | 0x40010450 | 12 bytes | HardwareID authentication blob |
-| 0x98100000 | `sample_count * 16` | Offline log samples |
+| `0x98100000 + data_offset` | `sample_count * 16` | Offline log samples for one catalog entry |
 
 ## Empirical Findings (Captured Traffic)
 

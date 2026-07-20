@@ -53,6 +53,11 @@ class LogMetadata:
     interval_ms: int
     flags: int
     recorded_duration_seconds: int
+    unknown_0x10: int
+    final_charge_uah: int
+    final_energy_uwh: int
+    data_offset: int
+    reserved_tail: bytes
 
     @property
     def duration_seconds(self) -> float:
@@ -63,6 +68,11 @@ class LogMetadata:
     def data_size(self) -> int:
         """Actual data size (16 bytes per sample)."""
         return self.sample_count * 16
+
+    @property
+    def data_address(self) -> int:
+        """MemoryRead address for this catalog entry."""
+        return 0x98100000 + self.data_offset
 
 
 @dataclass
@@ -265,37 +275,45 @@ class KM003C:
 
         print("Initialization complete")
 
-    def get_log_metadata(self) -> LogMetadata | None:
-        """Request log metadata (attribute 0x0200)."""
+    def get_log_metadata(self) -> list[LogMetadata]:
+        """Request the offline log catalog (attribute 0x0200)."""
         # GetData with attribute 0x0200 (encoded as 0x0400 in wire format)
         response = self._send_cmd(0x0C, 0x0400)
 
-        if response is None or len(response) < 56:
-            return None
+        if response is None or len(response) < 8:
+            return []
 
         # Check for PutData response with attribute 0x0200
         pkt_type = response[0] & 0x7F
         if pkt_type != 0x41:
-            return None
+            return []
 
-        # Parse metadata (starts at byte 8)
-        metadata = response[8:]
+        payload = response[8:]
+        if len(payload) % 48 != 0:
+            raise ValueError(
+                f"LogMetadata payload must contain 48-byte entries, got {len(payload)} bytes"
+            )
 
-        name_bytes = metadata[0:16]
-        name = name_bytes.split(b"\x00")[0].decode("ascii", errors="replace")
-
-        sample_count = struct.unpack("<H", metadata[18:20])[0]
-        interval_ms = struct.unpack("<H", metadata[20:22])[0]
-        flags = struct.unpack("<H", metadata[22:24])[0]
-        recorded_duration_seconds = struct.unpack("<I", metadata[24:28])[0]
-
-        return LogMetadata(
-            name=name,
-            sample_count=sample_count,
-            interval_ms=interval_ms,
-            flags=flags,
-            recorded_duration_seconds=recorded_duration_seconds,
-        )
+        entries = []
+        for offset in range(0, len(payload), 48):
+            metadata = payload[offset : offset + 48]
+            name_bytes = metadata[0:16]
+            name = name_bytes.split(b"\x00")[0].decode("ascii", errors="replace")
+            entries.append(
+                LogMetadata(
+                    name=name,
+                    unknown_0x10=struct.unpack_from("<H", metadata, 16)[0],
+                    sample_count=struct.unpack_from("<H", metadata, 18)[0],
+                    interval_ms=struct.unpack_from("<H", metadata, 20)[0],
+                    flags=struct.unpack_from("<H", metadata, 22)[0],
+                    recorded_duration_seconds=struct.unpack_from("<I", metadata, 24)[0],
+                    final_charge_uah=struct.unpack_from("<i", metadata, 28)[0],
+                    final_energy_uwh=struct.unpack_from("<i", metadata, 32)[0],
+                    data_offset=struct.unpack_from("<I", metadata, 36)[0],
+                    reserved_tail=metadata[40:48],
+                )
+            )
+        return entries
 
     def _build_memory_read_request(self, address: int, size: int) -> bytes:
         """Build an encrypted MemoryRead request."""
@@ -326,10 +344,10 @@ class KM003C:
         tid = self._next_tid()
         return bytes([0x4C, tid, 0x00, 0x02]) + encrypted
 
-    def download_log_data(self, size: int) -> bytes:
+    def download_log_data(self, metadata: LogMetadata) -> bytes:
         """Download and decrypt raw offline log data with MemoryRead."""
-        # Address 0x98100000 is the special marker for offline logs
-        address = 0x98100000
+        address = metadata.data_address
+        size = metadata.data_size
         request = self._build_memory_read_request(address, size)
 
         print(f"Sending download request for {size} bytes...")
@@ -375,6 +393,9 @@ def main():
     )
     parser.add_argument("-o", "--output", help="Output CSV file")
     parser.add_argument("-r", "--raw", help="Output raw decrypted data to file")
+    parser.add_argument(
+        "-i", "--index", type=int, default=0, help="Zero-based catalog index"
+    )
     args = parser.parse_args()
 
     try:
@@ -383,12 +404,25 @@ def main():
 
         # Get log metadata
         print("\nRequesting log metadata...")
-        metadata = device.get_log_metadata()
+        catalog = device.get_log_metadata()
 
-        if metadata is None:
+        if not catalog:
             print("No log found on device")
             device.close()
             return 1
+
+        print("\n=== Offline Log Catalog ===")
+        for index, entry in enumerate(catalog):
+            print(
+                f"[{index}] {entry.name}: {entry.sample_count} samples, "
+                f"address=0x{entry.data_address:08X}"
+            )
+
+        if not 0 <= args.index < len(catalog):
+            raise ValueError(
+                f"Log index {args.index} is out of range; device reported {len(catalog)} logs"
+            )
+        metadata = catalog[args.index]
 
         print("\n=== Log Information ===")
         print(f"Name: {metadata.name}")
@@ -404,14 +438,20 @@ def main():
                 f"{metadata.recorded_duration_seconds}s"
             )
         print(f"Data size: {metadata.data_size} bytes")
+        print(f"Data address: 0x{metadata.data_address:08X}")
 
         # Download log data
         print("\n=== Downloading Log Data ===")
-        data = device.download_log_data(metadata.data_size)
+        data = device.download_log_data(metadata)
 
         # Parse samples
         samples = parse_samples(data)
         print(f"\nParsed {len(samples)} samples")
+        if samples and (
+            samples[-1].charge_acc_uah != metadata.final_charge_uah
+            or samples[-1].energy_acc_uwh != metadata.final_energy_uwh
+        ):
+            raise ValueError("Downloaded data does not match metadata accumulators")
 
         # Show summary
         print("\n=== Data Summary ===")
@@ -431,7 +471,7 @@ def main():
             )
 
         print("\n=== Last 5 Samples ===")
-        for i, s in enumerate(samples[-5:], start=len(samples) - 5):
+        for i, s in enumerate(samples[-5:], start=max(len(samples) - 5, 0)):
             print(
                 f"{i:4} {s.voltage_v:10.3f}V {s.current_a:10.3f}A {s.charge_mah:10.3f}mAh {s.energy_mwh:10.3f}mWh"
             )
