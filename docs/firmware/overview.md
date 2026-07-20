@@ -120,17 +120,16 @@ switch(*param_3) {
 
 ## MCU Identification
 
-**Confirmed:** NXP Kinetis MK66FX1M0xxx or MK66FN2M0xxx (K66 sub-family)
-
-- **MK66FX1M0:** 1MB Flash + 256KB FlexNVM + FlexRAM
-- **MK66FN2M0:** 2MB Flash, no FlexNVM
+**Derived:** The image targets a Cortex-M4F MCU with a Kinetis-like peripheral
+map. A K66-family part is a plausible candidate, but the exact ordering code
+has not been confirmed from chip markings or a readable device-ID register.
 
 ### Evidence
 
 | Feature | Address/Value | Notes |
 |---------|---------------|-------|
-| SIM unlock magic | 0xa5a50000 @ 0x40048010 | Kinetis signature |
-| DMA unlock magic | 0xa500 @ 0x40053bfc | Kinetis signature |
+| SIM-related write | 0xa5a50000 @ 0x40048010 | Consistent with the inferred family |
+| DMA-related write | 0xa500 @ 0x40053bfc | Consistent with the inferred family |
 | eDMA | 0x40053xxx | Matches Kinetis |
 | DMAMUX | 0x40054xxx | Matches Kinetis |
 | USB FS | 0x40040xxx | Matches Kinetis |
@@ -142,13 +141,13 @@ switch(*param_3) {
 ### Clock Configuration
 
 - Base oscillator: 16 MHz
-- Core frequency: 192 MHz (PLL multiplier 12, slightly above K66 spec of 180 MHz)
+- UI/firmware-derived core frequency: 192 MHz (requires hardware confirmation)
 - NVIC registers seen at `0xe000e100` (ISER), `0xe000e280` (ICPR), `0xe000e400` (IPR).
 - Architecture: ARM Cortex-M4F (confirmed by vector table analysis)
 
 ---
 
-## Peripheral Map
+## Peripheral Map (Derived)
 
 | Address | Peripheral | Notes |
 |---------|------------|-------|
@@ -166,6 +165,8 @@ switch(*param_3) {
 | 0x40053xxx | eDMA | DMA controller |
 | 0x40054xxx | DMAMUX | DMA multiplexer |
 | 0x9c000000 | External Memory | LCD controller or QSPI |
+| 0x1fff8xxx | Bootloader ROM | Thunk observed at 0x1fff8184 |
+| 0x42xxxxxx | Bit-band alias | Atomic bit operations |
 
 ---
 
@@ -173,10 +174,16 @@ switch(*param_3) {
 
 | Address | Device | Notes |
 |---------|--------|-------|
-| 0x5B (91) | Hynetek PD PHY | CC lines, BMC, VBUS sensing |
+| 0x5B (91) | Hynetek-family PD PHY (hypothesis) | CC/BMC-related register traffic |
 | 0x19 (25) | Unknown sensor | Status read at reg 0x31 |
 
-The Hynetek chip (likely HUSB238) handles physical layer; PD protocol stack is in firmware.
+Traffic at `0x5B` is consistent with an external PD PHY, but the exact Hynetek
+model is not confirmed. `HUSB238` remains a hypothesis until chip markings or
+a matching public register map are available. The higher-level PD stack is in
+firmware.
+
+The `0x9c000000` region is heavily accessed with bit operations and may be an
+LCD controller or memory-mapped external storage; its role is not yet proven.
 
 ---
 
@@ -285,57 +292,10 @@ Each mode configures protocol-specific data structures and handlers for voltage/
 - VDO manufacturer info
 
 ### General Cable Types
+
 - Passive/Active cable detection
 - USB-C to C cables
 - Cable simulation mode
-
-## Peripheral Map and Unlocks
-
-| Address / Range | Purpose | Notes |
-|-----------------|---------|-------|
-| 0x40048010 | SIM unlock | Magic `0xa5a50000` |
-| 0x40053bfc / 0x400543fe | DMA / DMAMUX unlock | Magic `0xa500` |
-| 0x40015400 / 0x40016400 | Timer/TPM 0/1 | FlexTimer |
-| 0x4001dxxx | LPUART/FlexIO | UFCS single-wire |
-| 0x4004e8xx | I2C | External ADC / sensors / PD PHY |
-| 0x40040000 | USB FS controller | Device/host |
-| 0x9c000000 | External memory/LCD | Heavily referenced (LCD or QSPI) |
-| 0x1fff8xxx | Bootloader ROM | Thunk at 0x1fff8184 |
-| 0x42xxxxxx | Bit-band alias | Atomic bit ops |
-
-Magic unlock values and register layout match NXP Kinetis parts. The 0x9c000000 region is accessed with bit masking and likely backs the 240x240 LCD (or external QSPI storage).
-
-### Clock Gating Functions
-
-Two gate helpers mirror the Kinetis SIM layout:
-
-```c
-// 0x40048000 with unlock at 0x40048010
-clock_gate_1(mask, enable) { _DAT_40048000 = enable ? _DAT_40048000 & ~mask : _DAT_40048000 | mask; _DAT_40048010 = 0xa5a50000; }
-// 0x4004800c (no unlock)
-clock_gate_2(mask, enable) { _DAT_4004800c = enable ? _DAT_4004800c & ~mask : _DAT_4004800c | mask; }
-```
-
-Observed bits: 0x1, 0x2, 0x10, 0x100, 0x8000, 0x20000.
-
-### I2C Bus (External ADC / PD PHY)
-
-- Peripheral: 0x4004e8xx (status at 0x4004e81c, control/ack at 0x4004e820).
-- Devices seen:
-  - 0x5b: Hynetek PD PHY (likely HUSB238). Regs: 0x02 ctrl, 0x04 mask, 0x10 status, 0x7f reset. Init writes 0xedc0 → 0x02, 0x0f → 0x04.
-  - 0x19: Unknown sensor/ADC (status read at reg 0x31).
-- Used by TASK_ADC for external measurements.
-
-### External Memory Region (0x9c000000)
-
-Registers at 0x9c000000/4/8/10/14, manipulated with bit clear/set ops. Likely the LCD controller or FlexSPI-mapped external storage used by LVGL.
-
-### Clock Frequency
-
-- Base oscillator: 16 MHz (from PLL calculation)
-- UI reports 192 MHz; achieved via PLL multiplier 12 (`16 MHz × 12 ≈ 192 MHz`).
-
----
 
 ## ADC/Measurement System
 
@@ -399,7 +359,7 @@ From `FUN_00018334`:
 
 ### Protocol Detection
 
-```
+```text
 "qc2.0:", "qc3.0:", "afc:", "fcp:", "scp:", "vfcp:",
 "sfcp:", "tfcp:", "svooc:", "vooc:", "mtkpe:", "mtkpe2.0:",
 "ufcs:", "bc1.2:", "detection pd", "done"
@@ -407,7 +367,7 @@ From `FUN_00018334`:
 
 ### PD Format Strings
 
-```
+```text
 "PD3.2", "PD3.1", "%s EPR", "%s,AVS"
 "%sPPS: %4.2f-%4.2fV%5.2fA"
 "%sFixed: %8.2fV%5.2fA"
@@ -416,7 +376,7 @@ From `FUN_00018334`:
 
 ### PDM Mode
 
-```
+```text
 "pdm mode entry\nver1.0\n"
 "pdm mode entry\nver1.0\nbusy\n"
 ```

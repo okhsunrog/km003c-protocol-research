@@ -34,6 +34,13 @@ from km003c import (
 # Import helpers for dict-based API navigation
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 from km003c_helpers import get_adc_data, get_adcqueue_data, get_packet_type
+from run_adcqueue_single import (
+    HARDWARE_ID_ADDRESS,
+    build_memory_read_request,
+    build_streaming_auth_request,
+    decrypt_hardware_id,
+    validate_memory_read_confirmation,
+)
 
 # Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration
@@ -78,17 +85,21 @@ def device():
     # Helper functions
     tid_counter = [0]  # Use list for mutability in closure
 
+    def next_tid():
+        tid = tid_counter[0]
+        tid_counter[0] = (tid + 1) & 0xFF
+        return tid
+
     def send_command(cmd_type, data_word):
         """Send command using km003c_lib packet creation."""
-        tid = tid_counter[0]
-        tid_counter[0] = (tid_counter[0] + 1) & 0xFF
+        tid = next_tid()
 
         # Use km003c_lib to create packet (no manual bit manipulation!)
         packet = create_packet(cmd_type, tid, data_word)
 
         dev.write(endpoint_out, packet)
         try:
-            response = bytes(dev.read(endpoint_in, 1024, timeout=2000))
+            response = bytes(dev.read(endpoint_in, 4096, timeout=2000))
             return tid, response
         except Exception:
             return tid, None
@@ -103,60 +114,28 @@ def device():
         time.sleep(0.1)
 
     def full_device_init():
-        """
-        Full device initialization sequence from captures.
-
-        Required for some features (AdcQueue) to work properly after fresh reset.
-        Purpose of Unknown68/Unknown76 commands not yet understood.
-        """
+        """Authenticate the connected device for AdcQueue streaming."""
         # Connect
         send_command(CMD_CONNECT, 0)
         time.sleep(0.05)
 
-        # Unknown68 commands (x4) - purpose unclear, hardcoded from capture
-        # TODO: Understand what these commands do
-        for cmd_hex in [
-            "4402010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e",
-            "44030101636beaf3f0856506eee9a27e89722dcfd18b539a39c407d5c063d91102e36a9e",
-            "44040101c51167ae613a6d46ec84a6bde8bd462ad18b539a39c407d5c063d91102e36a9e",
-            "440501019c409debc8df53b83b066c315250d05cd18b539a39c407d5c063d91102e36a9e",
-        ]:
-            dev.write(endpoint_out, bytes.fromhex(cmd_hex))
-            try:
-                dev.read(endpoint_in, 1024, timeout=2000)
-            except usb.core.USBError:
-                pass
-            time.sleep(0.05)
-
-        # Unknown76 - purpose unclear, hardcoded from capture
-        dev.write(
-            endpoint_out,
-            bytes.fromhex(
-                "4c0600025538815b69a452c83e54ef1d70f3bc9ae6aac1b12a6ac07c20fde58c7bf517ca"
-            ),
+        # Read this device's HardwareID. The second response is raw ciphertext.
+        memory_tid = next_tid()
+        memory_request = build_memory_read_request(HARDWARE_ID_ADDRESS, 12, memory_tid)
+        dev.write(endpoint_out, memory_request)
+        confirmation = bytes(dev.read(endpoint_in, 2048, timeout=2000))
+        validate_memory_read_confirmation(
+            confirmation, memory_tid, HARDWARE_ID_ADDRESS, 12
         )
-        try:
-            dev.read(endpoint_in, 1024, timeout=2000)
-        except usb.core.USBError:
-            pass
-        time.sleep(0.05)
+        ciphertext = bytes(dev.read(endpoint_in, 2048, timeout=2000))
+        hardware_id = decrypt_hardware_id(ciphertext)
 
-        # GetData PD and Unknown
-        send_command(CMD_GET_DATA, 0x0010)  # PD attribute
-        time.sleep(0.05)
-        send_command(CMD_GET_DATA, 0x0004)  # Unknown attribute
-        time.sleep(0.05)
-
-        # Stop Graph
-        send_command(CMD_STOP_GRAPH, 0)
-        time.sleep(0.1)
-
-        # Flush any remaining buffered responses
-        try:
-            while True:
-                dev.read(endpoint_in, 1024, timeout=100)
-        except usb.core.USBError:
-            pass  # Timeout means no more data
+        # Generate a fresh request rather than replaying device-specific capture data.
+        auth_tid = next_tid()
+        dev.write(endpoint_out, build_streaming_auth_request(hardware_id, auth_tid))
+        auth_response = bytes(dev.read(endpoint_in, 2048, timeout=2000))
+        if auth_response[:4] != bytes.fromhex("4c000302"):
+            raise ValueError(f"StreamingAuth failed: {auth_response.hex()}")
 
     # Initial cleanup
     reset_device_state()
@@ -255,19 +234,8 @@ class TestAdcQueueStreaming:
         device["send_command"](CMD_STOP_GRAPH, 0)
         time.sleep(0.1)
 
-    @pytest.mark.xfail(
-        reason="AdcQueue test has device state issues in pytest fixtures. Use scripts/run_adcqueue_single.py for validation."
-    )
     def test_adcqueue_data_streaming(self, device):
-        """
-        Test full AdcQueue streaming: start, request data, stop.
-
-        Note: AdcQueue requires full device initialization and complex state management
-        that doesn't work reliably in pytest fixture context (device returns buffered
-        responses from previous commands, attribute 512, etc.).
-
-        For reliable AdcQueue testing, use: uv run python scripts/run_adcqueue_single.py
-        """
+        """Test authenticated AdcQueue streaming from start through stop."""
         device["full_init"]()  # Full init required for AdcQueue
 
         # Start Graph at 50 SPS using library
@@ -278,7 +246,7 @@ class TestAdcQueueStreaming:
         # Wait for samples to accumulate
         time.sleep(2.0)  # 2 seconds = ~100 samples at 50 SPS
 
-        # Request AdcQueue data multiple times (first request might return other data)
+        # Request AdcQueue data. A complete response can exceed 1024 bytes.
         adcqueue_success = False
         for attempt in range(5):
             tid, response = device["send_command"](CMD_GET_DATA, ATT_ADC_QUEUE)
@@ -329,7 +297,9 @@ class TestAdcQueueStreaming:
         # Stop Graph
         tid, response = device["send_command"](CMD_STOP_GRAPH, 0)
         packet = parse_packet(response)
-        assert get_packet_type(packet) == "Accept", "Stop Graph not accepted"
+        assert get_packet_type(packet) == "Accept", (
+            f"Stop Graph returned {response.hex()}: {packet}"
+        )
 
 
 class TestRustLibraryBindings:

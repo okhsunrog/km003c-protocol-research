@@ -1,8 +1,9 @@
 # KM003C Protocol Reference
 
-Complete application-layer protocol specification for the ChargerLAB POWER-Z KM003C.
+Application-layer protocol reference for the ChargerLAB POWER-Z KM003C.
 
 For USB transport details (descriptors, endpoints), see [USB Transport](usb_transport.md).
+For library coverage, see [Implementation Status](implementation_status.md).
 
 ---
 
@@ -25,14 +26,20 @@ The KM003C uses a vendor-specific protocol over USB bulk transfers on Interface 
 
 ### Key Characteristics
 
-- **Packet size**: 4-2544 bytes
+- **Framed message size**: 4 bytes and up; large MemoryRead data is unframed ciphertext
 - **Byte order**: Little-endian throughout
 - **Transaction ID**: 8-bit rolling counter (0-255)
 - **Timeout**: 2 seconds recommended
 
+### Evidence Labels
+
+- **Observed:** present directly in USB captures or decrypted device data.
+- **Derived:** consistently inferred from multiple observations, such as units from timing deltas.
+- **Hypothesis:** plausible but not yet confirmed; do not rely on it for interoperability.
+
 ### Protocol Layers
 
-```
+```text
 ┌─────────────────────────────────────┐
 │  Application (this document)        │
 │  Commands, Attributes, Data         │
@@ -52,7 +59,7 @@ All packets start with a 4-byte header. The header format depends on packet type
 
 Used by: Connect, Disconnect, Accept, Reject, GetData, StartGraph, StopGraph, etc.
 
-```
+```text
 Byte 0: [type:7][reserved:1]
 Byte 1: [transaction_id:8]
 Byte 2-3: [unused:1][attribute:15]  (little-endian)
@@ -66,7 +73,8 @@ Byte 2-3: [unused:1][attribute:15]  (little-endian)
 | attribute | 17-31 | Attribute mask or parameter |
 
 **Bit Layout (32-bit little-endian):**
-```
+
+```text
  31  30  29  28  27  26  25  24  23  22  21  20  19  18  17  16  15  14  13  12  11  10   9   8   7   6   5   4   3   2   1   0
 ├───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┼───┼───┴───┴───┴───┴───┴───┴───┴───┼───┼───┴───┴───┴───┴───┴───┴───┤
 │              attribute (15 bits)                          │ u │      transaction_id (8)       │ r │        type (7 bits)      │
@@ -77,7 +85,7 @@ Byte 2-3: [unused:1][attribute:15]  (little-endian)
 
 Used by: PutData (0x41) responses containing measurement data.
 
-```
+```text
 Byte 0: [type:7][reserved:1]
 Byte 1: [transaction_id:8]
 Byte 2-3: [unused:6][obj_count_words:10]  (little-endian)
@@ -86,23 +94,27 @@ Byte 2-3: [unused:6][obj_count_words:10]  (little-endian)
 | Field | Bits | Description |
 |-------|------|-------------|
 | type | 0-6 | Always 0x41 (PutData) |
-| reserved | 7 | Usually 1 for PutData |
+| reserved | 7 | Observed as 0 in PutData captures; semantics are command-specific/unknown |
 | transaction_id | 8-15 | Matches request ID |
-| obj_count_words | 22-31 | Approximate total_size / 4 |
+| obj_count_words | 22-31 | Opaque count; captured non-empty packets use `packet_len / 4 - 3` |
+
+`obj_count_words` is not needed to delimit logical packets: use each extended
+header's `size` and `next` fields. Empty PutData responses use a zero count.
 
 ### Extended Header (Logical Packets)
 
 Within PutData, each logical packet has a 4-byte extended header:
 
-```
+```text
 Bits 0-14:  attribute (15 bits) - ADC=1, AdcQueue=2, Settings=8, PdPacket=16
 Bit 15:     next (1 = more packets follow, 0 = last packet)
-Bits 16-21: chunk (6 bits) - typically 0
+Bits 16-21: chunk (6 bits) - AdcQueue uses it as the sample count
 Bits 22-31: size (10 bits) - payload size in bytes
 ```
 
 **Example PutData with chained logical packets:**
-```
+
+```text
 [Main Header 4B][Ext Header 4B][Payload N bytes][Ext Header 4B][Payload M bytes]...
                 └─ next=1 ─────────────────────┘└─ next=0 (last) ─────────────┘
 ```
@@ -113,8 +125,8 @@ Bits 22-31: size (10 bits) - payload size in bytes
 
 ### Command Summary Table
 
-| Type | Hex | Name | Direction | Attribute | Description |
-|------|-----|------|-----------|-----------|-------------|
+| Hex | Name | Direction | Parameter | Description |
+|-----|------|-----------|-----------|-------------|
 | 0x02 | Connect | OUT→IN | 0x0000 | Start session |
 | 0x03 | Disconnect | OUT→IN | 0x0000 | End session |
 | 0x05 | Accept | IN | 0x0000 | Command acknowledged |
@@ -122,11 +134,14 @@ Bits 22-31: size (10 bits) - payload size in bytes
 | 0x0C | GetData | OUT→IN | mask | Request data by attribute mask |
 | 0x0E | StartGraph | OUT→IN | rate | Start streaming (rate: 0-3) |
 | 0x0F | StopGraph | OUT→IN | 0x0000 | Stop streaming |
-| 0x10 | EnablePdMonitor | OUT→IN | 0x0002 | Enable PD sniffer (purpose unclear, optional) |
+| 0x10 | EnablePdMonitor | OUT→IN | 0x0001 | Enable PD sniffer (purpose unclear, optional) |
 | 0x11 | DisablePdMonitor | OUT→IN | 0x0000 | Disable PD sniffer (purpose unclear, optional) |
 | 0x41 | PutData | IN | varies | Data response |
-| 0x44 | MemoryRead | OUT→IN | 0x0101 | Read device memory |
-| 0x4C | StreamingAuth | OUT→IN | 0x0002 | Enable streaming features |
+| 0x44 | MemoryRead | OUT→IN | raw word `01 01` | Read device memory |
+| 0x4C | StreamingAuth | OUT→IN | raw word `00 02` | Enable streaming features |
+
+MemoryRead and StreamingAuth use special raw 16-bit header words. Do not pass
+`0x0101` or `0x0200` through the ordinary shifted control-header attribute encoder.
 
 ### Command Details
 
@@ -134,7 +149,7 @@ Bits 22-31: size (10 bits) - payload size in bytes
 
 Starts a communication session.
 
-```
+```text
 Request:  02 TID 00 00
 Response: 05 TID 00 00 (Accept)
 ```
@@ -143,7 +158,7 @@ Response: 05 TID 00 00 (Accept)
 
 Ends the session.
 
-```
+```text
 Request:  03 TID 00 00
 Response: 05 TID 00 00 (Accept)
 ```
@@ -152,12 +167,13 @@ Response: 05 TID 00 00 (Accept)
 
 Requests data by attribute mask. Multiple attributes can be combined with bitwise OR.
 
-```
+```text
 Request:  0C TID [attr_lo] [attr_hi]
 Response: 41 TID ... (PutData with requested data)
 ```
 
 **Attribute mask encoding** (bytes 2-3, little-endian, shifted):
+
 | Mask | Bytes | Requests |
 |------|-------|----------|
 | 0x0001 | `02 00` | ADC |
@@ -173,7 +189,7 @@ Response: 41 TID ... (PutData with requested data)
 
 Starts AdcQueue streaming at specified sample rate.
 
-```
+```text
 Request:  0E TID [rate_index << 1] 00
 Response: 05 TID 00 00 (Accept)
 ```
@@ -198,7 +214,7 @@ automatically.
 
 Stops AdcQueue streaming.
 
-```
+```text
 Request:  0F TID 00 00
 Response: 05 TID 00 00 (Accept)
 ```
@@ -207,7 +223,7 @@ Response: 05 TID 00 00 (Accept)
 
 Enables USB Power Delivery protocol capture.
 
-```
+```text
 Request:  10 TID 02 00
 Response: 05 TID 00 00 (Accept)
 ```
@@ -218,7 +234,7 @@ Response: 05 TID 00 00 (Accept)
 
 Disables PD capture.
 
-```
+```text
 Request:  11 TID 00 00
 Response: 05 TID 00 00 (Accept)
 ```
@@ -229,9 +245,9 @@ Response: 05 TID 00 00 (Accept)
 
 Reads data from device memory. Request payload is AES-128 ECB encrypted.
 
-```
+```text
 Request:  44 TID 01 01 [32 bytes encrypted]
-Response: C4 TID ... (confirmation) + data packet
+Response: C4 TID 01 01 [16-byte confirmation payload] + raw ciphertext transfers
 ```
 
 See [Authentication](features/authentication.md) for full details.
@@ -240,17 +256,19 @@ See [Authentication](features/authentication.md) for full details.
 
 Required before AdcQueue streaming. Device validates payload against HardwareID.
 
-```
+```text
 Request:  4C TID 00 02 [32 bytes AES-encrypted]
 Response: 4C 00 XX XX [32 bytes re-encrypted]
 ```
 
 **Plaintext structure (32 bytes, before AES-128-ECB encryption):**
+
 - Bytes 0-7: Timestamp (any value, not checked)
 - Bytes 8-19: HardwareID (12 bytes from 0x40010450, **required**)
 - Bytes 20-31: Padding (any value, not checked)
 
 **Response attribute:**
+
 - 0x0201: Auth failed (HardwareID mismatch) - AdcQueue returns empty
 - 0x0203: Auth success - AdcQueue works
 
@@ -310,7 +328,8 @@ Returned with attribute 0x0001.
 | 40 | 2 | u16 | vdp_avg_mV | Millivolts |
 | 42 | 2 | u16 | vdm_avg_mV | Millivolts |
 
-**Temperature conversion** (INA228/INA229, LSB = 1/128 °C = 7.8125 m°C):
+**Temperature conversion** (observed LSB = 1/128 °C = 7.8125 m°C):
+
 ```c
 float temp_celsius(int16_t raw) {
     return raw / 128.0;
@@ -318,6 +337,7 @@ float temp_celsius(int16_t raw) {
 ```
 
 **Current direction:**
+
 - Positive: USB female (input) → USB male (output)
 - Negative: USB male (input) → USB female (output)
 
@@ -327,14 +347,18 @@ Returned with attribute 0x0002. Multiple samples per response.
 
 | Offset | Size | Type | Field | Unit |
 |--------|------|------|-------|------|
-| 0 | 2 | u16 | sequence | Incrementing counter |
-| 2 | 2 | u16 | marker | Always 0x3C (60) |
+| 0 | 2 | u16 | sequence | Wrapping 1 kHz device-time counter |
+| 2 | 2 | u16 | marker | Opaque flags/marker; multiple values observed |
 | 4 | 4 | i32 | vbus_uV | Microvolts |
 | 8 | 4 | i32 | ibus_uA | Microamps (signed) |
-| 12 | 2 | u16 | cc1_tenth_mV | 0.1 mV units |
-| 14 | 2 | u16 | cc2_tenth_mV | 0.1 mV units |
-| 16 | 2 | u16 | vdp_tenth_mV | 0.1 mV units (D+) |
-| 18 | 2 | u16 | vdm_tenth_mV | 0.1 mV units (D-) |
+| 12 | 2 | u16 | cc1_raw | 0.1 mV/count at 2 SPS; 1 mV/count at faster rates |
+| 14 | 2 | u16 | cc2_raw | Rate-dependent units |
+| 16 | 2 | u16 | vdp_raw | Rate-dependent units (D+) |
+| 18 | 2 | u16 | vdm_raw | Rate-dependent units (D-) |
+
+Expected sequence steps are 500, 100, 20, and 1 for 2, 10, 50, and
+1000 SPS respectively. Observed marker values include `0x03`, `0x04`, `0x08`,
+`0x09`, `0x3B`, and `0x3C`; consumers should preserve rather than validate it.
 
 **Note:** AdcQueue does NOT include temperature - request ADC periodically if needed.
 
@@ -362,7 +386,8 @@ Returned with attribute 0x0008.
 | 0xB0 | 4 | u32 | checksum | Device-calculated |
 
 **Example values:**
-```
+
+```text
 flags:              0xf8500161
 sample_interval:    10000 µs (10 ms)
 display_brightness: 65
@@ -379,10 +404,9 @@ Returned with attribute 0x0010 when size = 12.
 
 | Offset | Size | Type | Field | Description |
 |--------|------|------|-------|-------------|
-| 0 | 1 | u8 | type_id | Event/status ID |
-| 1 | 3 | u24 | timestamp | ~40ms per tick |
+| 0 | 4 | u32 | timestamp_ms | Monotonic device time in milliseconds |
 | 4 | 2 | u16 | vbus_mV | VBUS voltage |
-| 6 | 2 | u16 | ibus_mA | IBUS current |
+| 6 | 2 | i16 | ibus_mA | Signed IBUS current |
 | 8 | 2 | u16 | cc1_mV | CC1 voltage |
 | 10 | 2 | u16 | cc2_mV | CC2 voltage |
 
@@ -391,11 +415,13 @@ Returned with attribute 0x0010 when size = 12.
 Returned with attribute 0x0010 when size > 12.
 
 **Structure:**
-```
+
+```text
 [Preamble 12B][Event Header 6B][Wire N bytes][Event Header 6B][Wire M bytes]...
 ```
 
-**Preamble (12 bytes):**
+**Preamble (12 bytes):** Identical to the PD Status layout above.
+
 | Offset | Size | Field |
 |--------|------|-------|
 | 0 | 4 | timestamp_ms (u32) |
@@ -405,6 +431,7 @@ Returned with attribute 0x0010 when size > 12.
 | 10 | 2 | cc2_mV |
 
 **Event Header (6 bytes):**
+
 | Offset | Size | Field |
 |--------|------|-------|
 | 0 | 1 | size_flag |
@@ -426,7 +453,7 @@ Returned with attribute 0x0200.
 | 0x12 | 2 | u16 | sample_count | Number of samples |
 | 0x14 | 2 | u16 | interval_ms | Sample interval |
 | 0x16 | 2 | u16 | flags | |
-| 0x18 | 4 | u32 | estimated_size | Bytes |
+| 0x18 | 4 | u32 | duration_seconds | Elapsed time from first to last sample |
 | 0x1C | 20 | bytes | metadata | Checksums etc. |
 
 See [Offline Logs](features/offline_logs.md) for download protocol.
@@ -447,10 +474,13 @@ All encryption uses **AES-128 ECB** mode.
 | 3 | `Fa0b4tA25f4R038a` | Streaming auth (0x4C) encrypt | Encryption key |
 | 3' | `FX0b4tA25f4R038a` | Streaming auth (0x4C) decrypt | byte[1] = 'X' |
 
-**Firmware key variant:** Some firmware dumps show key 0 as `Lh2yfB7n6X7d9a4Z`; both `...a4Z` and `...a5Z` work in practice.
+The bundled firmware decrypts correctly with `Lh2yfB7n6X7d9a5Z`. The similar
+`...a4Z` string found during analysis does not decrypt that image and is not a
+supported key variant.
 
 **Key extraction from Mtools.exe:**
-```
+
+```text
 Address 0x140184ac8: "NmR0R.uz3KgNOu4xufpWLh2yfB7n6X7d9a5ZBwLe..."
                                         ^^^^^^^^^^^^^^^^
                                         offset 0x14, length 0x10 = Key 0
@@ -461,7 +491,8 @@ See [Mtools Analysis](firmware/mtools_analysis.md) for key locations.
 ### MemoryRead (0x44) Encryption
 
 **Request payload (32 bytes plaintext):**
-```
+
+```text
 [0:3]   Address (u32 LE)
 [4:7]   Size (u32 LE)
 [8:11]  0xFFFFFFFF (magic)
@@ -472,6 +503,7 @@ See [Mtools Analysis](firmware/mtools_analysis.md) for key locations.
 Encrypted with Key 0 before sending.
 
 **CRC32 calculation:**
+
 ```python
 import binascii, struct
 crc = binascii.crc32(struct.pack('<III', address, size, 0xFFFFFFFF)) & 0xFFFFFFFF
@@ -481,7 +513,9 @@ crc = binascii.crc32(struct.pack('<III', address, size, 0xFFFFFFFF)) & 0xFFFFFFF
 
 Device encrypts challenge and session key with Key 3, returns encrypted result.
 
-**Key finding:** Device enables streaming regardless of payload content. The verification only happens on the host side (Mtools.exe).
+**Observed:** The device verifies bytes 8-19 against its 12-byte HardwareID.
+An incorrect value produces response `0x0201` and empty AdcQueue responses;
+the matching HardwareID produces `0x0203` and enables streaming.
 
 ---
 
@@ -489,7 +523,7 @@ Device encrypts challenge and session key with Key 3, returns encrypted result.
 
 ### Basic ADC Polling
 
-```
+```text
 1. Connect (0x02)      → Accept (0x05)
 2. GetData (0x0C)      → PutData (0x41) with ADC
    attr=0x0001
@@ -499,7 +533,7 @@ Device encrypts challenge and session key with Key 3, returns encrypted result.
 
 ### AdcQueue Streaming
 
-```
+```text
 1. Connect (0x02)      → Accept (0x05)
 2. StreamingAuth       → 0x4C response (attr=0x0203)  [REQUIRED]
    (0x4C, encrypted payload with HardwareID)
@@ -514,7 +548,7 @@ Device encrypts challenge and session key with Key 3, returns encrypted result.
 
 ### PD Capture
 
-```
+```text
 1. Connect (0x02)      → Accept (0x05)
 2. GetData (0x0C)      → PutData with PdPacket
    attr=0x0010
@@ -526,9 +560,9 @@ Device encrypts challenge and session key with Key 3, returns encrypted result.
 
 ### Memory Read
 
-```
+```text
 1. Connect (0x02)      → Accept (0x05)
-2. MemoryRead (0x44)   → Confirm (0xC4) + Data packet
+2. MemoryRead (0x44)   → Confirm (0xC4) + raw encrypted bytes
    [encrypted request]
    [repeat for each address]
 3. Disconnect (0x03)   → Accept (0x05)
@@ -540,44 +574,34 @@ Device encrypts challenge and session key with Key 3, returns encrypted result.
 
 ### Standard Responses
 
-| Type | Hex | Name | Size | Meaning |
-|------|-----|------|------|---------|
+| Hex | Name | Size | Meaning |
+|-----|------|------|---------|
 | 0x05 | Accept | 4 bytes | Command succeeded |
 | 0x06 | Reject | 4 bytes | Command failed |
 | 0x27 | NotReadable | 4 bytes | Memory address not accessible |
 | 0x41 | PutData | Variable | Data response |
 
-### Data Response Types (from MemoryRead)
+### MemoryRead Data Blocks
 
 **Important:** MemoryRead data responses are AES-128-ECB encrypted using `MEMORY_READ_KEY`
 (`Lh2yfB7n6X7d9a5Z`). The entire response block must be decrypted before parsing.
-The "type" values below historically appeared as the first byte of responses, but this is
-coincidental - they are simply the first byte of encrypted data for each address.
+These transfers have no protocol header or packet type. Collect exactly
+`ceil(requested_size / 16) * 16` bytes, then decrypt the complete buffer.
 
-| Type | Hex | Address | Size | Content |
-|------|-----|---------|------|---------|
-| 0x1A | DeviceInfo1 | 0x420 | 64 bytes | Model, HW version, mfg date |
-| 0x2C | FirmwareInfo2 | varies | 64 bytes | FW info (attr=0x564D) |
-| 0x3A | FirmwareInfo | 0x4420 | 64 bytes | FW version, build date |
-| 0x40 | CalibrationData | 0x3000C00 | 64 bytes | Serial, UUID, timestamp |
-| 0x75 | HardwareID | 0x40010450 | 12 bytes | Authentication blob (NOT a serial number) |
-
-### Log Data Chunks
-
-| Type | Hex | Size | Description |
-|------|-----|------|-------------|
-| 0x34 | LogChunk1 | 2544 bytes | First log data chunk |
-| 0x4E | LogChunk2 | 2544 bytes | Second log data chunk |
-| 0x76 | LogChunk3 | 2544 bytes | Third log data chunk |
-| 0x68 | LogChunk4 | ≤704 bytes | Final log data chunk |
-
+| Address | Requested Size | Decrypted Content |
+|---------|----------------|-------------------|
+| 0x00000420 | 64 bytes | Model, hardware version, manufacturing date |
+| 0x00004420 | 64 bytes | Firmware version and build information |
+| 0x03000C00 | 64 bytes | Serial, UUID, timestamp |
+| 0x40010450 | 12 bytes | HardwareID authentication blob |
+| 0x98100000 | `sample_count * 16` | Offline log samples |
 
 ## Empirical Findings (Captured Traffic)
 
-- **Transaction coverage:** 2,836 request/response pairs across seven captures; 100% ID match and bitmask→attribute correlation.
+- **Transaction coverage:** 4,789 GetData/PutData pairs from 13 source captures within a 20,862-row, 14-source dataset snapshot.
 - **Common PutData sizes:** 52B (ADC only), 68B (ADC+PD status), 52–900B (AdcQueue), variable PD-only (≥18B preamble+events).
-- **obj_count_words heuristic:** `≈ (total_bytes / 4) – 3` for single-segment packets; adjust upward when multiple logical packets are chained.
-- **Latency (median):** ADC ~182 µs, PD ~158 µs, ADC+PD ~198 µs, AdcQueue ~1.06 ms (larger payloads).
+- **obj_count_words observation:** `(total_bytes / 4) - 3` for captured non-empty PutData packets, including chained responses.
+- **Latency (median):** ADC 164 µs, PD 123 µs, ADC+PD 171 µs, AdcQueue 510 µs.
 - **Empty responses:** A PutData with `obj_count_words=0` is valid when AdcQueue has no buffered samples.
 
 ## References

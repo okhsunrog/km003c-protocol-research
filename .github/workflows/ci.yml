@@ -32,4 +32,6 @@ jobs:
       - run: uv sync --locked
       - run: uv run --locked ruff format --check km003c_analysis scripts tests
       - run: uv run --locked ruff check km003c_analysis scripts tests
+      - run: uv run --locked rumdl check README.md docs tests/README.md
+      - run: uv run --locked python scripts/check_markdown_links.py
       - run: uv run --locked pytest -q

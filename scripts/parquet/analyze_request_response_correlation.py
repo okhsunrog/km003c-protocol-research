@@ -8,18 +8,21 @@ This script analyzes the USB master dataset to:
 3. Correlate GetData requests (attribute_mask) with PutData responses (attributes)
 4. Identify patterns and mappings between request masks and response attributes
 
-Run: uv run python scripts/parquet/analyze_request_response_correlation.py
+Run: uv run --locked python scripts/parquet/analyze_request_response_correlation.py
 """
 
 from __future__ import annotations
 
 import json
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import polars as pl
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 # Local package imports
 from km003c_analysis.core import split_usb_transactions
@@ -300,7 +303,7 @@ def analyze_attribute_mapping(pairs: List[TransactionPair]) -> Dict[str, Any]:
             "bit_1_adcqueue": bool(mask & 0x0002),
             "bit_3_settings": bool(mask & 0x0008),
             "bit_4_pdpacket": bool(mask & 0x0010),
-            "bit_9_unknown512": bool(mask & 0x0200),
+            "bit_9_log_metadata": bool(mask & 0x0200),
         }
 
     return result
@@ -396,7 +399,11 @@ def analyze_per_source_file() -> None:
         print("📋 Complete Request → Response Mapping:\n")
         for mask_hex, summary in sorted(global_mapping["summary"].items()):
             bits = global_mapping["bit_analysis"][mask_hex]
-            bits_set = [k.split("_")[1].upper() for k, v in bits.items() if v]
+            bits_set = [
+                key.split("_", maxsplit=2)[2].replace("_", " ").title()
+                for key, enabled in bits.items()
+                if enabled
+            ]
 
             print(
                 f"  {mask_hex} ({summary['mask_decimal']:5d}) | {summary['mask_binary']}"

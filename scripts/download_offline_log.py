@@ -10,11 +10,12 @@ This script:
 5. Parses and displays the ADC samples
 
 Usage:
-    uv run scripts/download_offline_log.py
-    uv run scripts/download_offline_log.py --output log_data.csv
+    uv run --locked scripts/download_offline_log.py
+    uv run --locked scripts/download_offline_log.py --output log_data.csv
 """
 
 import argparse
+import os
 import struct
 import time
 from dataclasses import dataclass
@@ -29,28 +30,18 @@ INTERFACE_NUM = 0
 ENDPOINT_OUT = 0x01
 ENDPOINT_IN = 0x81
 
-# AES key for Unknown68 and data chunks
+# AES key for MemoryRead requests and responses
 AES_KEY = b"Lh2yfB7n6X7d9a5Z"
+STREAMING_AUTH_KEY = b"Fa0b4tA25f4R038a"
+AES_BLOCK_SIZE = 16
 
-# Initialization packets (from captured traffic)
-INIT_UNKNOWN68_PACKETS = [
-    bytes.fromhex(
-        "4402010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e"
-    ),
-    bytes.fromhex(
-        "44030101636beaf3f0856506eee9a27e89722dcfd18b539a39c407d5c063d91102e36a9e"
-    ),
-    bytes.fromhex(
-        "44040101c51167ae613a6d46ec84a6bde8bd462ad18b539a39c407d5c063d91102e36a9e"
-    ),
-    bytes.fromhex(
-        "440501019c409debc8df53b83b066c315250d05cd18b539a39c407d5c063d91102e36a9e"
-    ),
+# Initialization reads used by the official application.
+INIT_MEMORY_READS = [
+    (0x00000420, 64),
+    (0x00004420, 64),
+    (0x03000C00, 64),
+    (0x40010450, 12),
 ]
-
-INIT_UNKNOWN76_PACKET = bytes.fromhex(
-    "4c0600025538815b69a452c83e54ef1d70f3bc9ae6aac1b12a6ac07c20fde58c7bf517ca"
-)
 
 
 @dataclass
@@ -61,11 +52,12 @@ class LogMetadata:
     sample_count: int
     interval_ms: int
     flags: int
-    estimated_size: int
+    recorded_duration_seconds: int
 
     @property
     def duration_seconds(self) -> float:
-        return self.sample_count * self.interval_ms / 1000
+        """Elapsed time between the first and last recorded samples."""
+        return max(self.sample_count - 1, 0) * self.interval_ms / 1000
 
     @property
     def data_size(self) -> int:
@@ -99,15 +91,15 @@ class AdcSample:
         return self.energy_acc_uwh / 1000
 
 
-def decrypt_ecb(data: bytes) -> bytes:
+def decrypt_ecb(data: bytes, key: bytes = AES_KEY) -> bytes:
     """Decrypt data using AES-128 ECB."""
-    cipher = AES.new(AES_KEY, AES.MODE_ECB)
+    cipher = AES.new(key, AES.MODE_ECB)
     return cipher.decrypt(data)
 
 
-def encrypt_ecb(data: bytes) -> bytes:
+def encrypt_ecb(data: bytes, key: bytes = AES_KEY) -> bytes:
     """Encrypt data using AES-128 ECB."""
-    cipher = AES.new(AES_KEY, AES.MODE_ECB)
+    cipher = AES.new(key, AES.MODE_ECB)
     return cipher.encrypt(data)
 
 
@@ -116,6 +108,42 @@ def crc32(data: bytes) -> int:
     import binascii
 
     return binascii.crc32(data) & 0xFFFFFFFF
+
+
+def memory_response_size(requested_size: int) -> int:
+    """Round a MemoryRead response up to complete AES blocks."""
+    return ((requested_size + AES_BLOCK_SIZE - 1) // AES_BLOCK_SIZE) * AES_BLOCK_SIZE
+
+
+def validate_memory_read_confirmation(
+    response: bytes, tid: int, address: int, size: int
+) -> None:
+    """Validate the 20-byte plaintext confirmation preceding MemoryRead data."""
+    if len(response) != 20:
+        raise ValueError(
+            f"MemoryRead confirmation must be 20 bytes, got {len(response)}"
+        )
+    if response[0] & 0x7F != 0x44 or response[1] != tid:
+        raise ValueError("MemoryRead confirmation type or transaction ID mismatch")
+    if response[2:4] != b"\x01\x01":
+        raise ValueError(f"Unexpected MemoryRead header word: {response[2:4].hex()}")
+
+    echoed_address, echoed_size, magic, checksum = struct.unpack(
+        "<IIII", response[4:20]
+    )
+    expected_crc = crc32(response[4:16])
+    if echoed_address != address or echoed_size != size:
+        raise ValueError(
+            "MemoryRead confirmation echo mismatch: "
+            f"got address=0x{echoed_address:08X}, size={echoed_size}"
+        )
+    if magic != 0xFFFFFFFF:
+        raise ValueError(f"Unexpected MemoryRead magic: 0x{magic:08X}")
+    if checksum != expected_crc:
+        raise ValueError(
+            f"MemoryRead confirmation CRC mismatch: expected 0x{expected_crc:08X}, "
+            f"got 0x{checksum:08X}"
+        )
 
 
 class KM003C:
@@ -162,6 +190,26 @@ class KM003C:
     def _recv(self, timeout: int = 2000) -> bytes:
         return bytes(self.dev.read(ENDPOINT_IN, 4096, timeout=timeout))
 
+    def _recv_memory_data(self, requested_size: int) -> bytes:
+        """Collect an unframed encrypted MemoryRead response across USB transfers."""
+        expected_size = memory_response_size(requested_size)
+        encrypted = bytearray()
+        while len(encrypted) < expected_size:
+            chunk = self._recv(timeout=5000)
+            if not chunk:
+                raise ValueError("Received an empty MemoryRead data transfer")
+            if len(encrypted) + len(chunk) > expected_size:
+                raise ValueError(
+                    "MemoryRead data exceeded expected size: "
+                    f"expected {expected_size}, got at least {len(encrypted) + len(chunk)}"
+                )
+            encrypted.extend(chunk)
+            print(
+                f"  Raw encrypted chunk: size={len(chunk)}, "
+                f"total={len(encrypted)}/{expected_size}"
+            )
+        return bytes(encrypted)
+
     def _send_cmd(self, cmd_type: int, data_word: int) -> bytes | None:
         """Send 4-byte command and return response."""
         tid = self._next_tid()
@@ -182,21 +230,37 @@ class KM003C:
         self._send_cmd(0x02, 0x0000)
         time.sleep(0.05)
 
-        # Unknown68 commands (authentication/handshake)
-        for pkt in INIT_UNKNOWN68_PACKETS:
-            self._send(pkt)
-            self._recv()
+        # Read the same device-information blocks as the official application.
+        hardware_id = None
+        for address, size in INIT_MEMORY_READS:
+            request = self._build_memory_read_request(address, size)
+            self._send(request)
+            confirmation = self._recv()
+            validate_memory_read_confirmation(confirmation, request[1], address, size)
+            data = decrypt_ecb(self._recv_memory_data(size))[:size]
+            if address == 0x40010450:
+                hardware_id = data
             time.sleep(0.05)
 
-        # Unknown76
-        self._send(INIT_UNKNOWN76_PACKET)
-        self._recv()
+        if hardware_id is None or len(hardware_id) != 12:
+            raise ValueError("Failed to read the 12-byte HardwareID")
+
+        # Authenticate with this device's HardwareID rather than replaying a
+        # device-specific packet from a capture.
+        auth_request = self._build_streaming_auth_request(hardware_id)
+        self._send(auth_request)
+        auth_response = self._recv()
+        if len(auth_response) < 4 or auth_response[0] & 0x7F != 0x4C:
+            raise ValueError("Invalid StreamingAuth response")
+        auth_result = struct.unpack("<H", auth_response[2:4])[0]
+        if auth_result & 0x03 != 0x03:
+            raise ValueError(f"StreamingAuth failed with result 0x{auth_result:04X}")
         time.sleep(0.05)
 
         # GetData commands
         self._send_cmd(0x0C, 0x0020)  # PD
         time.sleep(0.05)
-        self._send_cmd(0x0C, 0x0008)  # Settings
+        self._send_cmd(0x0C, 0x0010)  # Settings
         time.sleep(0.05)
 
         print("Initialization complete")
@@ -223,23 +287,21 @@ class KM003C:
         sample_count = struct.unpack("<H", metadata[18:20])[0]
         interval_ms = struct.unpack("<H", metadata[20:22])[0]
         flags = struct.unpack("<H", metadata[22:24])[0]
-        estimated_size = struct.unpack("<I", metadata[24:28])[0]
+        recorded_duration_seconds = struct.unpack("<I", metadata[24:28])[0]
 
         return LogMetadata(
             name=name,
             sample_count=sample_count,
             interval_ms=interval_ms,
             flags=flags,
-            estimated_size=estimated_size,
+            recorded_duration_seconds=recorded_duration_seconds,
         )
 
-    def _build_download_request(self, address: int, size: int) -> bytes:
-        """Build encrypted Unknown68 download request."""
+    def _build_memory_read_request(self, address: int, size: int) -> bytes:
+        """Build an encrypted MemoryRead request."""
         # Build plaintext payload
         payload = struct.pack("<III", address, size, 0xFFFFFFFF)
-        # Add padding for CRC calculation
-        padded = payload + b"\xff" * 4
-        checksum = crc32(padded)
+        checksum = crc32(payload)
 
         # Full 32-byte payload
         full_payload = payload + struct.pack("<I", checksum) + (b"\xff" * 16)
@@ -253,61 +315,36 @@ class KM003C:
 
         return header + encrypted
 
+    def _build_streaming_auth_request(self, hardware_id: bytes) -> bytes:
+        """Build a fresh StreamingAuth request for the connected device."""
+        if len(hardware_id) != 12:
+            raise ValueError(f"HardwareID must be 12 bytes, got {len(hardware_id)}")
+
+        timestamp_ms = time.time_ns() // 1_000_000
+        plaintext = struct.pack("<Q", timestamp_ms) + hardware_id + os.urandom(12)
+        encrypted = encrypt_ecb(plaintext, STREAMING_AUTH_KEY)
+        tid = self._next_tid()
+        return bytes([0x4C, tid, 0x00, 0x02]) + encrypted
+
     def download_log_data(self, size: int) -> bytes:
-        """Download log data using Unknown68 command."""
+        """Download and decrypt raw offline log data with MemoryRead."""
         # Address 0x98100000 is the special marker for offline logs
-        request = self._build_download_request(0x98100000, size)
+        address = 0x98100000
+        request = self._build_memory_read_request(address, size)
 
         print(f"Sending download request for {size} bytes...")
         self._send(request)
 
-        # Read Unknown68 response (20 bytes)
+        # Read and validate the plaintext MemoryRead confirmation.
         response = self._recv()
-        if len(response) < 20:
-            raise ValueError(f"Invalid Unknown68 response: {len(response)} bytes")
+        validate_memory_read_confirmation(response, request[1], address, size)
+        print(f"Response confirmed address=0x{address:08X}, size={size}")
 
-        # Check encryption flag: bit 0 of byte 2 (flags_lo)
-        # This is bit 16 when header is read as little-endian u32
-        # This flag indicates if DATA CHUNKS are encrypted, not the response itself
-        data_encrypted = (response[2] & 0x01) == 1
-
-        # Response payload is NOT encrypted (only data chunks are)
-        resp_payload = response[4:20]
-        resp_addr, resp_size, resp_const, resp_crc = struct.unpack(
-            "<IIII", resp_payload
-        )
-
-        print(
-            f"Response: addr=0x{resp_addr:08X}, size={resp_size}, crc=0x{resp_crc:08X}, data_encrypted={data_encrypted}"
-        )
-
-        # Read data chunks
-        all_data = b""
-        chunk_types = [0x34, 0x4E, 0x76, 0x68]  # Sequential chunk types
-
-        while len(all_data) < size:
-            chunk = self._recv(timeout=5000)
-            chunk_type = chunk[0] & 0x7F
-
-            if chunk_type in chunk_types:
-                all_data += chunk
-                print(
-                    f"  Chunk type=0x{chunk_type:02X}, size={len(chunk)}, total={len(all_data)}"
-                )
-            else:
-                print(f"  Unexpected packet type=0x{chunk_type:02X}, size={len(chunk)}")
-                break
-
-        print(f"Total received: {len(all_data)} bytes")
-
-        # Decrypt data if encryption flag was set in Unknown68 response
-        if data_encrypted:
-            if len(all_data) % 16 != 0:
-                padding = 16 - (len(all_data) % 16)
-                all_data += b"\x00" * padding
-            all_data = decrypt_ecb(all_data)
-
-        return all_data[:size]
+        # The following transfers are raw ciphertext. Their first bytes are
+        # encrypted data, not packet types or headers.
+        encrypted = self._recv_memory_data(size)
+        print(f"Total received: {len(encrypted)} bytes")
+        return decrypt_ecb(encrypted)[:size]
 
     def close(self):
         usb.util.release_interface(self.dev, INTERFACE_NUM)
@@ -361,6 +398,11 @@ def main():
         print(
             f"Duration: {int(duration // 3600)}:{int((duration % 3600) // 60):02d}:{int(duration % 60):02d}"
         )
+        if metadata.recorded_duration_seconds != duration:
+            print(
+                "Warning: metadata duration differs from sample count: "
+                f"{metadata.recorded_duration_seconds}s"
+            )
         print(f"Data size: {metadata.data_size} bytes")
 
         # Download log data

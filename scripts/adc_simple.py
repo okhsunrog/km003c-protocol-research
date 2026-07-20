@@ -10,9 +10,9 @@ This is a minimal example showing how to request and parse single ADC samples.
 For multi-sample streaming (AdcQueue), see test_adcqueue.py.
 
 Usage:
-    uv run scripts/adc_simple.py                  # Default: HID interface
-    uv run scripts/adc_simple.py --interface hid  # HID interface (~3.8ms latency)
-    uv run scripts/adc_simple.py --interface vendor  # Vendor interface (~0.6ms, 6x faster)
+    uv run --locked scripts/adc_simple.py                  # Default: HID interface
+    uv run --locked scripts/adc_simple.py --interface hid  # HID interface (~3.8ms latency)
+    uv run --locked scripts/adc_simple.py --interface vendor  # Vendor interface (~0.6ms, 6x faster)
 """
 
 import argparse

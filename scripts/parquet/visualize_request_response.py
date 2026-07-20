@@ -2,7 +2,7 @@
 """
 Визуализация результатов анализа request-response корреляций.
 
-Run: uv run python scripts/parquet/visualize_request_response.py
+Run: uv run --locked python scripts/parquet/visualize_request_response.py
 """
 
 import json
@@ -56,10 +56,7 @@ def visualize_results():
             2: "AdcQueue",
             8: "Settings",
             16: "PdPacket",
-            512: "Unknown512",
-            1056: "Unknown1056",
-            3072: "Unknown3072",
-            17440: "Unknown17440",
+            512: "LogMetadata",
         }
 
         print("┌" + "─" * 15 + "┬" + "─" * 20 + "┬" + "─" * 10 + "┬" + "─" * 50 + "┐")
@@ -115,7 +112,7 @@ def visualize_results():
             1: "AdcQueue (attribute 2)",
             3: "Settings (attribute 8)",
             4: "PdPacket (attribute 16)",
-            9: "Unknown512 (attribute 512)",
+            9: "LogMetadata (attribute 512)",
         }
 
         for mask_hex in sorted(mapping["summary"].keys(), key=lambda x: int(x, 16)):
@@ -160,7 +157,7 @@ def visualize_results():
         print("   • Bit 1 (0x0002) → AdcQueue response (attribute 2)")
         print("   • Bit 3 (0x0008) → Settings response (attribute 8)")
         print("   • Bit 4 (0x0010) → PdPacket response (attribute 16)")
-        print("   • Bit 9 (0x0200) → Unknown512 response (attribute 512)")
+        print("   • Bit 9 (0x0200) → LogMetadata response (attribute 512)")
         print()
         print("2. BITWISE OR BEHAVIOR:")
         print("   • Mask 0x0003 (bits 0+1) → Response [ADC, AdcQueue]")

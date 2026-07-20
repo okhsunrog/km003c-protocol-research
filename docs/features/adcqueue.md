@@ -25,7 +25,7 @@ send([0x0E, tid, 0x04, 0x00])
 
 # 5. Request AdcQueue data
 send([0x0C, tid, 0x04, 0x00])  # GetData attr=0x0002
-response = read()  # Returns N × 20-byte samples
+response = read()  # Extended-header chunk=N, followed by N × 20-byte samples
 
 # 6. Stop when done
 send([0x0F, tid, 0x00, 0x00])
@@ -39,14 +39,17 @@ send([0x0F, tid, 0x00, 0x00])
 
 | Offset | Size | Type | Field | Units |
 |--------|------|------|-------|-------|
-| 0 | 2 | u16 | Sequence | Incrementing counter |
-| 2 | 2 | u16 | Marker | Always 0x3C (60) |
+| 0 | 2 | u16 | Sequence | Wrapping 1 kHz device-time counter |
+| 2 | 2 | u16 | Marker | Opaque flags/marker; varies |
 | 4 | 4 | i32 | VBUS | µV (microvolts) |
 | 8 | 4 | i32 | IBUS | µA (microamperes, signed) |
-| 12 | 2 | u16 | CC1 | ×0.1mV (divide by 10000 for V) |
-| 14 | 2 | u16 | CC2 | ×0.1mV |
-| 16 | 2 | u16 | D+ | ×0.1mV |
-| 18 | 2 | u16 | D- | ×0.1mV |
+| 12 | 2 | u16 | CC1 | 0.1 mV/count at 2 SPS; 1 mV/count otherwise |
+| 14 | 2 | u16 | CC2 | Rate-dependent, as above |
+| 16 | 2 | u16 | D+ | Rate-dependent, as above |
+| 18 | 2 | u16 | D- | Rate-dependent, as above |
+
+Observed marker values include `0x03`, `0x04`, `0x08`, `0x09`, `0x3B`, and
+`0x3C`. Preserve this field as opaque data; do not reject samples based on it.
 
 **Not included:** Temperature, min/max/avg statistics, VDD
 
@@ -58,7 +61,7 @@ send([0x0F, tid, 0x00, 0x00])
 
 ### StartGraph Command (0x0E)
 
-```
+```text
 Format: [0x0E, TID, rate_index << 1, 0x00]
 
 Logical index → wire byte 2 → sample rate:
@@ -75,7 +78,7 @@ indices; `km003c.create_packet()` encodes the bitfield automatically.
 
 ### StopGraph Command (0x0F)
 
-```
+```text
 Format: [0x0F, TID, 0x00, 0x00]
 Response: 0x05 (Accept)
 ```
@@ -86,7 +89,7 @@ Response: 0x05 (Accept)
 
 ### Response Format
 
-```
+```text
 [0:4]   Main header (4 bytes)
         - Type: 0x41 (PutData)
         - TID
@@ -95,12 +98,14 @@ Response: 0x05 (Accept)
 [4:8]   Extended header (4 bytes)
         - Attribute: 0x0002
         - Next: 0
-        - Size: 20 (per sample, not total!)
+        - Chunk: number of samples in this response
+        - Size: 20 (bytes per sample, not total payload size)
 
 [8:N]   Payload: N × 20-byte samples
 ```
 
-**Number of samples:** `(payload_length - 8) / 20`
+**Number of samples:** extended-header `chunk`; verify that the remaining
+payload contains exactly `chunk × 20` bytes.
 
 Typical packet contains 5-50 samples (100-1000 bytes total).
 
@@ -139,10 +144,17 @@ Typical packet contains 5-50 samples (100-1000 bytes total).
 Check sequence numbers for gaps:
 
 ```python
-expected_seq = last_seq + 1
+sequence_steps = {0: 500, 1: 100, 2: 20, 3: 1}
+step = sequence_steps[rate_index]
+expected_seq = (last_seq + step) & 0xFFFF
 if sample.sequence != expected_seq:
-    print(f"Dropped {sample.sequence - expected_seq} samples")
+    elapsed_ticks = (sample.sequence - last_seq) & 0xFFFF
+    missing = max(elapsed_ticks // step - 1, 0)
+    print(f"Dropped {missing} samples")
 ```
+
+The sequence value is a 1 kHz timebase, not a sample ordinal. Its expected
+steps are 500, 100, 20, and 1 at 2, 10, 50, and 1000 SPS respectively.
 
 ### Buffer Behavior
 
@@ -164,28 +176,32 @@ import usb.core
 import struct
 import time
 
-def parse_adcqueue_sample(data, offset):
+def parse_adcqueue_sample(data, offset, rate_index):
     seq, marker, vbus_uv, ibus_ua, cc1, cc2, dp, dm = struct.unpack_from(
         '<HHiiHHHH', data, offset
     )
+    aux_lsb_v = 0.0001 if rate_index == 0 else 0.001
     return {
         'sequence': seq,
         'vbus_v': vbus_uv / 1_000_000,
         'ibus_a': ibus_ua / 1_000_000,
-        'cc1_v': cc1 / 10000,
-        'cc2_v': cc2 / 10000,
-        'dp_v': dp / 10000,
-        'dm_v': dm / 10000,
+        'cc1_v': cc1 * aux_lsb_v,
+        'cc2_v': cc2 * aux_lsb_v,
+        'dp_v': dp * aux_lsb_v,
+        'dm_v': dm * aux_lsb_v,
     }
 
-def parse_adcqueue_response(data):
-    # Skip 8-byte header
+def parse_adcqueue_response(data, rate_index):
+    ext_word = int.from_bytes(data[6:8], 'little')
+    sample_count = data[6] & 0x3F
+    sample_size = ext_word >> 6
+    if sample_size != 20 or len(data) != 8 + sample_count * sample_size:
+        raise ValueError("Malformed AdcQueue response")
     payload = data[8:]
-    samples = []
-    for i in range(0, len(payload), 20):
-        if i + 20 <= len(payload):
-            samples.append(parse_adcqueue_sample(payload, i))
-    return samples
+    return [
+        parse_adcqueue_sample(payload, i * sample_size, rate_index)
+        for i in range(sample_count)
+    ]
 
 # Example: 50 SPS streaming
 # NOTE: You need the device's HardwareID for auth - see authentication.md
@@ -209,7 +225,7 @@ time.sleep(1.0)
 
 device.write(0x01, bytes([0x0C, 0x04, 0x04, 0x00]))  # GetData AdcQueue
 response = device.read(0x81, 1024)
-samples = parse_adcqueue_response(bytes(response))
+samples = parse_adcqueue_response(bytes(response), rate_index=2)
 
 for s in samples:
     print(f"#{s['sequence']:4d}: {s['vbus_v']:.3f}V {s['ibus_a']*1000:.1f}mA")
