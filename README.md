@@ -6,7 +6,7 @@ Reverse engineering the ChargerLAB POWER-Z KM003C USB-C power analyzer protocol.
 
 ## Protocol Documentation
 
-- [`docs/protocol_reference.md`](docs/protocol_reference.md) - Complete protocol reference for the KM003C device.
+- [`docs/protocol_reference.md`](docs/protocol_reference.md) - Capture-backed reference for the verified KM003C protocol.
 - [`docs/features/pd_analysis.md`](docs/features/pd_analysis.md) - USB PD capture and official SQLite export format.
 
 ## Architecture
@@ -90,7 +90,7 @@ uv run --locked python -m km003c_analysis.tools.pd_sqlite_analyzer --export-parq
 ### Analysis Scripts
 
 ```bash
-# Complete KM003C protocol analysis
+# Regenerate the KM003C protocol analysis
 uv run --locked python scripts/parquet/analyze_km003c_protocol.py
 
 # Export PD messages to Parquet

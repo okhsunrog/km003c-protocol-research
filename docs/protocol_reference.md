@@ -430,7 +430,7 @@ Returned with attribute 0x0010 when size > 12.
 | 8 | 2 | cc1_mV |
 | 10 | 2 | cc2_mV |
 
-**Event Header (6 bytes):**
+**Wrapped PD message header (6 bytes):**
 
 | Offset | Size | Field |
 |--------|------|-------|
@@ -439,6 +439,15 @@ Returned with attribute 0x0010 when size > 12.
 | 5 | 1 | sop_type |
 
 **Wire length:** `(size_flag & 0x3F) - 5`
+
+Connection and disconnection records use a different 6-byte layout:
+
+| Offset | Size | Field |
+|--------|------|-------|
+| 0 | 1 | marker (`0x45`) |
+| 1 | 3 | timestamp_ms (LE24) |
+| 4 | 1 | reserved |
+| 5 | 1 | event code (`0x21` connect, `0x22` disconnect) |
 
 See [PD Analysis](features/pd_analysis.md) for full details.
 

@@ -1,6 +1,6 @@
 # KM003C Protocol Research
 
-Complete reverse engineering documentation for the **ChargerLAB POWER-Z KM003C** USB-C power analyzer.
+Capture-backed reverse engineering documentation for the **ChargerLAB POWER-Z KM003C** USB-C power analyzer.
 
 ## Device Identification
 
@@ -19,7 +19,7 @@ Complete reverse engineering documentation for the **ChargerLAB POWER-Z KM003C**
 
 | Document | Description |
 |----------|-------------|
-| **[Protocol Reference](protocol_reference.md)** | Complete protocol specification - commands, attributes, data structures, cryptography |
+| **[Protocol Reference](protocol_reference.md)** | Verified commands, attributes, data structures, and cryptography |
 | [USB Transport](usb_transport.md) | USB descriptors, endpoints, bulk transfer details |
 | [Implementation Status](implementation_status.md) | Coverage in km003c-lib and Python bindings |
 
@@ -98,7 +98,7 @@ See [Protocol Reference](protocol_reference.md) for complete details.
 
 | Project | Language | Description |
 |---------|----------|-------------|
-| [km003c-rs](https://github.com/okhsunrog/km003c-rs) | Rust | Full-featured library with Python bindings |
+| [km003c-rs](https://github.com/okhsunrog/km003c-rs) | Rust | Typed library, CLI, GUI, and Python bindings |
 | [chaseleif/km003c](https://github.com/chaseleif/km003c) | Python | Multi-interface analysis |
 | [LongDirtyAnimAlf/km003c](https://github.com/LongDirtyAnimAlf/km003c) | Pascal | Datalogger implementation |
 | [fqueze/usb-power-profiling](https://github.com/fqueze/usb-power-profiling) | JavaScript | WebUSB implementation |

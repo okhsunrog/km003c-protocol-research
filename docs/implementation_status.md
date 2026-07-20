@@ -1,8 +1,10 @@
 # km003c-lib Implementation Status
 
 This matrix compares the protocol documented in this repository with the Rust
-implementation targeted for the next `km003c-lib` release. “Raw” means framing
-is preserved but no typed semantic structure is exposed yet.
+implementation targeted for the next `km003c-lib` release. The research tools
+remain pinned to the published `km003c` 0.2.0 package until that release is
+available. “Raw” means framing is preserved but no typed semantic structure is
+exposed yet.
 
 | Protocol Area | Rust Library | Python Bindings | Notes |
 |---------------|--------------|-----------------|-------|
@@ -11,7 +13,7 @@ is preserved but no typed semantic structure is exposed yet.
 | AdcQueue (`0x0002`) | Implemented | Implemented | Four rates, 1 kHz sequence timebase, rate-dependent auxiliary units |
 | PD 12-byte measurements | Implemented | Implemented | One layout/type for standalone, chained, and event preamble measurements |
 | PD event stream framing | Implemented | Implemented | Connect/disconnect and raw PD wire frames |
-| USB PD semantic decoding | Not implemented | Not implemented | Applications can pass wire bytes to `usbpdpy` or another PD decoder |
+| USB PD semantic decoding | Optional `usbpd` feature | Raw PD wire data | Shared typed decoder is used by km003c-egui and the CLI; Python receives SOP + wire bytes |
 | Settings (`0x0008`) | Raw | Raw | Documented fields are not yet a stable typed API |
 | LogMetadata (`0x0200`) | Raw | Raw | Core captured fields are documented; opaque tail remains |
 | MemoryRead (`0x44`) | Implemented | Parse helpers only | Rust validates confirmation and collects multi-transfer ciphertext |
