@@ -187,6 +187,7 @@ Response: 41 TID ... (PutData with requested data)
 | 0x0002 | `04 00` | AdcQueue |
 | 0x0008 | `10 00` | Settings |
 | 0x0010 | `20 00` | PdPacket |
+| 0x0020 | `40 00` | PD state trace |
 | 0x0011 | `22 00` | ADC + PdPacket |
 | 0x0200 | `00 04` | LogMetadata |
 
@@ -295,6 +296,7 @@ See [Authentication](features/authentication.md) for full details.
 | 2 | 0x0002 | AdcQueue | 20 bytes/sample | Streaming measurements |
 | 8 | 0x0008 | Settings | 180 bytes | Device configuration |
 | 16 | 0x0010 | PdPacket | Variable | PD status or events |
+| 32 | 0x0020 | PdTrace | Derived from queue prefixes | Internal PD state and protocol trace queues |
 | 512 | 0x0200 | LogMetadata | 0 or N × 48 bytes | Offline log catalog |
 
 ### Attribute Bitmask Usage
@@ -370,6 +372,26 @@ Expected sequence steps are 500, 100, 20, and 1 for 2, 10, 50, and
 **Note:** AdcQueue does NOT include temperature - request ADC periodically if needed.
 
 See [AdcQueue](features/adcqueue.md) for streaming details.
+
+### PD State Trace
+
+Returned with attribute `0x0020`. This V1.9.9 interface drains two internal
+trace queues: Type-C state transitions followed by protocol events.
+
+```text
+[state_bytes: u8]
+[state_code: u8][uptime_seconds: u32 LE]...
+[protocol_bytes: u8]
+[protocol_code: u8][uptime_seconds: u32 LE]...
+```
+
+Each byte count is a multiple of five and each queue holds at most 40 records.
+The logical-packet extended header reports size zero, so parsers must derive the
+payload boundary from both queue prefixes. A zero top-level object count also
+does not imply an empty response when USB payload bytes remain. Both behaviors
+are confirmed by framed V1.9.9 hardware responses, including a chained
+response. See [USB PD State Trace](features/pd_trace.md) for the Type-C state
+table, capture evidence, and remaining unknown protocol-event codes.
 
 ### Settings (180 bytes)
 

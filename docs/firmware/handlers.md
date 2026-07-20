@@ -270,10 +270,9 @@ Higher attributes (AdcQueue 0x02, etc.) require authentication.
 
 ### Firmware-only extra attributes
 
-The V1.9.9 handler also builds attributes `0x0020` and `0x0040`, although no
-framed requests or responses for them are present in the current capture set.
-These layouts therefore remain firmware-derived rather than interoperable
-protocol guarantees.
+The V1.9.9 handler also builds attributes `0x0020` and `0x0040`. Attribute
+`0x0020` is now confirmed by framed hardware responses; `0x0040` remains
+firmware-derived because no framed UFCS trace capture is available.
 
 Attribute `0x0020` drains two USB PD state-machine trace queues. Each queue is
 encoded as one byte containing its following byte length, then zero or more

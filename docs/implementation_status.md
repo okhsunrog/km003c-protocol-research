@@ -14,14 +14,15 @@ exposed yet.
 | PD 12-byte measurements | Implemented | Implemented | One layout/type for standalone, chained, and event preamble measurements |
 | PD event stream framing | Implemented | Implemented | Connect/disconnect and raw PD wire frames |
 | USB PD semantic decoding | Optional `usbpd` feature | Raw PD wire data | Shared typed decoder is used by km003c-egui and the CLI; Python receives SOP + wire bytes |
-| Settings (`0x0008`) | Implemented in [km003c-rs PR #20](https://github.com/okhsunrog/km003c-rs/pull/20) | Confirmed fields plus lossless raw data | Validates both CRCs; typed access is limited to firmware-confirmed fields and unknown bytes remain preserved |
+| Settings (`0x0008`) | Implemented | Confirmed fields plus lossless raw data | Validates both CRCs; typed access is limited to firmware-confirmed fields and unknown bytes remain preserved |
 | LogMetadata (`0x0200`) | Implemented | Raw | Parses empty, single-entry, and multi-entry catalogs |
 | MemoryRead (`0x44`) | Implemented | Parse helpers only | Rust validates confirmation and collects multi-transfer ciphertext |
 | Offline log workflow | Implemented | Research script | Typed `uom` samples, per-entry offsets, CSV/JSON CLI export |
 | StreamingAuth level 1 (`0x4C`) | Implemented | Crypto parsing helpers | HardwareID-based AdcQueue authentication |
-| Authentication level 2 | Implemented in [km003c-rs PR #19](https://github.com/okhsunrog/km003c-rs/pull/19) | Crypto parsing helpers | Preferred/fallback credential selection, `0x0205` response, and post-auth AdcQueue were verified on V1.9.9 hardware |
+| Authentication level 2 | Implemented | Crypto parsing helpers | Preferred/fallback credential selection, `0x0205` response, and post-auth AdcQueue were verified on V1.9.9 hardware |
 | Enable/Disable PD monitor | Implemented | Constants/parsing | Exact device-side effect remains unknown |
-| PD/UFCS trace attributes (`0x0020`/`0x0040`) | Not implemented | Not implemented | Record layouts and producers are firmware-derived, not confirmed in framed captures |
+| PD state trace (`0x0020`) | Implemented in [km003c-rs PR #21](https://github.com/okhsunrog/km003c-rs/pull/21) | Implemented | Typed V1.9.9 state and protocol events; empty, full, zero-count, connect/disconnect, and chained responses are capture-backed |
+| UFCS trace (`0x0040`) | Not implemented | Not implemented | Record layout and producers are firmware-derived, not confirmed in framed captures |
 | Flash write / command `0x4B` / settings writes `0x48` / `0x4D` | Not implemented | Not implemented | Nested settings layout is firmware-confirmed, but writes remain research-only until safe semantics and hardware behavior are confirmed |
 | Bootloader/firmware update | Not implemented | Not implemented | Separate protocol flow |
 | CDC transport | Not implemented | Not implemented | Rust supports vendor bulk and HID interfaces |

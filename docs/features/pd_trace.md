@@ -1,8 +1,9 @@
 # USB PD State Trace
 
 Attribute `0x0020` exposes two internal USB PD trace queues. The layout and
-producers described here were reverse engineered from KM003C firmware V1.9.9.
-They must not be assumed to apply unchanged to other firmware versions.
+producers described here were reverse engineered from KM003C firmware V1.9.9
+and verified against framed responses from a device running that version. They
+must not be assumed to apply unchanged to other firmware versions.
 
 ## Payload Layout
 
@@ -75,9 +76,22 @@ assigning names based only on individual call sites.
 | `0x0000A81C` | `update_and_trace_pd_event` | Produces protocol events |
 | `0x0006A6A2` | Type-C name table | Ordered state names beginning with `Disabled = 0` |
 
+## Hardware Validation
+
+The request uses logical attribute `0x0020`, encoded as `40 00` in GetData
+header bytes 2-3. Tests on V1.9.9 covered all of these cases:
+
+- an empty trace (`00 00` payload);
+- a single protocol event in a 15-byte response whose top-level object count
+  decodes to zero;
+- a full 40-record protocol queue while a Pixel 8 Pro connected;
+- Type-C state events on phone connection and disconnection;
+- an empty trace followed by attribute `0x0080` in the same response.
+
+The chained capture confirms that the trace's zero size is not a terminator:
+both queue prefixes must be consumed before parsing the next extended header.
+
 ## Remaining Validation
 
-- Preserve framed USB request/response pairs from real hardware.
-- Exercise both empty and non-empty queues.
-- Capture a chained response to confirm the zero-size extended-header handling.
 - Identify the protocol-event enumeration without guessing from isolated uses.
+- Check whether other firmware versions use the same state codes and framing.
