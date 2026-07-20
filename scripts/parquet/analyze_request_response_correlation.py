@@ -14,12 +14,15 @@ Run: uv run python scripts/parquet/analyze_request_response_correlation.py
 from __future__ import annotations
 
 import json
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import polars as pl
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 # Local package imports
 from km003c_analysis.core import split_usb_transactions
