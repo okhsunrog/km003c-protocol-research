@@ -9,7 +9,7 @@ Each row of the output contains a single binary column `pd_wire` with the
 exact bytes of one PD message (header + data objects), with no extra metadata.
 
 Run:
-  .venv/bin/python notebooks/export_pd_messages_raw_to_parquet.py
+  uv run --locked python scripts/parquet/export_pd_messages_raw.py
 """
 
 from __future__ import annotations

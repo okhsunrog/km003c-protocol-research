@@ -8,7 +8,7 @@ For each source_file:
 - Attempt to parse the PD wire with usbpdpy and count message types
 
 Run:
-  .venv/bin/python notebooks/summarize_pd_messages.py
+  uv run --locked python scripts/parquet/summarize_pd_messages.py
 """
 
 from __future__ import annotations

@@ -10,8 +10,8 @@ This script:
 5. Parses and displays the ADC samples
 
 Usage:
-    uv run scripts/download_offline_log.py
-    uv run scripts/download_offline_log.py --output log_data.csv
+    uv run --locked scripts/download_offline_log.py
+    uv run --locked scripts/download_offline_log.py --output log_data.csv
 """
 
 import argparse

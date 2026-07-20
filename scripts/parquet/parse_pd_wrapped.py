@@ -14,7 +14,7 @@ Format inside PD-only payload (size_bytes > 12):
 We extract the PD wire message and parse with usbpdpy when possible.
 
 Run:
-  .venv/bin/python notebooks/parse_pd_wrapped.py
+  uv run --locked python scripts/parquet/parse_pd_wrapped.py
 """
 
 from __future__ import annotations

@@ -9,7 +9,7 @@ This script demonstrates the complete analysis pipeline:
 4. Extract and parse embedded PD messages with usbpdpy v0.2.0
 5. Correlate PD negotiations with protocol flow
 
-Run: uv run python notebooks/analyze_km003c_protocol.py
+Run: uv run --locked python scripts/parquet/analyze_km003c_protocol.py
 """
 
 from __future__ import annotations

@@ -14,7 +14,7 @@ For each PD wire, we record hex bytes plus light header introspection
 (ndo, extended flag, expected_len) to aid downstream parsing/debugging.
 
 Run:
-  .venv/bin/python notebooks/export_pd_messages_to_parquet.py
+  uv run --locked python scripts/parquet/export_pd_messages.py
 """
 
 from __future__ import annotations
