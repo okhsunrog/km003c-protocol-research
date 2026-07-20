@@ -5,9 +5,10 @@ Uses the parquet dataset to validate PD parsing with usbpdpy library.
 No hardware required - runs in CI.
 """
 
-import pytest
-import polars as pl
 from pathlib import Path
+
+import polars as pl
+import pytest
 
 # Try to import usbpdpy - skip tests if not available
 try:

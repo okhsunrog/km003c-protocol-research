@@ -15,19 +15,12 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-import polars as pl
 from collections import defaultdict
-from typing import Dict, List, Any
+from typing import Any, Dict
+
+import polars as pl
 
 from km003c_analysis.core import split_usb_transactions, tag_transactions
-
-try:
-    from km003c import parse_raw_packet
-    KM003C_LIB_AVAILABLE = True
-except ImportError:
-    KM003C_LIB_AVAILABLE = False
-    print("⚠️  km003c_lib not available, using manual parsing")
-
 
 # Known command types (fully documented)
 KNOWN_TYPES = {
@@ -80,7 +73,7 @@ def parse_header(payload_hex: str) -> Dict[str, Any]:
     pkt_type = header_bytes[0] & 0x7F
     reserved = (header_bytes[0] >> 7) & 1
     tid = header_bytes[1]
-    attr = int.from_bytes(header_bytes[2:4], 'little')
+    attr = int.from_bytes(header_bytes[2:4], "little")
 
     return {
         "type": pkt_type,
@@ -102,9 +95,9 @@ def analyze_source_file(df: pl.DataFrame, source_file: str) -> Dict[str, Any]:
 
     # Filter for bulk traffic with payload
     bulk_with_payload = tagged_df.filter(
-        (pl.col("transfer_type") == "0x03") &
-        pl.col("payload_hex").is_not_null() &
-        (pl.col("payload_hex").str.len_chars() >= 8)
+        (pl.col("transfer_type") == "0x03")
+        & pl.col("payload_hex").is_not_null()
+        & (pl.col("payload_hex").str.len_chars() >= 8)
     )
 
     # Analyze packet types
@@ -129,7 +122,9 @@ def analyze_source_file(df: pl.DataFrame, source_file: str) -> Dict[str, Any]:
                 "endpoint": row["endpoint_address"],
                 "urb_type": row["urb_type"],
                 "type": pkt_type,
-                "type_name": DOCUMENTED_TYPES.get(pkt_type) or UNKNOWN_TYPES.get(pkt_type) or f"0x{pkt_type:02X}",
+                "type_name": DOCUMENTED_TYPES.get(pkt_type)
+                or UNKNOWN_TYPES.get(pkt_type)
+                or f"0x{pkt_type:02X}",
                 "tid": header["tid"],
                 "attribute": header["attribute_hex"],
                 "payload_preview": row["payload_hex"][:80],
@@ -157,16 +152,21 @@ def analyze_source_file(df: pl.DataFrame, source_file: str) -> Dict[str, Any]:
 
 def print_analysis(analysis: Dict[str, Any]):
     """Print analysis results."""
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"Source: {analysis['source_file']}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
     print(f"Total bulk packets: {analysis['total_bulk_packets']:,}")
     print(f"Total transactions: {analysis['total_transactions']}")
 
     # Type distribution
-    print(f"\nPacket Type Distribution:")
+    print("\nPacket Type Distribution:")
     for pkt_type, count in sorted(analysis["type_counts"].items()):
-        name = KNOWN_TYPES.get(pkt_type) or DOCUMENTED_TYPES.get(pkt_type) or UNKNOWN_TYPES.get(pkt_type) or "?"
+        name = (
+            KNOWN_TYPES.get(pkt_type)
+            or DOCUMENTED_TYPES.get(pkt_type)
+            or UNKNOWN_TYPES.get(pkt_type)
+            or "?"
+        )
         if pkt_type in KNOWN_TYPES:
             marker = "  "  # Implemented in km003c-lib
         elif pkt_type in DOCUMENTED_TYPES:
@@ -187,36 +187,46 @@ def print_analysis(analysis: Dict[str, Any]):
 
         for pkt_type in sorted(by_type.keys()):
             packets = by_type[pkt_type]
-            type_name = DOCUMENTED_TYPES.get(pkt_type) or UNKNOWN_TYPES.get(pkt_type) or f"Unknown"
+            type_name = (
+                DOCUMENTED_TYPES.get(pkt_type)
+                or UNKNOWN_TYPES.get(pkt_type)
+                or "Unknown"
+            )
             print(f"\n  --- {type_name} (0x{pkt_type:02X}) ---")
             print(f"  Count: {len(packets)}")
 
             # Show first few examples
             for i, pkt in enumerate(packets[:3]):
                 direction = "OUT" if pkt["endpoint"] == "0x01" else "IN"
-                print(f"    [{i+1}] Frame {pkt['frame']}, TX#{pkt['transaction_id']}, "
-                      f"{direction}, TID=0x{pkt['tid']:02X}, attr={pkt['attribute']}")
-                print(f"        Payload ({pkt['payload_len']}B): {pkt['payload_preview']}...")
+                print(
+                    f"    [{i + 1}] Frame {pkt['frame']}, TX#{pkt['transaction_id']}, "
+                    f"{direction}, TID=0x{pkt['tid']:02X}, attr={pkt['attribute']}"
+                )
+                print(
+                    f"        Payload ({pkt['payload_len']}B): {pkt['payload_preview']}..."
+                )
 
             if len(packets) > 3:
                 print(f"    ... and {len(packets) - 3} more")
 
     # Unknown68 request-response correlation
     if analysis["unknown68_requests"]:
-        print(f"\n  --- Unknown68 Request/Response Flow ---")
+        print("\n  --- Unknown68 Request/Response Flow ---")
         print(f"  Requests (OUT): {len(analysis['unknown68_requests'])}")
         print(f"  Responses (IN): {len(analysis['unknown68_responses'])}")
 
         # Show the flow
         all_68 = sorted(
             analysis["unknown68_requests"] + analysis["unknown68_responses"],
-            key=lambda x: x["frame"]
+            key=lambda x: x["frame"],
         )
-        print(f"\n  Sequence:")
+        print("\n  Sequence:")
         for pkt in all_68[:10]:
             direction = "→ OUT" if pkt["endpoint"] == "0x01" else "← IN "
-            print(f"    Frame {pkt['frame']:>5}: {direction} TID=0x{pkt['tid']:02X} "
-                  f"attr={pkt['attribute']} ({pkt['payload_len']}B)")
+            print(
+                f"    Frame {pkt['frame']:>5}: {direction} TID=0x{pkt['tid']:02X} "
+                f"attr={pkt['attribute']} ({pkt['payload_len']}B)"
+            )
 
 
 def main():
@@ -241,8 +251,7 @@ def main():
         # Quick check for unknown types
         source_df = df.filter(pl.col("source_file") == source_file)
         bulk_payloads = source_df.filter(
-            (pl.col("transfer_type") == "0x03") &
-            pl.col("payload_hex").is_not_null()
+            (pl.col("transfer_type") == "0x03") & pl.col("payload_hex").is_not_null()
         )
 
         has_unknown = False
@@ -266,9 +275,9 @@ def main():
         print_analysis(analysis)
 
     # Summary
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("SUMMARY")
-    print("="*70)
+    print("=" * 70)
     print("""
 Command Type Categories:
 

@@ -3,6 +3,7 @@
 
 import struct
 from pathlib import Path
+
 from Crypto.Cipher import AES
 
 # Known AES keys from Mtools.exe reverse engineering (all 4 extracted)
@@ -23,7 +24,7 @@ def read_qstring(data: bytes, offset: int) -> tuple[str, int]:
     if offset + 4 > len(data):
         return "", offset
 
-    byte_len = struct.unpack(">I", data[offset:offset+4])[0]
+    byte_len = struct.unpack(">I", data[offset : offset + 4])[0]
     offset += 4
 
     if byte_len == 0xFFFFFFFF:  # Null QString
@@ -32,13 +33,13 @@ def read_qstring(data: bytes, offset: int) -> tuple[str, int]:
     if offset + byte_len > len(data):
         return "", offset
 
-    string_data = data[offset:offset+byte_len]
+    string_data = data[offset : offset + byte_len]
     offset += byte_len
 
     # Decode UTF-16BE
     try:
-        return string_data.decode('utf-16-be'), offset
-    except:
+        return string_data.decode("utf-16-be"), offset
+    except UnicodeDecodeError:
         return string_data.hex(), offset
 
 
@@ -50,7 +51,7 @@ def read_qbytearray(data: bytes, offset: int) -> tuple[bytes, int]:
     if offset + 4 > len(data):
         return b"", offset
 
-    length = struct.unpack(">I", data[offset:offset+4])[0]
+    length = struct.unpack(">I", data[offset : offset + 4])[0]
     offset += 4
 
     if length == 0xFFFFFFFF:  # Null QByteArray
@@ -60,7 +61,7 @@ def read_qbytearray(data: bytes, offset: int) -> tuple[bytes, int]:
         # Return remaining data
         return data[offset:], len(data)
 
-    return data[offset:offset+length], offset + length
+    return data[offset : offset + length], offset + length
 
 
 def parse_mencrypt(filepath: Path) -> dict:
@@ -71,7 +72,7 @@ def parse_mencrypt(filepath: Path) -> dict:
     offset = 0
 
     # Read string count (4 bytes big-endian)
-    string_count = struct.unpack(">I", data[offset:offset+4])[0]
+    string_count = struct.unpack(">I", data[offset : offset + 4])[0]
     offset += 4
     print(f"String count: {string_count}")
 
@@ -100,7 +101,7 @@ def try_decrypt_aes_ecb(data: bytes, key: bytes) -> bytes:
     # Ensure data is multiple of 16 bytes
     if len(data) % 16 != 0:
         # Truncate to multiple of 16
-        data = data[:len(data) // 16 * 16]
+        data = data[: len(data) // 16 * 16]
 
     cipher = AES.new(key, AES.MODE_ECB)
     return cipher.decrypt(data)
@@ -109,9 +110,9 @@ def try_decrypt_aes_ecb(data: bytes, key: bytes) -> bytes:
 def try_decrypt_aes_cbc(data: bytes, key: bytes, iv: bytes = None) -> bytes:
     """Try AES-CBC decryption with zero IV."""
     if iv is None:
-        iv = b'\x00' * 16
+        iv = b"\x00" * 16
     if len(data) % 16 != 0:
-        data = data[:len(data) // 16 * 16]
+        data = data[: len(data) // 16 * 16]
     cipher = AES.new(key, AES.MODE_CBC, iv)
     return cipher.decrypt(data)
 
@@ -119,13 +120,13 @@ def try_decrypt_aes_cbc(data: bytes, key: bytes, iv: bytes = None) -> bytes:
 def check_firmware_signature(decrypted: bytes, mode_name: str):
     """Check if decrypted data looks like valid firmware."""
     # Check for common firmware signatures
-    if decrypted[:4] == b'\x7fELF':
+    if decrypted[:4] == b"\x7fELF":
         print(f"  [{mode_name}] -> Found ELF signature!")
         return True
-    if decrypted[:4] == b'\x89PNG':
+    if decrypted[:4] == b"\x89PNG":
         print(f"  [{mode_name}] -> Found PNG signature!")
         return True
-    if decrypted[:2] == b'PK':
+    if decrypted[:2] == b"PK":
         print(f"  [{mode_name}] -> Found ZIP/PK signature!")
         return True
 
@@ -138,16 +139,16 @@ def check_firmware_signature(decrypted: bytes, mode_name: str):
             print(f"  [{mode_name}] -> ARM Cortex-M vector table!")
             print(f"     SP: 0x{sp:08x}, Reset: 0x{reset:08x}")
             return True
-    except:
+    except struct.error:
         pass
 
     # Check for high entropy of printable ASCII
     try:
-        text = decrypted[:64].decode('ascii')
+        text = decrypted[:64].decode("ascii")
         if text.isprintable() and len(text) > 32:
             print(f"  [{mode_name}] -> ASCII text: {text[:60]}...")
             return True
-    except:
+    except UnicodeDecodeError:
         pass
 
     return False
@@ -155,12 +156,11 @@ def check_firmware_signature(decrypted: bytes, mode_name: str):
 
 def analyze_binary(data: bytes, keys: dict):
     """Analyze the binary portion of the firmware."""
-    print(f"\nBinary data analysis:")
+    print("\nBinary data analysis:")
     print(f"  Size: {len(data)} bytes")
     print(f"  First 64 bytes hex: {data[:64].hex()}")
 
     # Check if it starts with a QByteArray length prefix
-    raw_data = data
     if len(data) >= 4:
         possible_len = struct.unpack(">I", data[:4])[0]
         print(f"  First 4 bytes as BE uint32: {possible_len}")
@@ -176,7 +176,7 @@ def analyze_binary(data: bytes, keys: dict):
         try:
             decrypted = try_decrypt_aes_ecb(data[:1024], key)
             print(f"  ECB first 32 bytes: {decrypted[:32].hex()}")
-            found = check_firmware_signature(decrypted, "ECB")
+            check_firmware_signature(decrypted, "ECB")
 
             # Check for vector table with flexible base addresses
             sp = struct.unpack("<I", decrypted[:4])[0]
@@ -186,7 +186,9 @@ def analyze_binary(data: bytes, keys: dict):
                 print(f"  [ECB] -> Reset vector: 0x{reset:08x}")
                 # Decrypt full firmware
                 full_dec = try_decrypt_aes_ecb(data, key)
-                dec_path = Path(f"/home/okhsunrog/code/km003c-protocol-research/fw/KM003C_V1.9.9_key{key_id}_ecb.bin")
+                dec_path = Path(
+                    f"/home/okhsunrog/code/km003c-protocol-research/fw/KM003C_V1.9.9_key{key_id}_ecb.bin"
+                )
                 dec_path.write_bytes(full_dec)
                 print(f"  Saved decrypted ECB to: {dec_path}")
 
@@ -200,7 +202,9 @@ def analyze_binary(data: bytes, keys: dict):
             if check_firmware_signature(decrypted, "CBC"):
                 # Full decryption
                 full_dec = try_decrypt_aes_cbc(data, key)
-                dec_path = Path(f"/home/okhsunrog/code/km003c-protocol-research/fw/KM003C_V1.9.9_key{key_id}_cbc.bin")
+                dec_path = Path(
+                    f"/home/okhsunrog/code/km003c-protocol-research/fw/KM003C_V1.9.9_key{key_id}_cbc.bin"
+                )
                 dec_path.write_bytes(full_dec)
                 print(f"  Saved decrypted to: {dec_path}")
         except Exception as e:
@@ -208,7 +212,9 @@ def analyze_binary(data: bytes, keys: dict):
 
 
 def main():
-    fw_path = Path("/home/okhsunrog/code/km003c-protocol-research/fw/KM003C_V1.9.9.mencrypt")
+    fw_path = Path(
+        "/home/okhsunrog/code/km003c-protocol-research/fw/KM003C_V1.9.9.mencrypt"
+    )
 
     if not fw_path.exists():
         print(f"Firmware file not found: {fw_path}")

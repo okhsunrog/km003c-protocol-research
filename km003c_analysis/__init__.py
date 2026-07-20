@@ -7,17 +7,14 @@ Supports parsing, analysis, and visualization of USB and PD protocol captures.
 __version__ = "0.1.0"
 
 # Core USB transaction processing
+# Import submodules for easy access
+from . import core, dashboards, tools
 from .core import (
+    TransactionSplitterConfig,
+    USBTransactionSplitter,
     split_usb_transactions,
     tag_transactions,
-    USBTransactionSplitter,
-    TransactionSplitterConfig,
 )
-
-# Import submodules for easy access
-from . import core
-from . import dashboards
-from . import tools
 
 __all__ = [
     # Core functions

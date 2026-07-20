@@ -15,8 +15,8 @@ Usage:
     uv run python scripts/run_adcqueue.py
 """
 
-import time
 import sys
+import time
 
 import usb.core
 import usb.util

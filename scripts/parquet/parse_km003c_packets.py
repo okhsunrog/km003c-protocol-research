@@ -16,20 +16,20 @@ parse success ratio.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import List, Tuple, Dict, Optional, Any
+from pathlib import Path
+from typing import Any, Dict, List
 
 import polars as pl
 import usbpdpy
-from pathlib import Path
 
 # Use the Rust protocol parser
 from km003c import parse_packet
+
 from scripts.km003c_helpers import (
-    get_packet_type,
     get_adc_data,
-    get_pd_status,
+    get_packet_type,
     get_pd_events,
+    get_pd_status,
 )
 
 
@@ -39,7 +39,9 @@ def parse_pd_status_12(b: bytes) -> Dict[str, int]:
         "type_id": b[0],
         "ts24": b[1] | (b[2] << 8) | (b[3] << 16),
         "vbus_mV": int.from_bytes(b[4:6], "little", signed=False),
-        "ibus_mA": int.from_bytes(b[6:8], "little", signed=False),  # observed non-negative here
+        "ibus_mA": int.from_bytes(
+            b[6:8], "little", signed=False
+        ),  # observed non-negative here
         "cc1_mV": int.from_bytes(b[8:10], "little", signed=False),
         "cc2_mV": int.from_bytes(b[10:12], "little", signed=False),
     }
@@ -158,7 +160,7 @@ def main() -> None:
                     except Exception:
                         pass
                 stats["pd_events_parsed_ok"] += ok
-                stats["pd_events_parse_fail"] += (len(wires) - ok)
+                stats["pd_events_parse_fail"] += len(wires) - ok
 
         except Exception:
             stats["errors"] += 1

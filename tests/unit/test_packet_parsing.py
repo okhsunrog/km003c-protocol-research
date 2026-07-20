@@ -4,16 +4,9 @@ Tests for the km003c_lib packet parsing functionality.
 Tests the updated parse_packet function that returns dict-like Packet enum.
 """
 
-import sys
 from pathlib import Path
 
 import pytest
-
-# Add the analysis scripts directory to the Python path for helpers
-project_root = Path(__file__).parent.parent.parent
-analysis_scripts_path = project_root / "src" / "analysis" / "scripts"
-sys.path.insert(0, str(analysis_scripts_path))
-
 from km003c import (
     AdcData,
     AdcQueueData,
@@ -21,6 +14,8 @@ from km003c import (
     PdStatus,
     parse_packet,
 )
+
+project_root = Path(__file__).parent.parent.parent
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit

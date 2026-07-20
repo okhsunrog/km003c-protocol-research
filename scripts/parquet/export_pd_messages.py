@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import polars as pl
 
@@ -90,7 +90,7 @@ def main() -> None:
             expected_match = None
             if ndo is not None and extended == 0:
                 expected_len = 2 + 4 * ndo
-                expected_match = (expected_len == wire_len)
+                expected_match = expected_len == wire_len
 
             records.append(
                 {
@@ -120,9 +120,19 @@ def main() -> None:
     df.write_parquet(str(out_path))
     print(f"Wrote {len(df)} PD messages to {out_path}")
     print("Preview:")
-    print(df.select(["sqlite_time", "event_ts", "wire_len", "header_ndo", "expected_len", "expected_len_match"]).head(10))
+    print(
+        df.select(
+            [
+                "sqlite_time",
+                "event_ts",
+                "wire_len",
+                "header_ndo",
+                "expected_len",
+                "expected_len_match",
+            ]
+        ).head(10)
+    )
 
 
 if __name__ == "__main__":
     main()
-

@@ -1,10 +1,10 @@
 import pytest
 from km003c import (
     CMD_START_GRAPH,
-    RATE_1000_SPS,
-    RATE_10_SPS,
     RATE_2_SPS,
+    RATE_10_SPS,
     RATE_50_SPS,
+    RATE_1000_SPS,
     create_packet,
     parse_raw_packet,
 )

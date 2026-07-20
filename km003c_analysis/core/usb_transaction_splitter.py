@@ -8,9 +8,10 @@ This library works with any Polars DataFrame containing USB frame data and is
 independent of data source format (JSONL, CSV, Parquet, etc.).
 """
 
-import polars as pl
-from typing import Set, Dict, Any, Optional
 from dataclasses import dataclass
+from typing import Any, Dict, Optional, Set
+
+import polars as pl
 
 
 @dataclass
