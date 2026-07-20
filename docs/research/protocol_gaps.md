@@ -20,10 +20,12 @@ evidence.
 Settings (`0x0008`) is confirmed to concatenate independently checksummed
 96-byte and 84-byte firmware structures. Its storage boundaries, calibration
 arrays, checksums, and several bitfield locations are known, but most
-user-facing names still need independent confirmation; it should remain raw in
-the public library for now. LogMetadata (`0x0200`) is verified as a catalog of
-48-byte entries, and settings operation `0x28` appends records to that same
-catalog. The field at `0x10` and final eight reserved bytes remain opaque.
+user-facing names still need independent confirmation. The public library now
+uses a lossless read-only wrapper: it validates both CRCs, exposes only the
+confirmed fields semantically, and preserves everything else as raw block
+data. LogMetadata (`0x0200`) is verified as a catalog of 48-byte entries, and
+settings operation `0x28` appends records to that same catalog. The field at
+`0x10` and final eight reserved bytes remain opaque.
 
 ## Bootloader and Firmware Update
 

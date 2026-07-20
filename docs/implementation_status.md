@@ -14,7 +14,7 @@ exposed yet.
 | PD 12-byte measurements | Implemented | Implemented | One layout/type for standalone, chained, and event preamble measurements |
 | PD event stream framing | Implemented | Implemented | Connect/disconnect and raw PD wire frames |
 | USB PD semantic decoding | Optional `usbpd` feature | Raw PD wire data | Shared typed decoder is used by km003c-egui and the CLI; Python receives SOP + wire bytes |
-| Settings (`0x0008`) | Raw | Raw | Two firmware storage blocks and several field locations are known; user-facing semantics are not yet complete enough for a stable typed API |
+| Settings (`0x0008`) | Implemented in [km003c-rs PR #20](https://github.com/okhsunrog/km003c-rs/pull/20) | Confirmed fields plus lossless raw data | Validates both CRCs; typed access is limited to firmware-confirmed fields and unknown bytes remain preserved |
 | LogMetadata (`0x0200`) | Implemented | Raw | Parses empty, single-entry, and multi-entry catalogs |
 | MemoryRead (`0x44`) | Implemented | Parse helpers only | Rust validates confirmation and collects multi-transfer ciphertext |
 | Offline log workflow | Implemented | Research script | Typed `uom` samples, per-entry offsets, CSV/JSON CLI export |
