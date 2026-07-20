@@ -2,6 +2,8 @@
 
 Reverse engineering the ChargerLAB POWER-Z KM003C USB-C power analyzer protocol.
 
+[![CI](https://github.com/okhsunrog/km003c-protocol-research/actions/workflows/ci.yml/badge.svg)](https://github.com/okhsunrog/km003c-protocol-research/actions/workflows/ci.yml)
+
 ## Protocol Documentation
 
 - [`docs/protocol_reference.md`](docs/protocol_reference.md) - Complete protocol reference for the KM003C device.
