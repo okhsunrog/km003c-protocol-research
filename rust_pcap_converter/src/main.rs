@@ -1,6 +1,6 @@
 use clap::Parser;
 use polars::prelude::*;
-use polars_utils::plpath::PlPath;
+use polars_utils::pl_path::PlRefPath;
 use rtshark::{Packet as RtSharkPacket, RTSharkBuilder};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -11,22 +11,26 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 fn clean_tshark_field(value: &str) -> String {
     // Decode HTML entities
     let decoded = value
-        .replace("&#x27;", "'")  // Single quote
-        .replace("&lt;", "<")    // Less than
-        .replace("&gt;", ">")    // Greater than
-        .replace("&amp;", "&")   // Ampersand
+        .replace("&#x27;", "'") // Single quote
+        .replace("&lt;", "<") // Less than
+        .replace("&gt;", ">") // Greater than
+        .replace("&amp;", "&") // Ampersand
         .replace("&quot;", "\""); // Double quote
-    
+
     // Remove surrounding single quotes if present
     if decoded.starts_with('\'') && decoded.ends_with('\'') && decoded.len() >= 2 {
-        decoded[1..decoded.len()-1].to_string()
+        decoded[1..decoded.len() - 1].to_string()
     } else {
         decoded.to_string()
     }
 }
 
 #[derive(Parser, Debug)]
-#[command(author, version, about = "Convert pcap files to Parquet format with USB payload data")]
+#[command(
+    author,
+    version,
+    about = "Convert pcap files to Parquet format with USB payload data"
+)]
 struct Cli {
     /// Input pcapng file to process
     #[arg(short, long)]
@@ -113,7 +117,11 @@ fn main() -> Result<()> {
     let device_address = if let Some(addr) = args.device_address {
         addr
     } else {
-        let filename = args.input.file_name().and_then(|s| s.to_str()).unwrap_or("");
+        let filename = args
+            .input
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
         // Look for pattern like "filename.16.pcapng" where 16 is the device address
         if let Some(dot_pos) = filename.rfind('.') {
             let before_ext = &filename[..dot_pos];
@@ -138,7 +146,11 @@ fn main() -> Result<()> {
     let session_id = if let Some(id) = &args.session_id {
         id.clone()
     } else {
-        let filename = args.input.file_name().and_then(|s| s.to_str()).unwrap_or("");
+        let filename = args
+            .input
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
         if let Some(dot_pos) = filename.rfind('.') {
             let before_ext = &filename[..dot_pos];
             before_ext.to_string()
@@ -158,15 +170,13 @@ fn main() -> Result<()> {
     }
 
     // Build tshark filter with minimal essential filtering
-    let mut filter_parts = vec![
-        format!("usb.device_address == {}", device_address)
-    ];
-    
+    let mut filter_parts = vec![format!("usb.device_address == {}", device_address)];
+
     // Add capdata filter only if payload-only mode is requested
     if args.payload_only {
         filter_parts.push("usb.capdata".to_string());
     }
-    
+
     let display_filter = filter_parts.join(" && ");
 
     if args.verbose {
@@ -209,50 +219,82 @@ fn main() -> Result<()> {
 
     // Convert to Polars DataFrame
     let new_df = create_dataframe(records)?;
-    
+
     // Handle file merging/appending
     let final_df = if args.append && args.output.exists() {
         println!("Loading existing data from {:?}", args.output);
-        let existing_df = LazyFrame::scan_parquet(PlPath::new(args.output.to_str().unwrap()), ScanArgsParquet::default())?
-            .collect()?;
-        
+        let output_path = args
+            .output
+            .to_str()
+            .ok_or_else(|| format!("Output path is not valid UTF-8: {:?}", args.output))?;
+        let existing_df =
+            LazyFrame::scan_parquet(PlRefPath::new(output_path), ScanArgsParquet::default())?
+                .collect()?;
+
         // Check for duplicate session_id
         let existing_sessions: Vec<String> = existing_df
             .column("session_id")?
             .unique()?
             .str()?
-            .into_no_null_iter()
+            .iter()
+            .flatten()
             .map(|s| s.to_string())
             .collect();
-        
+
         if existing_sessions.contains(&session_id) {
-            println!("⚠️  Session ID '{}' already exists in {:?}. Skipping to prevent duplicates.", session_id, args.output);
+            println!(
+                "⚠️  Session ID '{}' already exists in {:?}. Skipping to prevent duplicates.",
+                session_id, args.output
+            );
             println!("✅ No new data added. Dataset remains unchanged.");
             return Ok(());
         }
-        
+
         // Additional check: detect potential duplicate data by URB IDs
         // (in case same file processed with different session ID)
         if new_df.height() > 0 && existing_df.height() > 0 {
             // Get sample URB IDs from both datasets
-            let new_urb_ids: Vec<String> = new_df.column("urb_id")?.str()?.into_no_null_iter().take(5).map(|s| s.to_string()).collect();
-            let existing_urb_ids: Vec<String> = existing_df.column("urb_id")?.str()?.into_no_null_iter().take(100).map(|s| s.to_string()).collect();
-            
+            let new_urb_ids: Vec<String> = new_df
+                .column("urb_id")?
+                .str()?
+                .iter()
+                .flatten()
+                .take(5)
+                .map(|s| s.to_string())
+                .collect();
+            let existing_urb_ids: Vec<String> = existing_df
+                .column("urb_id")?
+                .str()?
+                .iter()
+                .flatten()
+                .take(100)
+                .map(|s| s.to_string())
+                .collect();
+
             // Check if any new URB IDs already exist
-            let duplicates = new_urb_ids.iter().filter(|&id| existing_urb_ids.contains(id)).count();
+            let duplicates = new_urb_ids
+                .iter()
+                .filter(|&id| existing_urb_ids.contains(id))
+                .count();
             if duplicates >= 2 {
-                println!("⚠️  Detected potential duplicate data (same URB IDs). Skipping to prevent duplicates.");
+                println!(
+                    "⚠️  Detected potential duplicate data (same URB IDs). Skipping to prevent duplicates."
+                );
                 println!("✅ No new data added. Dataset remains unchanged.");
                 return Ok(());
             }
         }
-        
+
         // Combine datasets using vstack
         let combined_df = existing_df.vstack(&new_df)?;
-        
-        println!("Combined {} existing + {} new = {} total records", 
-                existing_df.height(), new_df.height(), combined_df.height());
-        
+
+        println!(
+            "Combined {} existing + {} new = {} total records",
+            existing_df.height(),
+            new_df.height(),
+            combined_df.height()
+        );
+
         combined_df
     } else {
         if args.output.exists() && !args.append {
@@ -260,13 +302,17 @@ fn main() -> Result<()> {
         }
         new_df
     };
-    
+
     // Save to Parquet
     println!("Saving to Parquet file: {:?}", args.output);
     let mut file = std::fs::File::create(&args.output)?;
     ParquetWriter::new(&mut file).finish(&mut final_df.clone())?;
 
-    println!("Successfully saved {} records to {:?}", final_df.height(), args.output);
+    println!(
+        "Successfully saved {} records to {:?}",
+        final_df.height(),
+        args.output
+    );
 
     // // Print some statistics (with error handling)
     // if let Err(e) = print_statistics(&final_df) {
@@ -277,10 +323,14 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn process_packet(packet: RtSharkPacket, session_id: &str, verbose: bool) -> Result<UsbPacketRecord> {
+fn process_packet(
+    packet: RtSharkPacket,
+    session_id: &str,
+    verbose: bool,
+) -> Result<UsbPacketRecord> {
     // Extract frame-level information
     let frame_layer = packet.layer_name("frame").ok_or("Missing frame layer")?;
-    
+
     let frame_num = frame_layer
         .metadata("frame.number")
         .and_then(|n| n.value().parse().ok())
@@ -308,8 +358,11 @@ fn process_packet(packet: RtSharkPacket, session_id: &str, verbose: bool) -> Res
 
     // Extract USB layer information
     let usb_layer = packet.layer_name("usb").ok_or("Missing USB layer")?;
-    
-    let direction = match usb_layer.metadata("usb.endpoint_address.direction").map(|d| d.value()) {
+
+    let direction = match usb_layer
+        .metadata("usb.endpoint_address.direction")
+        .map(|d| d.value())
+    {
         Some("0") => "H->D".to_string(),
         Some("1") => "D->H".to_string(),
         _ => "Unknown".to_string(),
@@ -381,9 +434,10 @@ fn process_packet(packet: RtSharkPacket, session_id: &str, verbose: bool) -> Res
         .unwrap_or(0);
 
     // Extract hex payload (might be empty for control packets)
-    let payload_hex = usb_layer.metadata("usb.capdata")
+    let payload_hex = usb_layer
+        .metadata("usb.capdata")
         .map(|p| p.value().to_string())
-        .unwrap_or_else(|| String::new());
+        .unwrap_or_default();
 
     // Clean up hex string (remove colons)
     let clean_hex = payload_hex.replace(':', "");
@@ -397,32 +451,77 @@ fn process_packet(packet: RtSharkPacket, session_id: &str, verbose: bool) -> Res
     };
 
     // Extract USB Control packet fields (only present in control transfers)
-    let bmrequest_type = usb_layer.metadata("usb.bmRequestType").map(|b| b.value().to_string());
-    let brequest = usb_layer.metadata("usb.setup.bRequest").map(|b| b.value().to_string());
-    let brequest_name = usb_layer.metadata("usb.setup.bRequest.name").map(|b| b.value().to_string());
-    let wvalue = usb_layer.metadata("usb.setup.wValue").and_then(|w| w.value().parse().ok());
-    let windex = usb_layer.metadata("usb.setup.wIndex").and_then(|w| w.value().parse().ok());
-    let wlength = usb_layer.metadata("usb.setup.wLength").and_then(|w| w.value().parse().ok());
-    let descriptor_type = usb_layer.metadata("usb.bDescriptorType").map(|d| d.value().to_string());
-    let descriptor_index = usb_layer.metadata("usb.setup.wValue.descriptor_index").and_then(|d| d.value().parse().ok());
-    let language_id = usb_layer.metadata("usb.setup.wValue.language_id").and_then(|l| l.value().parse().ok());
-    
+    let bmrequest_type = usb_layer
+        .metadata("usb.bmRequestType")
+        .map(|b| b.value().to_string());
+    let brequest = usb_layer
+        .metadata("usb.setup.bRequest")
+        .map(|b| b.value().to_string());
+    let brequest_name = usb_layer
+        .metadata("usb.setup.bRequest.name")
+        .map(|b| b.value().to_string());
+    let wvalue = usb_layer
+        .metadata("usb.setup.wValue")
+        .and_then(|w| w.value().parse().ok());
+    let windex = usb_layer
+        .metadata("usb.setup.wIndex")
+        .and_then(|w| w.value().parse().ok());
+    let wlength = usb_layer
+        .metadata("usb.setup.wLength")
+        .and_then(|w| w.value().parse().ok());
+    let descriptor_type = usb_layer
+        .metadata("usb.bDescriptorType")
+        .map(|d| d.value().to_string());
+    let descriptor_index = usb_layer
+        .metadata("usb.setup.wValue.descriptor_index")
+        .and_then(|d| d.value().parse().ok());
+    let language_id = usb_layer
+        .metadata("usb.setup.wValue.language_id")
+        .and_then(|l| l.value().parse().ok());
+
     // Extract USB transfer flags
-    let transfer_flags = usb_layer.metadata("usb.transfer_flags").map(|t| t.value().to_string());
-    let copy_of_transfer_flags = usb_layer.metadata("usb.copy_of_transfer_flags").map(|c| c.value().to_string());
-    
+    let transfer_flags = usb_layer
+        .metadata("usb.transfer_flags")
+        .map(|t| t.value().to_string());
+    let copy_of_transfer_flags = usb_layer
+        .metadata("usb.copy_of_transfer_flags")
+        .map(|c| c.value().to_string());
+
     // Extract additional USB identifiers and timing
-    let urb_id = usb_layer.metadata("usb.urb_id").map(|u| u.value().to_string()).unwrap_or_else(|| "Unknown".to_string());
-    let usb_src = usb_layer.metadata("usb.src").map(|s| s.value().to_string()).unwrap_or_else(|| "Unknown".to_string());
-    let usb_dst = usb_layer.metadata("usb.dst").map(|d| d.value().to_string()).unwrap_or_else(|| "Unknown".to_string());
-    let usb_addr = usb_layer.metadata("usb.addr").map(|a| a.value().to_string()).unwrap_or_else(|| "Unknown".to_string());
-    let urb_ts_sec = usb_layer.metadata("usb.urb_ts_sec").and_then(|t| t.value().parse().ok()).unwrap_or(0);
-    let urb_ts_usec = usb_layer.metadata("usb.urb_ts_usec").and_then(|t| t.value().parse().ok()).unwrap_or(0);
+    let urb_id = usb_layer
+        .metadata("usb.urb_id")
+        .map(|u| u.value().to_string())
+        .unwrap_or_else(|| "Unknown".to_string());
+    let usb_src = usb_layer
+        .metadata("usb.src")
+        .map(|s| s.value().to_string())
+        .unwrap_or_else(|| "Unknown".to_string());
+    let usb_dst = usb_layer
+        .metadata("usb.dst")
+        .map(|d| d.value().to_string())
+        .unwrap_or_else(|| "Unknown".to_string());
+    let usb_addr = usb_layer
+        .metadata("usb.addr")
+        .map(|a| a.value().to_string())
+        .unwrap_or_else(|| "Unknown".to_string());
+    let urb_ts_sec = usb_layer
+        .metadata("usb.urb_ts_sec")
+        .and_then(|t| t.value().parse().ok())
+        .unwrap_or(0);
+    let urb_ts_usec = usb_layer
+        .metadata("usb.urb_ts_usec")
+        .and_then(|t| t.value().parse().ok())
+        .unwrap_or(0);
 
     if verbose {
         println!(
             "Frame {}: {} bytes {} @ {:.6}s [{}:{}]",
-            frame_num, payload_bytes.len(), direction, timestamp, bus_id, endpoint_number
+            frame_num,
+            payload_bytes.len(),
+            direction,
+            timestamp,
+            bus_id,
+            endpoint_number
         );
     }
 
@@ -476,11 +575,15 @@ fn create_dataframe(records: Vec<UsbPacketRecord>) -> Result<DataFrame> {
     let session_ids: Vec<String> = records.iter().map(|r| r.session_id.clone()).collect();
     let frame_numbers: Vec<u32> = records.iter().map(|r| r.frame_number).collect();
     let timestamps: Vec<f64> = records.iter().map(|r| r.timestamp).collect();
-    let timestamp_absolutes: Vec<String> = records.iter().map(|r| r.timestamp_absolute.clone()).collect();
+    let timestamp_absolutes: Vec<String> = records
+        .iter()
+        .map(|r| r.timestamp_absolute.clone())
+        .collect();
     let directions: Vec<String> = records.iter().map(|r| r.direction.clone()).collect();
     let device_addresses: Vec<u32> = records.iter().map(|r| r.device_address as u32).collect();
     let bus_ids: Vec<u32> = records.iter().map(|r| r.bus_id as u32).collect();
-    let endpoint_addresses: Vec<String> = records.iter().map(|r| r.endpoint_address.clone()).collect();
+    let endpoint_addresses: Vec<String> =
+        records.iter().map(|r| r.endpoint_address.clone()).collect();
     let endpoint_numbers: Vec<u32> = records.iter().map(|r| r.endpoint_number as u32).collect();
     let transfer_types: Vec<String> = records.iter().map(|r| r.transfer_type.clone()).collect();
     let urb_types: Vec<String> = records.iter().map(|r| r.urb_type.clone()).collect();
@@ -495,17 +598,24 @@ fn create_dataframe(records: Vec<UsbPacketRecord>) -> Result<DataFrame> {
     let frame_lengths: Vec<u32> = records.iter().map(|r| r.frame_length).collect();
     let frame_protocols: Vec<String> = records.iter().map(|r| r.frame_protocols.clone()).collect();
     let source_files: Vec<String> = records.iter().map(|r| r.source_file.clone()).collect();
-    let bmrequest_types: Vec<Option<String>> = records.iter().map(|r| r.bmrequest_type.clone()).collect();
+    let bmrequest_types: Vec<Option<String>> =
+        records.iter().map(|r| r.bmrequest_type.clone()).collect();
     let brequests: Vec<Option<String>> = records.iter().map(|r| r.brequest.clone()).collect();
-    let brequest_names: Vec<Option<String>> = records.iter().map(|r| r.brequest_name.clone()).collect();
+    let brequest_names: Vec<Option<String>> =
+        records.iter().map(|r| r.brequest_name.clone()).collect();
     let wvalues: Vec<Option<u32>> = records.iter().map(|r| r.wvalue).collect();
     let windexes: Vec<Option<u32>> = records.iter().map(|r| r.windex).collect();
     let wlengths: Vec<Option<u32>> = records.iter().map(|r| r.wlength).collect();
-    let descriptor_types: Vec<Option<String>> = records.iter().map(|r| r.descriptor_type.clone()).collect();
+    let descriptor_types: Vec<Option<String>> =
+        records.iter().map(|r| r.descriptor_type.clone()).collect();
     let descriptor_indexes: Vec<Option<u32>> = records.iter().map(|r| r.descriptor_index).collect();
     let language_ids: Vec<Option<u32>> = records.iter().map(|r| r.language_id).collect();
-    let transfer_flags_vec: Vec<Option<String>> = records.iter().map(|r| r.transfer_flags.clone()).collect();
-    let copy_of_transfer_flags_vec: Vec<Option<String>> = records.iter().map(|r| r.copy_of_transfer_flags.clone()).collect();
+    let transfer_flags_vec: Vec<Option<String>> =
+        records.iter().map(|r| r.transfer_flags.clone()).collect();
+    let copy_of_transfer_flags_vec: Vec<Option<String>> = records
+        .iter()
+        .map(|r| r.copy_of_transfer_flags.clone())
+        .collect();
     let urb_ids: Vec<String> = records.iter().map(|r| r.urb_id.clone()).collect();
     let usb_srcs: Vec<String> = records.iter().map(|r| r.usb_src.clone()).collect();
     let usb_dsts: Vec<String> = records.iter().map(|r| r.usb_dst.clone()).collect();
@@ -564,10 +674,10 @@ fn create_dataframe(records: Vec<UsbPacketRecord>) -> Result<DataFrame> {
 //     println!("\n=== Statistics ===");
 //     println!("Total records: {}", df.height());
 //     println!("Columns: {:?}", df.get_column_names());
-    
+
 //     // Use lazy evaluation for statistics
 //     let lazy_df = df.clone().lazy();
-    
+
 //     // Basic counts using group_by
 //     let direction_stats = lazy_df
 //         .clone()
@@ -575,20 +685,20 @@ fn create_dataframe(records: Vec<UsbPacketRecord>) -> Result<DataFrame> {
 //         .agg([len().alias("count")])
 //         .sort(["count"], SortMultipleOptions::default().with_order_descending(true))
 //         .collect()?;
-    
+
 //     println!("\nDirection distribution:");
 //     println!("{}", direction_stats);
-    
+
 //     let device_stats = lazy_df
 //         .clone()
 //         .group_by([col("device_address")])
 //         .agg([len().alias("count")])
 //         .sort(["count"], SortMultipleOptions::default().with_order_descending(true))
 //         .collect()?;
-    
+
 //     println!("\nDevice address distribution:");
 //     println!("{}", device_stats);
-    
+
 //     // Data length statistics
 //     let length_stats = lazy_df
 //         .clone()
@@ -598,10 +708,10 @@ fn create_dataframe(records: Vec<UsbPacketRecord>) -> Result<DataFrame> {
 //             col("data_length").max().alias("max_length"),
 //         ])
 //         .collect()?;
-    
+
 //     println!("\nPayload length statistics:");
 //     println!("{}", length_stats);
-    
+
 //     // Time range statistics
 //     let time_stats = lazy_df
 //         .clone()
@@ -611,7 +721,7 @@ fn create_dataframe(records: Vec<UsbPacketRecord>) -> Result<DataFrame> {
 //             (col("timestamp").max() - col("timestamp").min()).alias("duration"),
 //         ])
 //         .collect()?;
-    
+
 //     println!("\nTime range:");
 //     println!("{}", time_stats);
 
