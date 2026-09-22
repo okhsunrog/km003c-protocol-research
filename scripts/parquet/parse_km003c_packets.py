@@ -16,8 +16,7 @@ parse success ratio.
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, List
+from typing import Any
 
 import polars as pl
 import usbpdpy
@@ -25,7 +24,8 @@ import usbpdpy
 # Use the Rust protocol parser
 from km003c import parse_packet
 
-from scripts.km003c_helpers import (
+from km003c_analysis.datasets import MASTER_DATASET
+from km003c_analysis.helpers import (
     get_adc_data,
     get_packet_type,
     get_pd_events,
@@ -33,12 +33,12 @@ from scripts.km003c_helpers import (
 )
 
 
-def _extract_pd_messages_from_stream(pdev: Any) -> List[bytes]:
+def _extract_pd_messages_from_stream(pdev: Any) -> list[bytes]:
     """Extract raw PD wire messages (bytes) from a PdEventStream object.
 
     Falls back gracefully if the event objects don't expose wire_data.
     """
-    messages: List[bytes] = []
+    messages: list[bytes] = []
     try:
         events = getattr(pdev, "events", None)
         if not events:
@@ -72,7 +72,7 @@ def _extract_pd_messages_from_stream(pdev: Any) -> List[bytes]:
 
 
 def main() -> None:
-    dataset = Path("data/processed/usb_master_dataset.parquet")
+    dataset = MASTER_DATASET
     df = pl.read_parquet(dataset)
     # Only IN completions with payload
     resp = df.filter(

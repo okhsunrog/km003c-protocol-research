@@ -19,18 +19,12 @@ Run:
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import polars as pl
 import usbpdpy
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
 from km003c_analysis.core.transaction_tagger import tag_transactions
 from km003c_analysis.core.usb_transaction_splitter import split_usb_transactions
+from km003c_analysis.datasets import MASTER_DATASET
 
 
 def parse_pd_wrapped_payload(payload: bytes) -> list[dict]:
@@ -77,9 +71,7 @@ def parse_pd_wrapped_payload(payload: bytes) -> list[dict]:
 
 
 def analyze_source(source_file: str) -> None:
-    df = pl.read_parquet(
-        PROJECT_ROOT / "data" / "processed" / "usb_master_dataset.parquet"
-    )
+    df = pl.read_parquet(MASTER_DATASET)
     df = df.filter(pl.col("source_file") == source_file)
     df = tag_transactions(split_usb_transactions(df))
 

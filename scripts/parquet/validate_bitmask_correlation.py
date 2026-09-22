@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import polars as pl
 
@@ -26,9 +26,10 @@ except ImportError:
     exit(1)
 
 from km003c_analysis.core import split_usb_transactions
+from km003c_analysis.datasets import MASTER_DATASET
 
 
-def extract_all_logical_packets_from_raw(payload_hex: str) -> List[Dict[str, Any]]:
+def extract_all_logical_packets_from_raw(payload_hex: str) -> list[dict[str, Any]]:
     """
     Извлекает ВСЕ logical packets из PutData пакета,
     парся их вручную из raw bytes если нужно.
@@ -73,7 +74,7 @@ def validate_bitmask_correlation():
     Валидация: битовые маски в request ВСЕГДА соответствуют атрибутам в response.
     """
 
-    dataset_path = Path("data/processed/usb_master_dataset.parquet")
+    dataset_path = MASTER_DATASET
     if not dataset_path.exists():
         print(f"❌ Dataset not found: {dataset_path}")
         return
@@ -166,7 +167,7 @@ def validate_bitmask_correlation():
                     req = pending_requests.pop(resp_id)
 
                     # Get observed attributes from logical packets
-                    observed_attrs = set(lp["attribute"] for lp in logical_packets)
+                    observed_attrs = {lp["attribute"] for lp in logical_packets}
 
                     correlation_data["total_pairs"] += 1
 

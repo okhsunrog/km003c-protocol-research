@@ -4,96 +4,74 @@ Transaction Tagger for USB Protocol Analysis
 This module provides functionality to analyze and tag USB transactions based on
 their composition and patterns. It is designed to be a flexible, post-processing
 step after transaction splitting.
-"""
 
-from typing import List
+Tagging is expressed as Polars aggregations rather than a Python callback per
+transaction group: every tag is a property of the frames in a transaction, so
+there is no cross-row state to carry and no reason to leave the query engine.
+"""
 
 import polars as pl
 
+# USB standard request codes used during enumeration.
+# 0x00 = GET_STATUS, 0x01 = CLEAR_FEATURE, 0x03 = SET_FEATURE,
+# 0x05 = SET_ADDRESS, 0x06 = GET_DESCRIPTOR, 0x08 = GET_CONFIGURATION,
+# 0x09 = SET_CONFIGURATION
+STANDARD_ENUMERATION_REQUESTS = [0x00, 0x01, 0x03, 0x05, 0x06, 0x08, 0x09]
 
-def _tag_composition(transaction_group: pl.DataFrame) -> List[str]:
-    """Determine tags based on the composition of transfer types."""
-    tags = set()
-    transfer_types = transaction_group["transfer_type"].unique().to_list()
+CONTROL_TRANSFER_TYPE = "0x02"
+BULK_TRANSFER_TYPE = "0x03"
+OUT_ENDPOINT = "0x01"
+IN_ENDPOINT = "0x81"
+SUBMIT_URB = "S"
+COMPLETE_URB = "C"
+CANCEL_STATUS = "-2"
 
-    has_control = "0x02" in transfer_types
-    has_bulk = "0x03" in transfer_types
-
-    if has_control and not has_bulk:
-        tags.add("CONTROL_ONLY")
-    elif has_bulk and not has_control:
-        tags.add("BULK_ONLY")
-    elif has_bulk and has_control:
-        tags.add("MIXED_COMPOSITION")
-
-    return list(tags)
+TRANSACTION_ID_COL = "transaction_id"
 
 
-def _tag_structure_and_patterns(transaction_group: pl.DataFrame) -> List[str]:
-    """Determine tags based on transaction structure and known patterns."""
-    tags = set()
-
-    # Structure
-    if transaction_group.height == 1:
-        tags.add("SINGLE_FRAME")
-
-    # Cancellation
-    if "-2" in transaction_group["urb_status"].to_list():
-        tags.add("CANCELLATION")
-
-    # Patterns (Bulk)
-    if "BULK_ONLY" in _tag_composition(transaction_group):
-        out_requests = transaction_group.filter(
-            (pl.col("endpoint_address") == "0x01") & (pl.col("urb_type") == "S")
-        ).height
-        in_responses = transaction_group.filter(
-            (pl.col("endpoint_address") == "0x81") & (pl.col("urb_type") == "C")
-        ).height
-
-        if out_requests == 1 and in_responses == 1:
-            tags.add("BULK_COMMAND_RESPONSE")
-        elif out_requests == 1 and in_responses > 1:
-            tags.add("BULK_FRAGMENTED_RESPONSE")
-
-    # Patterns (Enumeration)
-    if "CONTROL_ONLY" in _tag_composition(transaction_group):
-        # USB standard request codes for enumeration (as hex integers)
-        # 0x00 = GET_STATUS, 0x01 = CLEAR_FEATURE, 0x03 = SET_FEATURE,
-        # 0x05 = SET_ADDRESS, 0x06 = GET_DESCRIPTOR, 0x08 = GET_CONFIGURATION,
-        # 0x09 = SET_CONFIGURATION
-        STANDARD_ENUMERATION_REQUESTS = {0x00, 0x01, 0x03, 0x05, 0x06, 0x08, 0x09}
-
-        if "brequest" in transaction_group.columns:
-            # Convert brequest values to integers for comparison
-            brequest_values = transaction_group["brequest"].drop_nulls().to_list()
-            brequest_ints = set()
-            for val in brequest_values:
-                try:
-                    # Handle both plain numbers and hex strings
-                    if isinstance(val, str):
-                        val = val.strip()
-                        if val.startswith("0x"):
-                            # Hex string
-                            brequest_ints.add(int(val, 16))
-                        else:
-                            # Plain decimal string
-                            brequest_ints.add(int(val, 10))
-                    else:
-                        brequest_ints.add(int(val))
-                except (ValueError, AttributeError):
-                    continue
-
-            if brequest_ints.intersection(STANDARD_ENUMERATION_REQUESTS):
-                tags.add("ENUMERATION")
-
-    return list(tags)
-
-
-def _apply_tags_to_group(group_df: pl.DataFrame) -> List[str]:
-    """Helper function to generate tags for a single transaction group."""
-    return sorted(
-        list(set(_tag_composition(group_df) + _tag_structure_and_patterns(group_df)))
+def _brequest_as_int() -> pl.Expr:
+    """Parse the `brequest` column, which holds either decimal or hex strings."""
+    text = pl.col("brequest").cast(pl.String).str.strip_chars()
+    return (
+        pl.when(text.str.starts_with("0x"))
+        .then(text.str.slice(2).str.to_integer(base=16, strict=False))
+        .otherwise(text.str.to_integer(base=10, strict=False))
     )
+
+
+def _tag_expressions() -> dict[str, pl.Expr]:
+    """One boolean aggregation per tag, evaluated per transaction group."""
+    has_control = (pl.col("transfer_type") == CONTROL_TRANSFER_TYPE).any()
+    has_bulk = (pl.col("transfer_type") == BULK_TRANSFER_TYPE).any()
+
+    control_only = has_control & ~has_bulk
+    bulk_only = has_bulk & ~has_control
+
+    out_requests = (
+        (pl.col("endpoint_address") == OUT_ENDPOINT)
+        & (pl.col("urb_type") == SUBMIT_URB)
+    ).sum()
+    in_responses = (
+        (pl.col("endpoint_address") == IN_ENDPOINT)
+        & (pl.col("urb_type") == COMPLETE_URB)
+    ).sum()
+
+    enumeration = (
+        _brequest_as_int().is_in(STANDARD_ENUMERATION_REQUESTS).fill_null(False).any()
+    )
+
+    return {
+        "CONTROL_ONLY": control_only,
+        "BULK_ONLY": bulk_only,
+        "MIXED_COMPOSITION": has_bulk & has_control,
+        "SINGLE_FRAME": pl.len() == 1,
+        "CANCELLATION": (pl.col("urb_status") == CANCEL_STATUS).any(),
+        "BULK_COMMAND_RESPONSE": bulk_only & (out_requests == 1) & (in_responses == 1),
+        "BULK_FRAGMENTED_RESPONSE": bulk_only
+        & (out_requests == 1)
+        & (in_responses > 1),
+        "ENUMERATION": control_only & enumeration,
+    }
 
 
 def tag_transactions(df: pl.DataFrame) -> pl.DataFrame:
@@ -106,18 +84,29 @@ def tag_transactions(df: pl.DataFrame) -> pl.DataFrame:
     Returns:
         The original DataFrame with an added 'tags' list column.
     """
-    if "transaction_id" not in df.columns:
-        raise ValueError("Input DataFrame must contain a 'transaction_id' column.")
-
-    # Group by transaction, apply tagging functions, and create a tags DataFrame
-    tags_df = df.group_by("transaction_id").map_groups(
-        lambda group_df: pl.DataFrame(
-            {
-                "transaction_id": group_df["transaction_id"][0],
-                "tags": [_apply_tags_to_group(group_df)],
-            }
+    if TRANSACTION_ID_COL not in df.columns:
+        raise ValueError(
+            f"Input DataFrame must contain a '{TRANSACTION_ID_COL}' column."
         )
+
+    tags = _tag_expressions()
+    if "brequest" not in df.columns:
+        # Enumeration is only detectable when the capture kept the request code.
+        tags["ENUMERATION"] = pl.lit(False)
+
+    # Each tag becomes its own boolean column, then the set ones are collected
+    # into a sorted list so the output matches a `sorted(set(...))` per group.
+    tags_df = df.group_by(TRANSACTION_ID_COL).agg(
+        [expression.alias(name) for name, expression in tags.items()]
+    )
+    tags_df = tags_df.select(
+        TRANSACTION_ID_COL,
+        pl.concat_list(
+            [pl.when(pl.col(name)).then(pl.lit(name)).alias(name) for name in tags]
+        )
+        .list.drop_nulls()
+        .list.sort()
+        .alias("tags"),
     )
 
-    # Merge the tags back into the original DataFrame
-    return df.join(tags_df, on="transaction_id", how="left")
+    return df.join(tags_df, on=TRANSACTION_ID_COL, how="left")

@@ -15,16 +15,15 @@ uv sync --locked
 ## Core Commands
 
 ```bash
-# Validate before shipping changes
-just test     # Run tests
-just lint     # Ruff lint
-just format   # Ruff format
+# Everything CI runs, in one go
+just check
 
-# Direct invocations
-uv run pytest -q
-uv run mypy km003c_analysis/
-uv run ruff check km003c_analysis scripts
-uv run ruff format km003c_analysis scripts
+# Individual gates
+just test       # pytest
+just lint       # ruff lint
+just format     # ruff format
+just typecheck  # strict mypy over km003c_analysis
+just converter  # fmt, clippy and build for rust_pcap_converter
 
 # Streamlit app
 just app
@@ -36,13 +35,12 @@ Preferred path: use the library for parsing/splitting/tagging; avoid re‑implem
 
 ```python
 import polars as pl
-from pathlib import Path
 from km003c_analysis.core import split_usb_transactions, tag_transactions
+from km003c_analysis.datasets import load_master_dataset
+from km003c_analysis.helpers import get_packet_type, get_adc_data, get_pd_status, get_pd_events
 from km003c import parse_packet, parse_raw_packet
-from scripts.km003c_helpers import get_packet_type, get_adc_data, get_pd_status, get_pd_events
 
-DATASET = Path("data/processed/usb_master_dataset.parquet")
-df = pl.read_parquet(DATASET)
+df = load_master_dataset()
 
 # Work on bulk traffic; split into transactions; add tags
 bulk = df.filter(pl.col("transfer_type") == "0x03")
@@ -60,8 +58,9 @@ pd_candidates = tx_tagged.filter(
 ### Parsing Protocol Correctly
 
 - Use the Rust-backed `km003c` package for all KM003C protocol parsing. Avoid manual bit/byte parsing in Python. This ensures consistent attribute masks and header semantics across scripts.
+- Authenticated commands (MemoryRead 0x44, StreamingAuth 0x4C) go through `km003c_analysis.device`. Never re-derive the AES keys, the CRC layout or the request framing in a script.
 - Control header bits (wire): `type:7 | reserved_flag:1 | id:8 | unused:1 | att:15`.
-  - The `att` field is a 15‑bit attribute value: ADC=1, AdcQueue=2, Settings=8, PdPacket=16, Unknown512=512.
+  - The `att` field is a 15‑bit attribute value: ADC=1, AdcQueue=2, Settings=8, PdPacket=16, PdTrace=32, LogMetadata=512.
   - **Wire byte gotcha**: Due to the unused bit at position 16, raw bytes 2-3 read as `raw_u16 = (att << 1)`. For example, `att=1` (ADC) appears as `0x0002` in raw bytes, `att=8` (Settings) appears as `0x0010`. Always use `km003c` to parse correctly.
 - `reserved_flag` is vendor‑specific and is not an extended header indicator. PutData (0x41) always carries extended logical packets.
 - Extended header (per logical packet): `att:15 | next:1 | chunk:6 | size:10`.
@@ -115,11 +114,15 @@ uv run pytest -q  # Quick iteration
 
 ## Data + Invariants
 
-- Master Parquet: `data/processed/usb_master_dataset.parquet` (20,862 packets from 14 capture files).
+- Master Parquet: reach it through `km003c_analysis.datasets.MASTER_DATASET` rather than
+  spelling out `data/processed/usb_master_dataset.parquet` (20,862 packets from 14 capture files).
 - GetData attribute_mask is a 15‑bit bitmask; combine with bitwise OR to request multiple classes.
-  - Attribute values: ADC=1, AdcQueue=2, Settings=8, PdPacket=16, Unknown512=512
+  - Attribute values: ADC=1, AdcQueue=2, Settings=8, PdPacket=16, PdTrace=32, LogMetadata=512
   - Wire mask (raw bytes 2-3): `wire_mask = attribute << 1` due to unused bit at position 16
   - Examples: wire 0x0002 = ADC, wire 0x0004 = AdcQueue, wire 0x0010 = Settings
+- `parse_packet()` does not know the graph rate, so AdcQueue payloads come back as
+  `AdcQueueRawData` with raw counts. Use `parse_packet_with_graph_rate(data, rate_index)`
+  when the capture's StartGraph rate is known.
 - PutData uses chained logical packets; continue until `next=0`.
 - Response `id` matches request `id` (8‑bit roll‑over).
 - Do NOT group by URB ID (kernel address, reused). Use split_usb_transactions.
@@ -129,6 +132,9 @@ uv run pytest -q  # Quick iteration
 - Library
   - `km003c_analysis.core.split_usb_transactions` — robust transaction grouping
   - `km003c_analysis.core.tag_transactions` — structural tags (BULK_COMMAND_RESPONSE, etc.)
+  - `km003c_analysis.datasets` — dataset locations and loaders
+  - `km003c_analysis.helpers` — navigate the dict-based `parse_packet()` result
+  - `km003c_analysis.device` — pyusb transport plus the authenticated commands
 
 - Tools
   - `km003c_analysis.tools.pd_sqlite_analyzer` — analyze/convert official SQLite PD exports
@@ -155,6 +161,10 @@ uv run pytest -q  # Quick iteration
 - URB IDs are not transaction IDs; never group by URB ID.
 - The reserved flag in headers is vendor‑specific and not an indicator of extended headers.
 - AdcQueue (attr 2) frames include a header; sizes vary with sample count.
+- The transfers after a MemoryRead confirmation are raw AES ciphertext, not framed
+  packets. Their first byte is not a packet type.
+- `km003c_analysis` imports the parsing core eagerly and the Streamlit dashboards
+  lazily, so a plain `import km003c_analysis` does not pull in the UI stack.
 
 ## Apps
 

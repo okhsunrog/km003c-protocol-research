@@ -5,41 +5,41 @@ Memory scanner for POWER-Z KM003C.
 Scans various memory addresses and reports response types.
 This reproduces the Rust memory_scan binary functionality.
 
+The MemoryRead framing, AES key and CRC layout live in
+`km003c_analysis.device`; this script only decides what to probe and how to
+classify the answers.
+
 Usage:
     uv run --locked scripts/memory_scan.py
     uv run --locked scripts/memory_scan.py --quick   # Only known addresses
 """
 
 import argparse
-import binascii
-import struct
 import time
 from dataclasses import dataclass
 from enum import Enum
 
 import usb.core
-import usb.util
-from Crypto.Cipher import AES
 
-# Device identifiers
-VID = 0x5FC9
-PID = 0x0063
-
-# USB endpoints (vendor interface)
-INTERFACE_NUM = 0
-ENDPOINT_OUT = 0x01
-ENDPOINT_IN = 0x81
-
-# AES key for memory block encryption (key index 0)
-AES_KEY = b"Lh2yfB7n6X7d9a5Z"
+from km003c_analysis.device import (
+    ADDR_CALIBRATION,
+    ADDR_DEVICE_INFO,
+    ADDR_FIRMWARE_INFO,
+    ADDR_HARDWARE_ID,
+    ADDR_OFFLINE_LOG,
+    HARDWARE_ID_SIZE,
+    INFO_BLOCK_SIZE,
+    Km003cUsb,
+    MemoryReadError,
+)
 
 # Known memory addresses from protocol documentation
 KNOWN_ADDRESSES = {
-    0x00000420: ("DeviceInfo1", 64),
-    0x00004420: ("FirmwareInfo", 64),
-    0x03000C00: ("CalibrationData", 64),
-    0x40010450: ("HardwareID", 12),
-    0x98100000: ("LogData", 64),
+    ADDR_DEVICE_INFO: ("DeviceInfo1", INFO_BLOCK_SIZE),
+    ADDR_FIRMWARE_INFO: ("FirmwareInfo", INFO_BLOCK_SIZE),
+    ADDR_CALIBRATION: ("CalibrationData", INFO_BLOCK_SIZE),
+    ADDR_HARDWARE_ID: ("HardwareID", HARDWARE_ID_SIZE),
+    ADDR_OFFLINE_LOG: ("LogData", INFO_BLOCK_SIZE),
 }
 
 # Boundary addresses to scan
@@ -75,6 +75,9 @@ BOUNDARY_ADDRESSES = [
     0xFFFFFF00,
 ]
 
+# Probing an unmapped address should fail fast rather than stall the scan.
+PROBE_TIMEOUT_MS = 500
+
 
 class ReadResult(Enum):
     DATA = "Data"
@@ -90,196 +93,97 @@ class ScanResult:
     size: int = 0
     error_msg: str = ""
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.result == ReadResult.DATA:
             return f"Data({self.size}B)"
-        elif self.result == ReadResult.ERROR:
+        if self.result == ReadResult.ERROR:
             return f"Error({self.error_msg})"
-        else:
-            return self.result.value
+        return self.result.value
 
 
-def encrypt_ecb(data: bytes) -> bytes:
-    """Encrypt data using AES-128 ECB."""
-    cipher = AES.new(AES_KEY, AES.MODE_ECB)
-    return cipher.encrypt(data)
+def classify(error: MemoryReadError) -> ScanResult:
+    """Map a MemoryRead failure onto the scanner's result categories."""
+    message = str(error)
+    if "rejected" in message:
+        return ScanResult(ReadResult.REJECT)
+    if "not readable" in message:
+        return ScanResult(ReadResult.NOT_READABLE)
+    if "No confirmation" in message or "Truncated" in message:
+        return ScanResult(ReadResult.TIMEOUT, error_msg=message)
+    return ScanResult(ReadResult.ERROR, error_msg=message)
 
 
-def decrypt_ecb(data: bytes) -> bytes:
-    """Decrypt data using AES-128 ECB."""
-    cipher = AES.new(AES_KEY, AES.MODE_ECB)
-    return cipher.decrypt(data)
+def probe(device: Km003cUsb, address: int, size: int) -> ScanResult:
+    """Attempt one read and classify the outcome."""
+    try:
+        data = device.read_memory(address, size, timeout_ms=PROBE_TIMEOUT_MS)
+    except MemoryReadError as error:
+        return classify(error)
+    except usb.core.USBTimeoutError:
+        return ScanResult(ReadResult.TIMEOUT)
+    except usb.core.USBError as error:
+        return ScanResult(ReadResult.ERROR, error_msg=str(error))
+    return ScanResult(ReadResult.DATA, size=len(data))
 
 
-def crc32(data: bytes) -> int:
-    """Calculate CRC32 checksum."""
-    return binascii.crc32(data) & 0xFFFFFFFF
+def scan(device: Km003cUsb, quick: bool) -> dict[int, ScanResult]:
+    results: dict[int, ScanResult] = {}
 
+    print("\n" + "=" * 60)
+    print("SCANNING KNOWN ADDRESSES")
+    print("=" * 60 + "\n")
+    for address, (name, size) in KNOWN_ADDRESSES.items():
+        results[address] = probe(device, address, size)
+        print(f"  0x{address:08X} ({name:16}): {results[address]}")
+        time.sleep(0.05)  # Delay to avoid overwhelming device
 
-class KM003C:
-    """KM003C device interface for memory scanning."""
+    if quick:
+        return results
 
-    def __init__(self, skip_reset: bool = False):
-        dev = usb.core.find(idVendor=VID, idProduct=PID)
-        if dev is None:
-            raise ValueError(f"Device not found (VID={VID:04x}, PID={PID:04x})")
-
-        if not skip_reset:
-            print("Resetting device...")
-            try:
-                dev.reset()
-                time.sleep(1.5)
-            except Exception as e:
-                print(f"Warning: {e}")
-                time.sleep(0.5)
-
-            # Reconnect after reset
-            self.dev = usb.core.find(idVendor=VID, idProduct=PID)
-            if self.dev is None:
-                raise ValueError("Device not found after reset")
-        else:
-            self.dev = dev
-
-        # Detach kernel drivers
-        for cfg in self.dev:
-            for intf in cfg:
-                if self.dev.is_kernel_driver_active(intf.bInterfaceNumber):
-                    self.dev.detach_kernel_driver(intf.bInterfaceNumber)
-
-        self.dev.set_configuration()
-        usb.util.claim_interface(self.dev, INTERFACE_NUM)
-
-        self.tid = 0
-        print("Device connected")
-
-    def _next_tid(self) -> int:
-        self.tid = (self.tid + 1) & 0xFF
-        return self.tid
-
-    def _send(self, data: bytes):
-        self.dev.write(ENDPOINT_OUT, data)
-
-    def _recv(self, timeout: int = 500) -> bytes:
-        return bytes(self.dev.read(ENDPOINT_IN, 4096, timeout=timeout))
-
-    def _send_cmd(self, cmd_type: int, data_word: int) -> bytes | None:
-        """Send 4-byte command and return response."""
-        tid = self._next_tid()
-        packet = bytes(
-            [cmd_type & 0x7F, tid, data_word & 0xFF, (data_word >> 8) & 0xFF]
-        )
-        self._send(packet)
-        try:
-            return self._recv()
-        except usb.core.USBTimeoutError:
-            return None
-
-    def _build_memory_read_request(self, address: int, size: int) -> bytes:
-        """Build encrypted MemoryRead (0x44) request."""
-        # Build plaintext: address + size + magic + CRC + padding
-        payload = struct.pack("<III", address, size, 0xFFFFFFFF)
-        checksum = crc32(payload)
-        full_payload = payload + struct.pack("<I", checksum) + (b"\xff" * 16)
-
-        # Encrypt
-        encrypted = encrypt_ecb(full_payload)
-
-        # Build packet header
-        tid = self._next_tid()
-        header = bytes([0x44, tid, 0x01, 0x01])
-
-        return header + encrypted
-
-    def try_read_memory(self, address: int, size: int) -> ScanResult:
-        """Attempt to read memory and return result type."""
-        try:
-            request = self._build_memory_read_request(address, size)
-            self._send(request)
-
-            # First response: confirmation (0xC4) or error (0x06/0x27)
-            try:
-                response = self._recv(timeout=500)
-            except usb.core.USBTimeoutError:
-                return ScanResult(ReadResult.TIMEOUT)
-
-            if len(response) < 4:
-                return ScanResult(
-                    ReadResult.ERROR, error_msg=f"short response: {len(response)}B"
-                )
-
-            resp_type = response[0] & 0x7F
-
-            # Check for error responses
-            if resp_type == 0x06:  # Reject
-                return ScanResult(ReadResult.REJECT)
-            elif resp_type == 0x27:  # NotReadable
-                return ScanResult(ReadResult.NOT_READABLE)
-            elif resp_type == 0x44:  # Confirmation (0xC4 with bit 7 set)
-                if len(response) != 20 or response[1] != request[1]:
-                    return ScanResult(
-                        ReadResult.ERROR,
-                        error_msg="invalid MemoryRead confirmation header",
-                    )
-                echoed_address, echoed_size, magic, checksum = struct.unpack(
-                    "<IIII", response[4:20]
-                )
-                expected_crc = crc32(response[4:16])
-                if (echoed_address, echoed_size, magic, checksum) != (
-                    address,
-                    size,
-                    0xFFFFFFFF,
-                    expected_crc,
-                ):
-                    return ScanResult(
-                        ReadResult.ERROR,
-                        error_msg="invalid MemoryRead confirmation payload",
-                    )
-
-                expected_size = (size + AES.block_size - 1) // AES.block_size
-                expected_size *= AES.block_size
-                encrypted = bytearray()
-                while len(encrypted) < expected_size:
-                    try:
-                        transfer = self._recv(timeout=500)
-                    except usb.core.USBTimeoutError:
-                        return ScanResult(ReadResult.TIMEOUT, error_msg="data timeout")
-                    if not transfer or len(encrypted) + len(transfer) > expected_size:
-                        return ScanResult(
-                            ReadResult.ERROR,
-                            error_msg="invalid MemoryRead data length",
-                        )
-                    encrypted.extend(transfer)
-
-                decrypt_ecb(bytes(encrypted))
-                return ScanResult(ReadResult.DATA, size=size)
-            else:
-                return ScanResult(
-                    ReadResult.ERROR, error_msg=f"unexpected type 0x{resp_type:02X}"
-                )
-
-        except usb.core.USBError as e:
-            return ScanResult(ReadResult.ERROR, error_msg=str(e))
-        except Exception as e:
-            return ScanResult(ReadResult.ERROR, error_msg=str(e))
-
-    def initialize(self):
-        """Run minimal initialization sequence."""
-        print("Connecting...")
-        self._send_cmd(0x02, 0x0000)
+    print("\n" + "=" * 60)
+    print("SCANNING BOUNDARY ADDRESSES")
+    print("=" * 60 + "\n")
+    for address in BOUNDARY_ADDRESSES:
+        if address in results:
+            continue
+        result = probe(device, address, INFO_BLOCK_SIZE)
+        results[address] = result
+        print(f"  0x{address:08X}: {result}")
         time.sleep(0.05)
 
-    def close(self):
-        try:
-            usb.util.release_interface(self.dev, INTERFACE_NUM)
-        except usb.core.USBError:
-            pass
-        try:
-            usb.util.dispose_resources(self.dev)
-        except usb.core.USBError:
-            pass
+        if (
+            result.result == ReadResult.ERROR
+            and "disconnect" in result.error_msg.lower()
+        ):
+            print("\n  Device disconnected! Stopping scan.")
+            break
+
+    return results
 
 
-def main():
+def print_summary(results: dict[int, ScanResult]) -> None:
+    print("\n" + "=" * 60)
+    print("SUMMARY")
+    print("=" * 60 + "\n")
+
+    counts = dict.fromkeys(ReadResult, 0)
+    for result in results.values():
+        counts[result.result] += 1
+
+    print(f"Total addresses scanned: {len(results)}")
+    for kind in ReadResult:
+        print(f"  {kind.value + ':':<13}{counts[kind]}")
+
+    print("\nAddresses that returned data:\n")
+    for address, result in sorted(results.items()):
+        if result.result is not ReadResult.DATA:
+            continue
+        name = KNOWN_ADDRESSES.get(address, (None, None))[0]
+        label = f" ({name})" if name else ""
+        print(f"  0x{address:08X}{label}: {result}")
+
+
+def main() -> int:
     parser = argparse.ArgumentParser(description="Scan KM003C memory regions")
     parser.add_argument(
         "--quick", action="store_true", help="Only scan known addresses"
@@ -288,73 +192,16 @@ def main():
     args = parser.parse_args()
 
     try:
-        device = KM003C(skip_reset=args.no_reset)
-        device.initialize()
+        with Km003cUsb("vendor", skip_reset=args.no_reset) as device:
+            device.connect()
+            time.sleep(0.05)
+            results = scan(device, args.quick)
 
-        results = {}
-
-        print("\n" + "=" * 60)
-        print("SCANNING KNOWN ADDRESSES")
-        print("=" * 60 + "\n")
-
-        for address, (name, size) in KNOWN_ADDRESSES.items():
-            result = device.try_read_memory(address, size)
-            results[address] = result
-            print(f"  0x{address:08X} ({name:16}): {result}")
-            time.sleep(0.05)  # Delay to avoid overwhelming device
-
-        if not args.quick:
-            print("\n" + "=" * 60)
-            print("SCANNING BOUNDARY ADDRESSES")
-            print("=" * 60 + "\n")
-
-            for address in BOUNDARY_ADDRESSES:
-                if address in results:
-                    continue
-                result = device.try_read_memory(address, 64)
-                results[address] = result
-                print(f"  0x{address:08X}: {result}")
-                time.sleep(0.05)
-
-                # Stop if device disconnected
-                if (
-                    result.result == ReadResult.ERROR
-                    and "disconnect" in result.error_msg.lower()
-                ):
-                    print("\n  Device disconnected! Stopping scan.")
-                    break
-
-        device.close()
-
-        # Summary
-        print("\n" + "=" * 60)
-        print("SUMMARY")
-        print("=" * 60 + "\n")
-
-        counts = {r: 0 for r in ReadResult}
-        for result in results.values():
-            counts[result.result] += 1
-
-        print(f"Total addresses scanned: {len(results)}")
-        print(f"  Data:        {counts[ReadResult.DATA]}")
-        print(f"  NotReadable: {counts[ReadResult.NOT_READABLE]}")
-        print(f"  Reject:      {counts[ReadResult.REJECT]}")
-        print(f"  Timeout:     {counts[ReadResult.TIMEOUT]}")
-        print(f"  Error:       {counts[ReadResult.ERROR]}")
-
-        print("\nAddresses that returned data:\n")
-        for address, result in sorted(results.items()):
-            if result.result == ReadResult.DATA:
-                name = KNOWN_ADDRESSES.get(address, (None, None))[0]
-                if name:
-                    print(f"  0x{address:08X} ({name}): {result}")
-                else:
-                    print(f"  0x{address:08X}: {result}")
-
+        print_summary(results)
         return 0
 
-    except Exception as e:
-        print(f"\nError: {e}")
+    except Exception as error:  # noqa: BLE001 - top-level CLI reporting
+        print(f"\nError: {error}")
         import traceback
 
         traceback.print_exc()
@@ -362,4 +209,4 @@ def main():
 
 
 if __name__ == "__main__":
-    exit(main())
+    raise SystemExit(main())

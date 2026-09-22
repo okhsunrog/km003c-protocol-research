@@ -33,6 +33,24 @@ jobs:
       - run: uv sync --locked
       - run: uv run --locked ruff format --check km003c_analysis scripts tests
       - run: uv run --locked ruff check km003c_analysis scripts tests
+      - run: uv run --locked mypy km003c_analysis
       - run: uv run --locked rumdl check README.md docs tests/README.md
       - run: uv run --locked python scripts/check_markdown_links.py
       - run: uv run --locked pytest -q
+
+  converter:
+    name: pcapng to Parquet converter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust_pcap_converter
+      # This tool produces data/processed/usb_master_dataset.parquet, the input
+      # to every other tool here, so it must keep building.
+      - run: cargo fmt --manifest-path rust_pcap_converter/Cargo.toml -- --check
+      - run: cargo clippy --manifest-path rust_pcap_converter/Cargo.toml --locked -- -D warnings
+      - run: cargo build --manifest-path rust_pcap_converter/Cargo.toml --locked

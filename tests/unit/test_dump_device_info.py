@@ -1,55 +1,65 @@
-"""Tests for the standalone device-information MemoryRead tool."""
+"""Tests for the block decoding in the device-information tool.
 
-import sys
-from collections.abc import Iterator
-from pathlib import Path
+The MemoryRead transport it used to own is covered by
+`tests/unit/test_device_transport.py`.
+"""
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from scripts.dump_device_info import KM003C, encrypt_ecb
+from scripts.dump_device_info import (
+    ADDR_CALIBRATION,
+    ADDR_DEVICE_INFO,
+    ADDR_HARDWARE_ID,
+    extract_string,
+    parse_device_info,
+)
 
 pytestmark = pytest.mark.unit
 
 
-def test_memory_read_request_matches_recorded_packet() -> None:
-    device = object.__new__(KM003C)
-    device.tid = 1
+def _padded(text: bytes, length: int) -> bytes:
+    return text + b"\x00" * (length - len(text))
 
-    request = device._build_memory_read_request(0x420, 64)
 
-    assert request.hex() == (
-        "4402010133f8860c0054288cdc7e52729826872dd18b539a39c407d5c063d91102e36a9e"
+def test_extract_string_stops_at_the_nul_terminator() -> None:
+    block = b"\x00" * 16 + _padded(b"KM003C", 12)
+
+    assert extract_string(block, 0x10, 0x1C) == "KM003C"
+
+
+def test_device_info_block_fields_are_decoded_at_their_documented_offsets() -> None:
+    block = bytearray(64)
+    block[0x10:0x1C] = _padded(b"KM003C", 12)
+    block[0x1C:0x28] = _padded(b"2.1", 12)
+    block[0x28:0x40] = _padded(b"2022.11.7", 24)
+
+    info = parse_device_info({ADDR_DEVICE_INFO: bytes(block)})
+
+    assert (info.model, info.hw_version, info.mfg_date) == (
+        "KM003C",
+        "2.1",
+        "2022.11.7",
     )
+    # Blocks that were not read stay explicitly unavailable.
+    assert info.fw_version == "N/A"
+    assert info.serial_id == "N/A"
 
 
-def test_download_memory_collects_all_raw_transfers() -> None:
-    plaintext = bytes(range(256)) * 32 + bytes(range(144))
-    encrypted = encrypt_ecb(plaintext)
-    confirmation = bytes.fromhex("c40201010000109890200000ffffffff2f0ab013")
-    responses: Iterator[bytes] = iter(
-        [
-            confirmation,
-            encrypted[:2544],
-            encrypted[2544:5088],
-            encrypted[5088:7632],
-            encrypted[7632:],
-        ]
-    )
-    device = object.__new__(KM003C)
-    device.tid = 1
-    device._send = lambda _request: None
-    device._recv = lambda timeout=2000: next(responses)
+def test_calibration_block_yields_serial_uuid_and_timestamp() -> None:
+    block = bytearray(64)
+    block[0:7] = b"007965 "
+    block[7:39] = b"a" * 32
+    block[39:51] = _padded(b"1667779200", 12)
 
-    assert device.download_memory(0x98100000, len(plaintext)) == plaintext
+    info = parse_device_info({ADDR_CALIBRATION: bytes(block)})
+
+    assert info.serial_id == "007965"
+    assert info.uuid == "a" * 32
+    assert info.calibration_timestamp == 1667779200
 
 
-def test_download_memory_reports_rejected_response() -> None:
-    device = object.__new__(KM003C)
-    device.tid = 1
-    device._send = lambda _request: None
-    device._recv = lambda timeout=2000: bytes.fromhex("06020000")
+def test_hardware_id_is_reported_as_an_opaque_blob_not_a_serial() -> None:
+    info = parse_device_info({ADDR_HARDWARE_ID: b"071KBP\x0d\xff\x11\x0a\xff\xff"})
 
-    with pytest.raises(ValueError, match="rejected"):
-        device.download_memory(0x420, 64)
+    assert info.hardware_id_prefix == "071KBP"
+    assert info.hardware_id_suffix.hex() == "0dff110affff"

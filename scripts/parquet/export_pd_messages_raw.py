@@ -16,13 +16,12 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import List
 
 import polars as pl
 
 
-def parse_pd_events_from_blob(blob: bytes) -> List[bytes]:
-    out: List[bytes] = []
+def parse_pd_events_from_blob(blob: bytes) -> list[bytes]:
+    out: list[bytes] = []
     i = 0
     b = blob
     while i < len(b):
@@ -60,7 +59,7 @@ def main() -> None:
     con = sqlite3.connect(str(sqlite_path))
     rows = con.execute("SELECT Raw FROM pd_table ORDER BY Time").fetchall()
 
-    wires: List[bytes] = []
+    wires: list[bytes] = []
     for (raw,) in rows:
         wires.extend(parse_pd_events_from_blob(raw))
 

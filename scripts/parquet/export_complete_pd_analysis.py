@@ -13,13 +13,13 @@ Output: data/processed/complete_pd_analysis.parquet
 
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pandas as pd
 import usbpdpy
 
 
-def extract_pdo_details(pdo: usbpdpy.PowerDataObj) -> Dict[str, Any]:
+def extract_pdo_details(pdo: usbpdpy.PowerDataObj) -> dict[str, Any]:
     """Extract detailed PDO information for analysis"""
     return {
         "pdo_raw": pdo.raw,
@@ -35,7 +35,7 @@ def extract_pdo_details(pdo: usbpdpy.PowerDataObj) -> Dict[str, Any]:
     }
 
 
-def extract_rdo_details(rdo: usbpdpy.RequestDataObj) -> Dict[str, Any]:
+def extract_rdo_details(rdo: usbpdpy.RequestDataObj) -> dict[str, Any]:
     """Extract detailed RDO information for analysis"""
     return {
         "rdo_raw": rdo.raw,
@@ -53,7 +53,7 @@ def extract_rdo_details(rdo: usbpdpy.RequestDataObj) -> Dict[str, Any]:
     }
 
 
-def parse_pd_blob(blob: bytes) -> List[Dict[str, Any]]:
+def parse_pd_blob(blob: bytes) -> list[dict[str, Any]]:
     """Parse KM003C PD event BLOB"""
     events = []
     if not blob:
@@ -213,7 +213,7 @@ def export_complete_pd_analysis() -> None:
 
                     # RDO data (Request messages)
                     elif msg.request_objects:
-                        for i, rdo in enumerate(msg.request_objects):
+                        for rdo in msg.request_objects:
                             rdo_record = record.copy()
                             rdo_record.update(extract_rdo_details(rdo))
 

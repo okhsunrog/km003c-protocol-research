@@ -14,18 +14,16 @@ Run: uv run --locked python scripts/parquet/analyze_request_response_correlation
 from __future__ import annotations
 
 import json
-import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import polars as pl
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
 # Local package imports
 from km003c_analysis.core import split_usb_transactions
+from km003c_analysis.datasets import MASTER_DATASET
 
 # Import the Rust library for KM003C packet parsing
 try:
@@ -77,14 +75,14 @@ class TransactionPair:
     transaction_id: int
     request: RequestHeader
     response: ResponseHeader
-    logical_packets: List[LogicalPacket]
+    logical_packets: list[LogicalPacket]
     timestamp_request: float
     timestamp_response: float
     latency_us: float
     source_file: str
 
 
-def parse_getdata_header(hex_data: str) -> Optional[RequestHeader]:
+def parse_getdata_header(hex_data: str) -> RequestHeader | None:
     """Parse GetData header using km003c_lib."""
     if not KM003C_LIB_AVAILABLE:
         return None
@@ -113,7 +111,7 @@ def parse_getdata_header(hex_data: str) -> Optional[RequestHeader]:
         return None
 
 
-def parse_putdata_header(hex_data: str) -> Optional[ResponseHeader]:
+def parse_putdata_header(hex_data: str) -> ResponseHeader | None:
     """Parse PutData main header using km003c_lib."""
     if not KM003C_LIB_AVAILABLE:
         return None
@@ -138,11 +136,11 @@ def parse_putdata_header(hex_data: str) -> Optional[ResponseHeader]:
         return None
 
 
-def parse_logical_packets(hex_data: str) -> List[LogicalPacket]:
+def parse_logical_packets(hex_data: str) -> list[LogicalPacket]:
     """Extract chained logical packets from km003c_lib RawPacket."""
     if not KM003C_LIB_AVAILABLE:
         return []
-    logical_packets: List[LogicalPacket] = []
+    logical_packets: list[LogicalPacket] = []
     try:
         data = bytes.fromhex(hex_data)
         raw = parse_raw_packet(data)
@@ -182,7 +180,7 @@ def parse_logical_packets(hex_data: str) -> List[LogicalPacket]:
 
 def extract_transaction_pairs(
     df: pl.DataFrame, source_file: str
-) -> List[TransactionPair]:
+) -> list[TransactionPair]:
     """Extract request-response pairs from a DataFrame of transactions"""
     pairs = []
 
@@ -251,7 +249,7 @@ def extract_transaction_pairs(
     return pairs
 
 
-def analyze_attribute_mapping(pairs: List[TransactionPair]) -> Dict[str, Any]:
+def analyze_attribute_mapping(pairs: list[TransactionPair]) -> dict[str, Any]:
     """Analyze the mapping between request attribute_mask and response attributes"""
 
     # Mapping: attribute_mask -> [list of response attribute combinations]
@@ -313,7 +311,7 @@ def analyze_per_source_file() -> None:
     """Main analysis function - process each source_file separately"""
 
     # Load the master dataset
-    dataset_path = Path("data/processed/usb_master_dataset.parquet")
+    dataset_path = MASTER_DATASET
     if not dataset_path.exists():
         print(f"❌ Dataset not found: {dataset_path}")
         print("Run the USB capture processing pipeline first.")

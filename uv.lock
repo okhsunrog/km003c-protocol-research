@@ -446,13 +446,13 @@ wheels = [
 
 [[package]]
 name = "km003c"
-version = "0.2.0"
-source = { git = "https://github.com/okhsunrog/km003c-rs?tag=v0.2.0#898b5cd02d225c4261165183fbf6dcdeda07f752" }
+version = "0.3.0"
+source = { git = "https://github.com/okhsunrog/km003c-rs?tag=v0.3.0#677a70e043367facbef86999f58a98d749164a4e" }
 
 [[package]]
 name = "km003c-protocol-research"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "km003c" },
     { name = "matplotlib" },
@@ -480,7 +480,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "km003c", git = "https://github.com/okhsunrog/km003c-rs?tag=v0.2.0" },
+    { name = "km003c", git = "https://github.com/okhsunrog/km003c-rs?tag=v0.3.0" },
     { name = "matplotlib", specifier = ">=3.5.0" },
     { name = "numpy", specifier = ">=2.3.3" },
     { name = "plotly", specifier = ">=6.3.0" },

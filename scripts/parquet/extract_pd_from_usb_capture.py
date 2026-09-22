@@ -10,32 +10,13 @@ The initial exploration found that:
 Let's parse these larger payloads using the wrapped event format.
 """
 
-import sys
-from pathlib import Path
-
 import polars as pl
 import usbpdpy
-
-# Add project root to Python path
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
 from km003c import parse_packet
 
 from km003c_analysis.core import split_usb_transactions, tag_transactions
-
-try:
-    from scripts.km003c_helpers import (
-        get_packet_type,
-        get_pd_events,
-        get_pd_status,
-    )
-except Exception:
-    from km003c_helpers import (
-        get_packet_type,
-        get_pd_events,
-        get_pd_status,
-    )
+from km003c_analysis.datasets import MASTER_DATASET
+from km003c_analysis.helpers import get_packet_type, get_pd_events, get_pd_status
 
 
 def parse_wrapped_pd_events(payload_bytes, offset=0):
@@ -101,8 +82,7 @@ def extract_pd_messages_from_capture():
     print()
 
     # Load and filter data
-    dataset_path = Path("data/processed/usb_master_dataset.parquet")
-    df = pl.read_parquet(dataset_path)
+    df = pl.read_parquet(MASTER_DATASET)
     pd_capture = df.filter(pl.col("source_file") == "pd_capture_new.9")
 
     # Process transactions

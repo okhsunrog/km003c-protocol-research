@@ -14,14 +14,12 @@ Run:
 from __future__ import annotations
 
 from collections import Counter
-from pathlib import Path
 
 import polars as pl
 import usbpdpy
 
 from km003c_analysis.core import split_usb_transactions, tag_transactions
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+from km003c_analysis.datasets import MASTER_DATASET
 
 
 def parse_pd_wrapped_payload(payload: bytes) -> list[dict]:
@@ -122,9 +120,7 @@ def summarize_source(df: pl.DataFrame, source_file: str) -> dict:
 
 
 def main() -> None:
-    df = pl.read_parquet(
-        PROJECT_ROOT / "data" / "processed" / "usb_master_dataset.parquet"
-    )
+    df = pl.read_parquet(MASTER_DATASET)
     summaries = []
     for sf in sorted(df.select("source_file").unique().to_series().to_list()):
         d = df.filter(pl.col("source_file") == sf)

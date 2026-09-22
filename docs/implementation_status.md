@@ -1,10 +1,8 @@
 # km003c-lib Implementation Status
 
 This matrix compares the protocol documented in this repository with the Rust
-implementation targeted for the next `km003c-lib` release. The research tools
-remain pinned to the published `km003c` 0.2.0 package until that release is
-available. “Raw” means framing is preserved but no typed semantic structure is
-exposed yet.
+implementation in the pinned `km003c` 0.3.0 package. “Raw” means framing is
+preserved but no typed semantic structure is exposed yet.
 
 | Protocol Area | Rust Library | Python Bindings | Notes |
 |---------------|--------------|-----------------|-------|
@@ -16,9 +14,9 @@ exposed yet.
 | USB PD semantic decoding | Optional `usbpd` feature | Raw PD wire data | Shared typed decoder is used by km003c-egui and the CLI; Python receives SOP + wire bytes |
 | Settings (`0x0008`) | Implemented | Confirmed fields plus lossless raw data | Validates both CRCs; typed access is limited to firmware-confirmed fields and unknown bytes remain preserved |
 | LogMetadata (`0x0200`) | Implemented | Raw | Parses empty, single-entry, and multi-entry catalogs |
-| MemoryRead (`0x44`) | Implemented | Parse helpers only | Rust validates confirmation and collects multi-transfer ciphertext |
+| MemoryRead (`0x44`) | Implemented | `km003c_analysis.device` | Rust validates confirmation and collects multi-transfer ciphertext; the Python side has one implementation of the framing, which defers to the bindings once a release exposes them |
 | Offline log workflow | Implemented | Research script | Typed `uom` samples, per-entry offsets, CSV/JSON CLI export |
-| StreamingAuth level 1 (`0x4C`) | Implemented | Crypto parsing helpers | HardwareID-based AdcQueue authentication |
+| StreamingAuth level 1 (`0x4C`) | Implemented | `km003c_analysis.device` | HardwareID-based AdcQueue authentication |
 | Authentication level 2 | Implemented | Crypto parsing helpers | Preferred/fallback credential selection, `0x0205` response, and post-auth AdcQueue were verified on V1.9.9 hardware |
 | Enable/Disable PD monitor | Implemented | Constants/parsing | Exact device-side effect remains unknown |
 | PD state trace (`0x0020`) | Implemented | Implemented | Typed V1.9.9 Type-C states and confirmed receive markers; unknown protocol-engine states remain lossless; empty, full, zero-count, connect/disconnect, and chained responses are capture-backed |
