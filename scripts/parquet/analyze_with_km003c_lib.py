@@ -14,42 +14,20 @@ Run: uv run --locked python scripts/parquet/analyze_with_km003c_lib.py
 from __future__ import annotations
 
 import json
-import sys
 from collections import defaultdict
 from pathlib import Path
 
 import polars as pl
+from km003c import parse_packet, parse_raw_packet
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))
-sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
-
-# Rust library imports
-try:
-    from km003c import (
-        PID,
-        VID,
-        parse_packet,
-        parse_raw_packet,
-    )
-
-    KM003C_LIB_AVAILABLE = True
-    print("✅ km003c_lib (Rust) loaded successfully")
-    print(f"   Device: VID=0x{VID:04X}, PID=0x{PID:04X}")
-except ImportError as e:
-    print(f"❌ km003c_lib not available: {e}")
-    print("   Build it with: just rust-ext")
-    exit(1)
-
-# Python library imports
-from km003c_helpers import (
+from km003c_analysis.core import split_usb_transactions
+from km003c_analysis.datasets import MASTER_DATASET
+from km003c_analysis.helpers import (
     get_adc_data,
     get_packet_type,
     get_pd_events,
     get_pd_status,
 )
-
-from km003c_analysis.core import split_usb_transactions
 
 
 def is_framed_protocol_packet(payload: bytes, endpoint_address: str) -> bool:
@@ -95,7 +73,7 @@ def analyze_with_rust_lib():
     """Полный анализ с использованием km003c_lib"""
 
     # Load dataset
-    dataset_path = Path("data/processed/usb_master_dataset.parquet")
+    dataset_path = MASTER_DATASET
     if not dataset_path.exists():
         print(f"❌ Dataset not found: {dataset_path}")
         return

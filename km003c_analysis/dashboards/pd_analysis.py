@@ -29,7 +29,7 @@ def load_pd_analysis_data() -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def main():
+def main() -> None:
     st.set_page_config(
         page_title="USB-PD Protocol Analysis", page_icon="⚡", layout="wide"
     )
@@ -82,7 +82,7 @@ def main():
                 y=voltage_data["vbus_v"],
                 mode="lines+markers",
                 name="Bus Voltage",
-                line=dict(color="blue", width=2),
+                line={"color": "blue", "width": 2},
                 hovertemplate="<b>Time:</b> %{x:.3f}s<br><b>Voltage:</b> %{y:.3f}V<extra></extra>",
             )
         )
@@ -97,7 +97,7 @@ def main():
                         y=msg_data["vbus_v"],
                         mode="markers",
                         name=msg_type,
-                        marker=dict(size=10, symbol="diamond"),
+                        marker={"size": 10, "symbol": "diamond"},
                         hovertemplate=f"<b>{msg_type}</b><br>Time: %{{x:.3f}}s<br>Voltage: %{{y:.3f}}V<extra></extra>",
                     )
                 )

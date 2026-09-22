@@ -1,15 +1,8 @@
 """Regression tests for separating framed packets from MemoryRead ciphertext."""
 
-import sys
-from pathlib import Path
-
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))
-sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
-
-from parquet.analyze_with_km003c_lib import is_framed_protocol_packet  # noqa: E402
+from scripts.parquet.analyze_with_km003c_lib import is_framed_protocol_packet
 
 pytestmark = pytest.mark.unit
 

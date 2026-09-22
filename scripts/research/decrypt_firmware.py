@@ -6,12 +6,17 @@ from pathlib import Path
 
 from Crypto.Cipher import AES
 
-# Known AES keys from Mtools.exe reverse engineering (all 4 extracted)
+from km003c_analysis.device import MEMORY_READ_KEY, STREAMING_AUTH_KEY
+
+# Known AES keys from Mtools.exe reverse engineering (all 4 extracted).
+# Keys 0 and 3 are the ones the USB protocol uses, so they are shared with
+# km003c_analysis.device rather than repeated here. Keys 1 and 2 have only ever
+# been seen in firmware images.
 KEYS = {
-    0: b"Lh2yfB7n6X7d9a5Z",  # MemoryRead
+    0: MEMORY_READ_KEY,  # MemoryRead
     1: b"sdkW78R3k5dj0fHv",  # Key 1
     2: b"Uy34VW13jHj3598e",  # Key 2
-    3: b"Fa0b4tA25f4R038a",  # StreamingAuth
+    3: STREAMING_AUTH_KEY,  # StreamingAuth
 }
 
 

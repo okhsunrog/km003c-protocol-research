@@ -10,32 +10,13 @@ From previous research: pd_capture_new.9 contains PD-related activity between
 transactions, including ADC+PD combined packets and PD-only responses.
 """
 
-import sys
-from pathlib import Path
-
 import polars as pl
 import usbpdpy
-
-# Add project root to Python path
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
 from km003c import parse_packet, parse_raw_packet
 
 from km003c_analysis.core import split_usb_transactions, tag_transactions
-
-try:
-    from scripts.km003c_helpers import (
-        get_packet_type,
-        get_pd_events,
-        get_pd_status,
-    )
-except Exception:
-    from km003c_helpers import (
-        get_packet_type,
-        get_pd_events,
-        get_pd_status,
-    )
+from km003c_analysis.datasets import MASTER_DATASET
+from km003c_analysis.helpers import get_packet_type, get_pd_events, get_pd_status
 
 
 def explore_pd_capture_new9():
@@ -45,7 +26,7 @@ def explore_pd_capture_new9():
     print()
 
     # Load the master dataset
-    dataset_path = Path("data/processed/usb_master_dataset.parquet")
+    dataset_path = MASTER_DATASET
     if not dataset_path.exists():
         print(f"❌ Dataset not found: {dataset_path}")
         return

@@ -6,7 +6,6 @@ A modern web interface for analyzing KM003C USB protocol transactions
 with interactive tables, detailed transaction views, and data visualization.
 """
 
-from pathlib import Path
 from typing import Any
 
 import plotly.graph_objects as go
@@ -21,19 +20,8 @@ from ..core.transaction_tagger import tag_transactions
 
 # Local package imports
 from ..core.usb_transaction_splitter import split_usb_transactions
-
-try:
-    # When running from project root
-    from scripts.km003c_helpers import (
-        get_adc_data,
-        get_packet_type,
-    )
-except Exception:
-    # Fallback if scripts isn't on sys.path
-    from km003c_helpers import (
-        get_adc_data,
-        get_packet_type,
-    )
+from ..datasets import MASTER_DATASET
+from ..helpers import get_adc_data, get_packet_type
 
 
 def extract_transaction_payloads(transaction_frames: pl.DataFrame) -> dict[str, Any]:
@@ -213,10 +201,7 @@ def load_and_process_data(
         - The full DataFrame of all frames with transaction_id and tags.
     """
     # Load master dataset
-    project_root = Path(__file__).parent.parent
-    master_df = pl.read_parquet(
-        project_root / "data" / "processed" / "usb_master_dataset.parquet"
-    )
+    master_df = pl.read_parquet(MASTER_DATASET)
 
     # Filter for the selected source file
     df_source = master_df.filter(pl.col("source_file") == source_file)
@@ -271,10 +256,7 @@ def main() -> None:
 
     # Load master dataset to get source file list
     try:
-        project_root = Path(__file__).parent.parent
-        df = pl.read_parquet(
-            project_root / "data" / "processed" / "usb_master_dataset.parquet"
-        )
+        df = pl.read_parquet(MASTER_DATASET)
     except Exception as e:
         st.error(f"Failed to load dataset: {e}")
         return
@@ -781,7 +763,7 @@ def main() -> None:
                     x=adc_pandas["time"],
                     y=adc_pandas["vbus_v"],
                     name="VBUS (V)",
-                    line=dict(color="red"),
+                    line={"color": "red"},
                     showlegend=True,
                 ),
                 row=1,
@@ -792,7 +774,7 @@ def main() -> None:
                     x=adc_pandas["time"],
                     y=adc_pandas["ibus_a"],
                     name="|IBUS| (A)",
-                    line=dict(color="blue"),
+                    line={"color": "blue"},
                     showlegend=True,
                 ),
                 row=1,
@@ -806,7 +788,7 @@ def main() -> None:
                     x=adc_pandas["time"],
                     y=adc_pandas["cc1_v"],
                     name="CC1 (V)",
-                    line=dict(color="purple"),
+                    line={"color": "purple"},
                     showlegend=True,
                 ),
                 row=1,
@@ -817,7 +799,7 @@ def main() -> None:
                     x=adc_pandas["time"],
                     y=adc_pandas["cc2_v"],
                     name="CC2 (V)",
-                    line=dict(color="brown"),
+                    line={"color": "brown"},
                     showlegend=True,
                 ),
                 row=1,
@@ -830,7 +812,7 @@ def main() -> None:
                     x=adc_pandas["time"],
                     y=adc_pandas["vdp_v"],
                     name="D+ (V)",
-                    line=dict(color="cyan"),
+                    line={"color": "cyan"},
                     showlegend=True,
                 ),
                 row=2,
@@ -841,7 +823,7 @@ def main() -> None:
                     x=adc_pandas["time"],
                     y=adc_pandas["vdm_v"],
                     name="D- (V)",
-                    line=dict(color="magenta"),
+                    line={"color": "magenta"},
                     showlegend=True,
                 ),
                 row=2,
@@ -854,7 +836,7 @@ def main() -> None:
                     x=adc_pandas["time"],
                     y=adc_pandas["temp_c"],
                     name="Temp (°C)",
-                    line=dict(color="orange"),
+                    line={"color": "orange"},
                     showlegend=True,
                 ),
                 row=2,
@@ -866,9 +848,13 @@ def main() -> None:
                 height=600,
                 title_text=f"ADC Measurements Over Time - {selected_file}",
                 showlegend=True,
-                legend=dict(
-                    orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
-                ),
+                legend={
+                    "orientation": "h",
+                    "yanchor": "bottom",
+                    "y": 1.02,
+                    "xanchor": "right",
+                    "x": 1,
+                },
             )
 
             # Update y-axis labels

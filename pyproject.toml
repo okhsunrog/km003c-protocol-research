@@ -8,7 +8,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-    "km003c==0.2.0",
+    "km003c==0.3.0",
     "matplotlib>=3.5.0",
     "seaborn>=0.11.0",
     "numpy>=2.3.3",
@@ -21,11 +21,20 @@ dependencies = [
     "pycryptodome>=3.23.0",
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["km003c_analysis"]
+
 [tool.uv]
-package = false
+# Installing the analysis package (editable) is what makes `km003c_analysis`
+# importable from scripts, notebooks and tests without sys.path patching.
+package = true
 
 [tool.uv.sources]
-km003c = { git = "https://github.com/okhsunrog/km003c-rs", tag = "v0.2.0" }
+km003c = { git = "https://github.com/okhsunrog/km003c-rs", tag = "v0.3.0" }
 
 [dependency-groups]
 dev = [
@@ -55,8 +64,17 @@ warn_unreachable = true
 implicit_reexport = false
 strict_equality = true
 
+# Third-party packages that ship no type information.
 [[tool.mypy.overrides]]
-module = ["plotly.*", "km003c.*", "streamlit.*"]
+module = [
+    "plotly.*",
+    "km003c.*",
+    "streamlit.*",
+    "usb.*",
+    "usbpdpy.*",
+    "pandas.*",
+    "Crypto.*",
+]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]  
@@ -69,7 +87,9 @@ target-version = "py311"
 extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
-extend-select = ["I"]
+# I: import order, UP: modern syntax for the declared target version,
+# B: common bug patterns, C4: comprehension clean-ups.
+extend-select = ["I", "UP", "B", "C4"]
 
 [tool.ruff.lint.per-file-ignores]
 "scripts/**/*.py" = ["E402"]
@@ -79,6 +99,9 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.pytest.ini_options]
+# Importable roots, so tests and scripts do not have to patch sys.path.
+pythonpath = [".", "scripts"]
+
 # Test discovery
 testpaths = ["tests"]
 python_files = ["test_*.py"]

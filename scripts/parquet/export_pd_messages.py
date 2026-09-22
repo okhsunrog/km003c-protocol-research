@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import polars as pl
 
@@ -71,7 +71,7 @@ def main() -> None:
         "SELECT rowid, Time, Vbus, Ibus, Raw FROM pd_table ORDER BY Time"
     ).fetchall()
 
-    records: List[Dict[str, Any]] = []
+    records: list[dict[str, Any]] = []
     for rowid, time, vbus, ibus, raw in rows:
         for ts, sop, size_code, wire_len, wire in parse_pd_events_from_blob(raw):
             # Light header decoding if wire has >=2 bytes

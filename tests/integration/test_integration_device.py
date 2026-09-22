@@ -8,9 +8,7 @@ Run with: pytest -m integration -v -s
 Or: pytest tests/integration/ -v -s
 """
 
-import sys
 import time
-from pathlib import Path
 
 import pytest
 import usb.core
@@ -31,15 +29,18 @@ from km003c import (
     parse_raw_packet,
 )
 
-# Import helpers for dict-based API navigation
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
-from km003c_helpers import get_adc_data, get_adcqueue_data, get_packet_type
-from run_adcqueue_single import (
-    HARDWARE_ID_ADDRESS,
-    build_memory_read_request,
-    build_streaming_auth_request,
-    decrypt_hardware_id,
-    validate_memory_read_confirmation,
+from km003c_analysis.device import (
+    ADDR_HARDWARE_ID,
+    HARDWARE_ID_SIZE,
+    build_memory_read_packet,
+    build_streaming_auth_packet,
+    decrypt_memory_payload,
+    parse_memory_read_confirmation,
+)
+from km003c_analysis.helpers import (
+    get_adc_data,
+    get_adcqueue_raw_data,
+    get_packet_type,
 )
 
 # Mark all tests in this module as integration tests
@@ -121,18 +122,20 @@ def device():
 
         # Read this device's HardwareID. The second response is raw ciphertext.
         memory_tid = next_tid()
-        memory_request = build_memory_read_request(HARDWARE_ID_ADDRESS, 12, memory_tid)
-        dev.write(endpoint_out, memory_request)
-        confirmation = bytes(dev.read(endpoint_in, 2048, timeout=2000))
-        validate_memory_read_confirmation(
-            confirmation, memory_tid, HARDWARE_ID_ADDRESS, 12
+        dev.write(
+            endpoint_out,
+            build_memory_read_packet(ADDR_HARDWARE_ID, HARDWARE_ID_SIZE, memory_tid),
         )
+        confirmation = bytes(dev.read(endpoint_in, 2048, timeout=2000))
+        echoed = parse_memory_read_confirmation(confirmation)
+        if echoed != (ADDR_HARDWARE_ID, HARDWARE_ID_SIZE):
+            raise ValueError(f"Invalid MemoryRead confirmation: {confirmation.hex()}")
         ciphertext = bytes(dev.read(endpoint_in, 2048, timeout=2000))
-        hardware_id = decrypt_hardware_id(ciphertext)
+        hardware_id = decrypt_memory_payload(ciphertext)[:HARDWARE_ID_SIZE]
 
         # Generate a fresh request rather than replaying device-specific capture data.
         auth_tid = next_tid()
-        dev.write(endpoint_out, build_streaming_auth_request(hardware_id, auth_tid))
+        dev.write(endpoint_out, build_streaming_auth_packet(hardware_id, auth_tid))
         auth_response = bytes(dev.read(endpoint_in, 2048, timeout=2000))
         if auth_response[:4] != bytes.fromhex("4c000302"):
             raise ValueError(f"StreamingAuth failed: {auth_response.hex()}")
@@ -257,7 +260,9 @@ class TestAdcQueueStreaming:
             # Parse with km003c_lib (now supports AdcQueue!)
             try:
                 packet = parse_packet(response)
-                adcq = get_adcqueue_data(packet)
+                # parse_packet() does not know the configured graph rate, so it
+                # yields lossless raw samples rather than decoded voltages.
+                adcq = get_adcqueue_raw_data(packet)
 
                 if adcq:
                     samples = adcq.samples
@@ -269,9 +274,9 @@ class TestAdcQueueStreaming:
                     # Validate sample data
                     first = samples[0]
                     assert isinstance(first.sequence, int)
-                    assert isinstance(first.vbus_v, float)
-                    assert -1.0 <= first.vbus_v <= 50.0, (
-                        f"VBUS out of range: {first.vbus_v}V"
+                    assert isinstance(first.vbus_uv, int)
+                    assert -1_000_000 <= first.vbus_uv <= 50_000_000, (
+                        f"VBUS out of range: {first.vbus_uv}µV"
                     )
 
                     print(f"✓ AdcQueue working: {len(samples)} samples, first={first}")

@@ -1,11 +1,6 @@
 """Regression tests for GetData/PutData correlation classification."""
 
-import sys
-from pathlib import Path
-
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.parquet.analyze_request_response_correlation import (
     parse_getdata_header,

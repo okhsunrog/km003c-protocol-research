@@ -119,7 +119,7 @@ Recommended usage:
 
 ```python
 from km003c import parse_packet, parse_raw_packet
-from scripts.km003c_helpers import get_packet_type, get_adc_data, get_pd_status, get_pd_events
+from km003c_analysis.helpers import get_packet_type, get_adc_data, get_pd_status, get_pd_events
 
 pkt = parse_packet(packet_bytes)
 if get_packet_type(pkt) == "DataResponse":
@@ -135,6 +135,18 @@ if isinstance(raw, dict) and "Data" in raw:
 ```
 
 Important: Avoid manual bit/byte parsing for KM003C headers in Python. Agents and scripts should use the Rust parser to prevent off-by-one mistakes in attribute masks and misinterpretation of `reserved_flag`.
+
+The same rule applies to the authenticated commands. `km003c_analysis.device` owns
+the MemoryRead and StreamingAuth framing, the AES keys and the device memory map,
+and delegates to the Rust bindings wherever the installed release exposes them:
+
+```python
+from km003c_analysis.device import Km003cUsb, ADDR_DEVICE_INFO, INFO_BLOCK_SIZE
+
+with Km003cUsb("vendor") as device:
+    device.connect()
+    block = device.read_memory(ADDR_DEVICE_INFO, INFO_BLOCK_SIZE)
+```
 
 ## Protocol Insights
 

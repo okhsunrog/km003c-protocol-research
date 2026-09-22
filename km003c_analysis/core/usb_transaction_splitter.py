@@ -6,10 +6,15 @@ URB (USB Request Block) patterns and bulk transfer sequences.
 
 This library works with any Polars DataFrame containing USB frame data and is
 independent of data source format (JSONL, CSV, Parquet, etc.).
+
+Unlike the tagger, splitting carries state across rows: whether a URB is
+currently outstanding depends on every earlier frame with the same URB ID. The
+scan below is therefore deliberately sequential, but it only materializes the
+handful of columns it actually reads.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Set
+from typing import Any
 
 import polars as pl
 
@@ -33,7 +38,7 @@ class TransactionSplitterConfig:
 
     # Independent capture stream. Frame numbers and URB IDs may repeat between
     # source files, so splitter state must not cross this boundary.
-    source_col: Optional[str] = "source_file"
+    source_col: str | None = "source_file"
 
     # USB protocol constants
     bulk_transfer_type: str = "0x03"
@@ -44,6 +49,17 @@ class TransactionSplitterConfig:
     complete_urb: str = "C"
     cancel_status: str = "-2"
 
+    def scan_columns(self) -> list[str]:
+        """Columns the sequential scan reads, in no particular order."""
+        return [
+            self.transfer_type_col,
+            self.endpoint_address_col,
+            self.urb_type_col,
+            self.urb_status_col,
+            self.data_length_col,
+            self.urb_id_col,
+        ]
+
 
 class USBTransactionSplitter:
     """
@@ -53,7 +69,7 @@ class USBTransactionSplitter:
     based on protocol patterns, particularly for bulk transfer command-response cycles.
     """
 
-    def __init__(self, config: Optional[TransactionSplitterConfig] = None):
+    def __init__(self, config: TransactionSplitterConfig | None = None):
         """
         Initialize the transaction splitter.
 
@@ -66,10 +82,11 @@ class USBTransactionSplitter:
     def reset_state(self) -> None:
         """Reset internal state for processing a new dataset"""
         self.current_transaction = 1
-        self.seen_urb_ids: Set[str] = set()
-        self.completed_urb_ids: Set[str] = set()
+        # URB IDs with an outstanding submit: added when a submit is seen and
+        # removed again by its completion.
+        self.outstanding_urb_ids: set[str] = set()
 
-    def is_bulk_setup(self, frame: Dict[str, Any]) -> bool:
+    def is_bulk_setup(self, frame: dict[str, Any]) -> bool:
         """
         Check if frame is a bulk setup frame.
 
@@ -92,7 +109,7 @@ class USBTransactionSplitter:
             and frame.get(self.config.data_length_col, 0) == 0
         )
 
-    def is_cancellation(self, frame: Dict[str, Any]) -> bool:
+    def is_cancellation(self, frame: dict[str, Any]) -> bool:
         """
         Check if frame is a cancellation.
 
@@ -104,7 +121,7 @@ class USBTransactionSplitter:
         """
         return frame.get(self.config.urb_status_col) == self.config.cancel_status
 
-    def is_completion(self, frame: Dict[str, Any]) -> bool:
+    def is_completion(self, frame: dict[str, Any]) -> bool:
         """
         Check if frame is a completion.
 
@@ -116,7 +133,7 @@ class USBTransactionSplitter:
         """
         return frame.get(self.config.urb_type_col) == self.config.complete_urb
 
-    def is_bulk_command_start(self, frame: Dict[str, Any]) -> bool:
+    def is_bulk_command_start(self, frame: dict[str, Any]) -> bool:
         """
         Check if frame starts a bulk command sequence.
 
@@ -140,7 +157,7 @@ class USBTransactionSplitter:
         )
 
     def should_start_new_transaction(
-        self, frame: Dict[str, Any], frame_index: int
+        self, frame: dict[str, Any], frame_index: int
     ) -> bool:
         """
         Determine if this frame should start a new transaction.
@@ -148,7 +165,7 @@ class USBTransactionSplitter:
         Transaction boundaries are determined by:
         1. First frame always starts transaction 1
         2. Bulk command start frames (0x01 S with data) start new transactions
-        3. New URB IDs start new transactions (except for special cases)
+        3. A URB ID with no outstanding submit starts a new transaction
         4. Bulk setup and cancellation frames never start new transactions
 
         Args:
@@ -158,8 +175,6 @@ class USBTransactionSplitter:
         Returns:
             True if this frame should start a new transaction
         """
-        urb_id = frame.get(self.config.urb_id_col, "")
-
         # First frame doesn't start a new transaction (it starts transaction 1)
         if frame_index == 0:
             return False
@@ -170,28 +185,19 @@ class USBTransactionSplitter:
 
         # For bulk transfers, prioritize command-response pattern recognition
         if frame.get(self.config.transfer_type_col) == self.config.bulk_transfer_type:
-            # Bulk command starts always start new transactions
-            if self.is_bulk_command_start(frame):
-                return True
+            # Bulk command starts always start new transactions; other bulk
+            # frames (ACK, data response) continue the current transaction.
+            return self.is_bulk_command_start(frame)
 
-            # Other bulk frames (ACK, data response) continue current transaction
-            return False
-
-        # For non-bulk transfers, use URB ID logic
+        # For non-bulk transfers, a frame belongs to the current transaction
+        # only while its URB is still outstanding. Anything else - a fresh URB
+        # ID or a reused one whose submit already completed - starts a new one.
+        urb_id = frame.get(self.config.urb_id_col, "")
         if not urb_id:
             return False
+        return urb_id not in self.outstanding_urb_ids
 
-        # Check if this URB ID is new
-        is_truly_new_urb = (
-            urb_id not in self.seen_urb_ids and urb_id not in self.completed_urb_ids
-        )
-        is_reused_urb = (
-            urb_id in self.completed_urb_ids and urb_id not in self.seen_urb_ids
-        )
-
-        return is_truly_new_urb or is_reused_urb
-
-    def process_frame(self, frame: Dict[str, Any], frame_index: int) -> int:
+    def process_frame(self, frame: dict[str, Any], frame_index: int) -> int:
         """
         Process a single frame and return its transaction ID.
 
@@ -210,22 +216,15 @@ class USBTransactionSplitter:
 
         # Update URB ID tracking
         if urb_id:
-            is_bulk_setup = self.is_bulk_setup(frame)
-            is_cancellation = self.is_cancellation(frame)
-            is_completion = self.is_completion(frame)
-
-            if is_bulk_setup or is_cancellation:
-                # Don't mark bulk setup or cancellation URB IDs as seen
-                # This allows their completion/related frames to start new transactions
+            if self.is_bulk_setup(frame) or self.is_cancellation(frame):
+                # Neither opens a URB, so their completion or related frames
+                # stay free to start a new transaction.
                 pass
-            elif is_completion:
-                # Mark completion URB IDs as completed (enables reuse)
-                self.completed_urb_ids.add(urb_id)
-                # Remove from seen so it can be reused
-                self.seen_urb_ids.discard(urb_id)
+            elif self.is_completion(frame):
+                # The URB is closed and its ID may be reused by the kernel.
+                self.outstanding_urb_ids.discard(urb_id)
             else:
-                # Mark normal URB IDs as seen
-                self.seen_urb_ids.add(urb_id)
+                self.outstanding_urb_ids.add(urb_id)
 
         return self.current_transaction
 
@@ -237,8 +236,11 @@ class USBTransactionSplitter:
         self.reset_state()
         self.current_transaction = first_transaction_id
 
+        # Only the columns the scan reads are materialized as Python objects.
+        scan = df.select(self.config.scan_columns())
         transaction_ids = [
-            self.process_frame(row, index) for index, row in enumerate(df.to_dicts())
+            self.process_frame(row, index)
+            for index, row in enumerate(scan.iter_rows(named=True))
         ]
         tid_series = pl.Series(
             self.config.transaction_id_col,
@@ -278,22 +280,23 @@ class USBTransactionSplitter:
                 pl.Series(self.config.transaction_id_col, [], dtype=pl.Int64)
             )
 
-        source_col = self.config.source_col
-        if source_col is not None and source_col in df.columns:
-            streams = df.partition_by(source_col, maintain_order=True)
-        else:
-            streams = [df]
-
         split_streams = []
         next_transaction_id = 1
-        for stream in streams:
+        for stream in self._streams(df):
             split_stream = self._split_single_stream(stream, next_transaction_id)
             split_streams.append(split_stream)
             next_transaction_id = self.current_transaction + 1
 
         return pl.concat(split_streams)
 
-    def validate_output(self, df: pl.DataFrame) -> Dict[str, bool]:
+    def _streams(self, df: pl.DataFrame) -> list[pl.DataFrame]:
+        """Split the frame into independent capture streams."""
+        source_col = self.config.source_col
+        if source_col is not None and source_col in df.columns:
+            return df.partition_by(source_col, maintain_order=True)
+        return [df]
+
+    def validate_output(self, df: pl.DataFrame) -> dict[str, bool]:
         """
         Validate that the output maintains proper ordering.
 
@@ -311,30 +314,20 @@ class USBTransactionSplitter:
                 "transaction_order": True,
             }
 
-        tx_ids = df.select(self.config.transaction_id_col).to_series().to_list()
+        streams = self._streams(df)
 
-        source_col = self.config.source_col
-        if source_col is not None and source_col in df.columns:
-            streams = df.partition_by(source_col, maintain_order=True)
-        else:
-            streams = [df]
-
-        def column_is_ordered(stream: pl.DataFrame, column: str) -> bool:
-            values = stream[column].to_list()
-            return all(
-                values[index] <= values[index + 1] for index in range(len(values) - 1)
-            )
+        def column_is_sorted(stream: pl.DataFrame, column: str) -> bool:
+            return bool(stream[column].is_sorted())
 
         frame_order_valid = all(
-            column_is_ordered(stream, self.config.frame_number_col)
-            for stream in streams
+            column_is_sorted(stream, self.config.frame_number_col) for stream in streams
         )
-        tx_order_valid = all(tx_ids[i] <= tx_ids[i + 1] for i in range(len(tx_ids) - 1))
+        tx_order_valid = column_is_sorted(df, self.config.transaction_id_col)
 
         timestamp_order_valid = True
         if self.config.timestamp_col in df.columns:
             timestamp_order_valid = all(
-                column_is_ordered(stream, self.config.timestamp_col)
+                column_is_sorted(stream, self.config.timestamp_col)
                 for stream in streams
             )
 
@@ -345,7 +338,7 @@ class USBTransactionSplitter:
             "transaction_order": tx_order_valid,
         }
 
-    def get_transaction_stats(self, df: pl.DataFrame) -> Dict[str, Any]:
+    def get_transaction_stats(self, df: pl.DataFrame) -> dict[str, Any]:
         """
         Get statistics about the transaction splitting results.
 
@@ -362,32 +355,34 @@ class USBTransactionSplitter:
                 "avg_frames_per_transaction": 0,
             }
 
-        transaction_stats = (
+        frame_counts = (
             df.group_by(self.config.transaction_id_col)
             .len()
-            .sort(self.config.transaction_id_col)
+            .select(
+                pl.len().alias("total_transactions"),
+                (pl.col("len") == 1).sum().alias("size_1"),
+                ((pl.col("len") >= 2) & (pl.col("len") <= 4)).sum().alias("size_2_4"),
+                (pl.col("len") >= 5).sum().alias("size_5_plus"),
+                pl.col("len").max().alias("largest"),
+            )
+            .row(0, named=True)
         )
 
-        total_transactions = transaction_stats.height
+        total_transactions = frame_counts["total_transactions"]
         total_frames = df.height
-        avg_frames = total_frames / total_transactions if total_transactions > 0 else 0
-
-        # Size distribution
-        frame_counts = transaction_stats.select("len").to_series().to_list()
-        size_1 = sum(1 for count in frame_counts if count == 1)
-        size_2_4 = sum(1 for count in frame_counts if 2 <= count <= 4)
-        size_5_plus = sum(1 for count in frame_counts if count >= 5)
 
         return {
             "total_transactions": total_transactions,
             "total_frames": total_frames,
-            "avg_frames_per_transaction": avg_frames,
+            "avg_frames_per_transaction": (
+                total_frames / total_transactions if total_transactions > 0 else 0
+            ),
             "size_distribution": {
-                "1_frame": size_1,
-                "2_4_frames": size_2_4,
-                "5_plus_frames": size_5_plus,
+                "1_frame": frame_counts["size_1"],
+                "2_4_frames": frame_counts["size_2_4"],
+                "5_plus_frames": frame_counts["size_5_plus"],
             },
-            "largest_transaction_size": max(frame_counts) if frame_counts else 0,
+            "largest_transaction_size": frame_counts["largest"],
         }
 
 
@@ -402,7 +397,7 @@ def create_default_splitter() -> USBTransactionSplitter:
 
 
 def split_usb_transactions(
-    df: pl.DataFrame, config: Optional[TransactionSplitterConfig] = None
+    df: pl.DataFrame, config: TransactionSplitterConfig | None = None
 ) -> pl.DataFrame:
     """
     Convenience function to split USB transactions in a DataFrame.

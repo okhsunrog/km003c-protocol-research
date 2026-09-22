@@ -1,27 +1,22 @@
 #!/usr/bin/env python3
 """Decrypt and analyze offline ADC data from reading_logs0.11 capture."""
 
-import binascii
 import struct
-from pathlib import Path
 
 import polars as pl
-from Crypto.Cipher import AES
 
-# AES key for MemoryRead (key index 0)
-AES_KEY = b"Lh2yfB7n6X7d9a5Z"
+from km003c_analysis.datasets import load_master_dataset
+from km003c_analysis.device import (
+    ADDR_OFFLINE_LOG,
+    OFFLINE_LOG_SAMPLE_SIZE,
+    aligned_response_size,
+    decrypt_memory_payload,
+    parse_memory_read_confirmation,
+)
 
 
-def decrypt_ecb(data: bytes) -> bytes:
-    """Decrypt data using AES-128 ECB."""
-    cipher = AES.new(AES_KEY, AES.MODE_ECB)
-    return cipher.decrypt(data)
-
-
-def main():
-    # Load the dataset
-    dataset_path = Path("data/processed/usb_master_dataset.parquet")
-    df = pl.read_parquet(dataset_path)
+def main() -> None:
+    df = load_master_dataset()
 
     # Filter for reading_logs0.11 capture
     logs_df = df.filter(pl.col("source_file").str.contains("reading_logs"))
@@ -47,18 +42,13 @@ def main():
             if pkt_type == 0x44 and len(payload) == 20:
                 print(f"  Frame {row['frame_number']}: type=0x{pkt_type:02X}")
                 print(f"    Raw: {payload.hex()}")
-                addr, size, marker, checksum = struct.unpack("<IIII", payload[4:20])
-                expected_crc = binascii.crc32(payload[4:16]) & 0xFFFFFFFF
-                print(
-                    f"    Parsed: addr=0x{addr:08X}, size={size}, "
-                    f"marker=0x{marker:08X}, crc=0x{checksum:08X}, "
-                    f"valid_crc={checksum == expected_crc}"
-                )
-                if addr == 0x98100000:
-                    if checksum != expected_crc:
-                        raise ValueError(
-                            "Offline-log MemoryRead confirmation CRC is invalid"
-                        )
+                echoed = parse_memory_read_confirmation(payload)
+                if echoed is None:
+                    print("    Parsed: invalid magic or CRC")
+                    continue
+                addr, size = echoed
+                print(f"    Parsed: addr=0x{addr:08X}, size={size}")
+                if addr == ADDR_OFFLINE_LOG:
                     log_confirmation_frame = row["frame_number"]
                     requested_log_size = size
 
@@ -66,7 +56,7 @@ def main():
         raise ValueError("Offline-log MemoryRead confirmation not found")
 
     # Collect the raw transfers immediately following the log confirmation.
-    expected_ciphertext_size = (requested_log_size + 15) // 16 * 16
+    expected_ciphertext_size = aligned_response_size(requested_log_size)
     large_chunks = []
     received = 0
     data_rows = bulk_in.filter(pl.col("frame_number") > log_confirmation_frame).sort(
@@ -93,21 +83,20 @@ def main():
     print(f"\nFound {len(large_chunks)} raw transfers")
 
     encrypted = b"".join(payload for _, payload in large_chunks)
-    if len(encrypted) % 16:
-        raise ValueError(f"Ciphertext length is not AES-aligned: {len(encrypted)}")
     print(f"\n=== Decrypting {len(encrypted)} raw ciphertext bytes ===")
-    decrypted = decrypt_ecb(encrypted)
+    decrypted = decrypt_memory_payload(encrypted)
 
-    # Parse as 16-byte samples
-    num_samples = len(decrypted) // 16
-    print(f"Number of 16-byte samples: {num_samples} (expected 521)")
+    num_samples = len(decrypted) // OFFLINE_LOG_SAMPLE_SIZE
+    print(
+        f"Number of {OFFLINE_LOG_SAMPLE_SIZE}-byte samples: {num_samples} (expected 521)"
+    )
 
-    # Collect all fields
-    samples = []
-    for i in range(num_samples):
-        sample = decrypted[i * 16 : (i + 1) * 16]
-        v0, v1, v2, v3 = struct.unpack("<iiii", sample)
-        samples.append((v0, v1, v2, v3))
+    samples = [
+        struct.unpack_from("<iiii", decrypted, offset)
+        for offset in range(
+            0, num_samples * OFFLINE_LOG_SAMPLE_SIZE, OFFLINE_LOG_SAMPLE_SIZE
+        )
+    ]
 
     # Analyze each field with the recovered protocol units.
     print("\n--- Field Analysis ---")

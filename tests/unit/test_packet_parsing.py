@@ -4,74 +4,30 @@ Tests for the km003c_lib packet parsing functionality.
 Tests the updated parse_packet function that returns dict-like Packet enum.
 """
 
-from pathlib import Path
-
 import pytest
-from km003c import (
-    AdcData,
-    AdcQueueData,
-    PdEventStream,
-    PdStatus,
-    parse_packet,
-)
+from km003c import RATE_1000_SPS, parse_packet, parse_packet_with_graph_rate
 
-project_root = Path(__file__).parent.parent.parent
+from km003c_analysis.datasets import MASTER_DATASET
+from km003c_analysis.helpers import (
+    get_adc_data,
+    get_adcqueue_data,
+    get_packet_type,
+    get_pd_events,
+    get_pd_status,
+)
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
 
-
-# Helper functions to extract data from new dict-based Packet API
-def get_packet_type(packet):
-    """Extract packet type from dict-based Packet."""
-    if isinstance(packet, dict):
-        # Return the variant key
-        return list(packet.keys())[0]
-    return None
+# The 1000 Hz captures were recorded with StartGraph(RATE_1000_SPS). AdcQueue
+# auxiliary voltages are rate-dependent, so a decoded sample needs that rate;
+# plain parse_packet() yields the lossless AdcQueueRawData instead.
+CAPTURE_GRAPH_RATE = RATE_1000_SPS
 
 
-def get_adc_data(packet):
-    """Extract ADC data from DataResponse packet."""
-    if "DataResponse" not in packet:
-        return None
-    payloads = packet["DataResponse"]["payloads"]
-    for payload in payloads:
-        if isinstance(payload, AdcData):
-            return payload
-    return None
-
-
-def get_adcqueue_data(packet):
-    """Extract AdcQueue data from DataResponse packet."""
-    if "DataResponse" not in packet:
-        return None
-    payloads = packet["DataResponse"]["payloads"]
-    for payload in payloads:
-        if isinstance(payload, AdcQueueData):
-            return payload
-    return None
-
-
-def get_pd_status(packet):
-    """Extract PD status from DataResponse packet."""
-    if "DataResponse" not in packet:
-        return None
-    payloads = packet["DataResponse"]["payloads"]
-    for payload in payloads:
-        if isinstance(payload, PdStatus):
-            return payload
-    return None
-
-
-def get_pd_events(packet):
-    """Extract PD events from DataResponse packet."""
-    if "DataResponse" not in packet:
-        return None
-    payloads = packet["DataResponse"]["payloads"]
-    for payload in payloads:
-        if isinstance(payload, PdEventStream):
-            return payload
-    return None
+def parse_adcqueue_packet(payload: bytes):
+    """Parse a capture payload with the rate its session was recorded at."""
+    return parse_packet_with_graph_rate(payload, CAPTURE_GRAPH_RATE)
 
 
 class TestPacketParsing:
@@ -177,14 +133,14 @@ class TestPacketParsing:
         # Packet too short (less than 4 bytes for header)
         short_packet = b"\x0c\x0a\x02"
 
-        with pytest.raises(Exception):  # Should raise ValueError from Rust
+        with pytest.raises(ValueError, match="too short"):
             parse_packet(short_packet)
 
     def test_parse_empty_packet(self):
         """Test parsing of empty packet."""
         empty_packet = b""
 
-        with pytest.raises(Exception):  # Should raise ValueError from Rust
+        with pytest.raises(ValueError, match="too short"):
             parse_packet(empty_packet)
 
     def test_adc_response_transaction_ids(self):
@@ -303,7 +259,7 @@ class TestChainedLogicalPackets:
         """Test ADC + PdStatus chained packet (68 bytes total)."""
         import polars as pl
 
-        dataset_path = project_root / "data/processed/usb_master_dataset.parquet"
+        dataset_path = MASTER_DATASET
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
 
@@ -346,7 +302,7 @@ class TestChainedLogicalPackets:
         """Test ADC + AdcQueue chained packet."""
         import polars as pl
 
-        dataset_path = project_root / "data/processed/usb_master_dataset.parquet"
+        dataset_path = MASTER_DATASET
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
 
@@ -365,7 +321,7 @@ class TestChainedLogicalPackets:
         for row in responses.iter_rows(named=True):
             payload = bytes.fromhex(row["payload_hex"])
             try:
-                packet = parse_packet(payload)
+                packet = parse_adcqueue_packet(payload)
                 adc_data = get_adc_data(packet)
                 adcqueue_data = get_adcqueue_data(packet)
 
@@ -394,7 +350,7 @@ class TestAdcQueueParsing:
         import polars as pl
 
         # Load dataset
-        dataset_path = project_root / "data/processed/usb_master_dataset.parquet"
+        dataset_path = MASTER_DATASET
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
 
@@ -420,7 +376,7 @@ class TestAdcQueueParsing:
             payload = bytes.fromhex(payload_hex)
 
             try:
-                packet = parse_packet(payload)
+                packet = parse_adcqueue_packet(payload)
                 adcqueue_data = get_adcqueue_data(packet)
                 adc_data = get_adc_data(packet)
 
@@ -475,7 +431,7 @@ class TestAdcQueueParsing:
         import polars as pl
 
         # Load a real AdcQueue packet from dataset
-        dataset_path = project_root / "data/processed/usb_master_dataset.parquet"
+        dataset_path = MASTER_DATASET
         if not dataset_path.exists():
             pytest.skip("Dataset not available")
 
@@ -493,7 +449,7 @@ class TestAdcQueueParsing:
         for row in responses.head(10).iter_rows(named=True):
             payload = bytes.fromhex(row["payload_hex"])
             try:
-                packet = parse_packet(payload)
+                packet = parse_adcqueue_packet(payload)
                 adcqueue_data = get_adcqueue_data(packet)
 
                 if adcqueue_data and len(adcqueue_data.samples) >= 10:

@@ -1,21 +1,14 @@
-import sys
-from pathlib import Path
-from typing import List, Tuple
-
 import polars as pl
 import pytest
 
-# Add project root to path to allow direct import of the package
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from km003c_analysis.core.transaction_tagger import tag_transactions
 from km003c_analysis.core.usb_transaction_splitter import split_usb_transactions
+from km003c_analysis.datasets import MASTER_DATASET
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-DATASET_PATH = PROJECT_ROOT / "data/processed/usb_master_dataset.parquet"
+DATASET_PATH = MASTER_DATASET
 
 
 @pytest.fixture(scope="module")
@@ -30,7 +23,7 @@ def tagged_df() -> pl.DataFrame:
 
 
 @pytest.fixture(scope="module")
-def tagged_source_dataframes() -> List[Tuple[str, pl.DataFrame]]:
+def tagged_source_dataframes() -> list[tuple[str, pl.DataFrame]]:
     """Fixture to split, and tag each source file separately."""
     if not DATASET_PATH.exists():
         pytest.fail(f"Master dataset not found at {DATASET_PATH}")

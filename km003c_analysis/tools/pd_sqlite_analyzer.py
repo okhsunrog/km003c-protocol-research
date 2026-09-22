@@ -36,9 +36,9 @@ import json
 import sqlite3
 import sys
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import usbpdpy
 
@@ -54,10 +54,10 @@ except ImportError:
 class PowerNegotiation:
     """Represents a complete power negotiation sequence."""
 
-    source_capabilities: Optional[usbpdpy.PdMessage] = None
-    request: Optional[usbpdpy.PdMessage] = None
-    accept: Optional[usbpdpy.PdMessage] = None
-    ps_rdy: Optional[usbpdpy.PdMessage] = None
+    source_capabilities: usbpdpy.PdMessage | None = None
+    request: usbpdpy.PdMessage | None = None
+    accept: usbpdpy.PdMessage | None = None
+    ps_rdy: usbpdpy.PdMessage | None = None
     timestamp_start: float = 0.0
     timestamp_end: float = 0.0
     voltage_before: float = 0.0
@@ -81,23 +81,12 @@ class AnalysisResults:
     """Complete analysis results from SQLite PD export."""
 
     total_events: int = 0
-    pd_messages: List[Dict[str, Any]] = None
-    source_capabilities: List[Dict[str, Any]] = None
-    negotiations: List[PowerNegotiation] = None
-    message_types: Dict[str, int] = None
-    power_profiles: List[Dict[str, Any]] = None
-
-    def __post_init__(self):
-        if self.pd_messages is None:
-            self.pd_messages = []
-        if self.source_capabilities is None:
-            self.source_capabilities = []
-        if self.negotiations is None:
-            self.negotiations = []
-        if self.message_types is None:
-            self.message_types = {}
-        if self.power_profiles is None:
-            self.power_profiles = []
+    pd_messages: list[dict[str, Any]] = field(default_factory=list)
+    source_capabilities: list[dict[str, Any]] = field(default_factory=list)
+    negotiations: list[PowerNegotiation] = field(default_factory=list)
+    message_types: dict[str, int] = field(default_factory=dict)
+    # One entry per distinct advertised profile; each is that profile's PDO list.
+    power_profiles: list[list[dict[str, Any]]] = field(default_factory=list)
 
 
 class SQLitePDAnalyzer:
@@ -107,9 +96,9 @@ class SQLitePDAnalyzer:
         self.verbose = verbose
         self.results = AnalysisResults()
 
-    def parse_pd_blob(self, blob: bytes) -> List[Dict[str, Any]]:
+    def parse_pd_blob(self, blob: bytes) -> list[dict[str, Any]]:
         """Parse KM003C PD event BLOB into individual PD messages."""
-        events = []
+        events: list[dict[str, Any]] = []
         if not blob:
             return events
 
@@ -206,7 +195,7 @@ class SQLitePDAnalyzer:
         negotiations = []
         current_negotiation = PowerNegotiation()
         last_source_capabilities = None
-        message_counter = Counter()
+        message_counter: Counter[str] = Counter()
 
         # Parse all events
         for time_s, vbus_v, ibus_a, raw in rows:
@@ -510,7 +499,7 @@ class SQLitePDAnalyzer:
             print(f"✅ PD messages exported to Parquet: {output_path}")
 
 
-def main():
+def main() -> None:
     """CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Comprehensive KM003C SQLite PD Export Analyzer",

@@ -15,8 +15,7 @@ Run: uv run --locked python scripts/parquet/analyze_km003c_protocol.py
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import polars as pl
 import usbpdpy
@@ -33,18 +32,8 @@ except ImportError:
     print("⚠️  km003c_lib not available - will use simplified analysis")
     KM003C_LIB_AVAILABLE = False
 
-try:
-    from scripts.km003c_helpers import (
-        get_packet_type,
-        get_pd_events,
-        get_pd_status,
-    )
-except Exception:
-    from km003c_helpers import (
-        get_packet_type,
-        get_pd_events,
-        get_pd_status,
-    )
+from km003c_analysis.datasets import MASTER_DATASET
+from km003c_analysis.helpers import get_packet_type, get_pd_events, get_pd_status
 
 
 @dataclass
@@ -52,14 +41,14 @@ class PdAnalysisResult:
     """Results from PD message analysis"""
 
     message_type: str
-    pdos: List[Dict[str, Any]]
-    rdos: List[Dict[str, Any]]
+    pdos: list[dict[str, Any]]
+    rdos: list[dict[str, Any]]
     raw_hex: str
     parse_success: bool
-    error: Optional[str] = None
+    error: str | None = None
 
 
-def extract_pdo_details(pdo: usbpdpy.PowerDataObj) -> Dict[str, Any]:
+def extract_pdo_details(pdo: usbpdpy.PowerDataObj) -> dict[str, Any]:
     """Extract PDO details for analysis"""
     return {
         "pdo_type": pdo.pdo_type,
@@ -70,7 +59,7 @@ def extract_pdo_details(pdo: usbpdpy.PowerDataObj) -> Dict[str, Any]:
     }
 
 
-def extract_rdo_details(rdo: usbpdpy.RequestDataObj) -> Dict[str, Any]:
+def extract_rdo_details(rdo: usbpdpy.RequestDataObj) -> dict[str, Any]:
     """Extract RDO details for analysis"""
     return {
         "object_position": rdo.object_position,
@@ -81,7 +70,7 @@ def extract_rdo_details(rdo: usbpdpy.RequestDataObj) -> Dict[str, Any]:
 
 
 def parse_pd_from_hex(
-    hex_data: str, pdo_state: Optional[List[usbpdpy.PowerDataObj]] = None
+    hex_data: str, pdo_state: list[usbpdpy.PowerDataObj] | None = None
 ) -> PdAnalysisResult:
     """Parse PD message from hex data"""
     try:
@@ -121,7 +110,7 @@ def analyze_km003c_protocol() -> None:
     """Comprehensive KM003C protocol analysis with PD parsing"""
 
     # Load the master dataset
-    dataset_path = Path("data/processed/usb_master_dataset.parquet")
+    dataset_path = MASTER_DATASET
     if not dataset_path.exists():
         print(f"Dataset not found: {dataset_path}")
         print("Run the USB capture processing pipeline first.")
@@ -177,8 +166,8 @@ def analyze_km003c_protocol() -> None:
     # Analyze payloads to find PD data using km003c_lib
     print("\nExtracting PD messages via km003c_lib...")
 
-    def _extract_pd_wires(pdev) -> List[bytes]:
-        wires: List[bytes] = []
+    def _extract_pd_wires(pdev) -> list[bytes]:
+        wires: list[bytes] = []
         try:
             events = getattr(pdev, "events", None)
             if not events:
