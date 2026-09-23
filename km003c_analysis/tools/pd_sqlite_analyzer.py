@@ -194,29 +194,25 @@ class SQLitePDAnalyzer:
         pd_messages = []
         negotiations = []
         current_negotiation = PowerNegotiation()
-        last_source_capabilities = None
         message_counter: Counter[str] = Counter()
+        # Resolves Requests against the last Source_Capabilities and
+        # reassembles chunked EPR_Source_Capabilities.
+        decoder = usbpdpy.PdDecoder()
 
         # Parse all events
         for time_s, vbus_v, ibus_a, raw in rows:
             events = self.parse_pd_blob(raw)
 
             for event in events:
-                if event["kind"] == "pd_message":
+                if event["kind"] == "connection":
+                    decoder.reset()
+                elif event["kind"] == "pd_message":
                     wire_bytes = event["wire_bytes"]
 
                     try:
-                        # Basic parsing first
-                        msg = usbpdpy.parse_pd_message(wire_bytes)
-
-                        # Enhanced parsing for Request messages (with PDO state)
-                        if (
-                            msg.header.message_type == "Request"
-                            and last_source_capabilities
-                        ):
-                            msg = usbpdpy.parse_pd_message_with_state(
-                                wire_bytes, last_source_capabilities.data_objects
-                            )
+                        msg = decoder.decode(wire_bytes)
+                        if msg is None:  # a chunk of an unfinished message
+                            continue
 
                         # Store message with context
                         pd_msg_info = {
@@ -245,7 +241,6 @@ class SQLitePDAnalyzer:
                                 timestamp_start=time_s,
                                 voltage_before=vbus_v,
                             )
-                            last_source_capabilities = msg
 
                         elif msg_type == "Request":
                             current_negotiation.request = msg

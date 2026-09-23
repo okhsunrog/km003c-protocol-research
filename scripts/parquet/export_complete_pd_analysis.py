@@ -132,7 +132,9 @@ def export_complete_pd_analysis() -> None:
 
     # Process all events
     analysis_records = []
-    last_source_capabilities = None
+    # Resolves Requests against the last Source_Capabilities and reassembles
+    # chunked EPR_Source_Capabilities.
+    decoder = usbpdpy.PdDecoder()
     negotiation_id = 0
 
     for row_id, (time_s, vbus_v, ibus_a, raw) in enumerate(rows):
@@ -152,6 +154,7 @@ def export_complete_pd_analysis() -> None:
             }
 
             if event["event_type"] == "connection":
+                decoder.reset()
                 # Connection event
                 record = {**base_record}
                 record.update(
@@ -170,17 +173,9 @@ def export_complete_pd_analysis() -> None:
                 wire_bytes = event["wire_bytes"]
 
                 try:
-                    # Basic parsing
-                    msg = usbpdpy.parse_pd_message(wire_bytes)
-
-                    # Enhanced parsing for Request messages
-                    if (
-                        msg.header.message_type == "Request"
-                        and last_source_capabilities
-                    ):
-                        msg = usbpdpy.parse_pd_message_with_state(
-                            wire_bytes, last_source_capabilities.data_objects
-                        )
+                    msg = decoder.decode(wire_bytes)
+                    if msg is None:  # a chunk of an unfinished message
+                        continue
 
                     # Base message info
                     record = {**base_record}
@@ -199,7 +194,6 @@ def export_complete_pd_analysis() -> None:
                     # Track negotiations
                     if msg.header.message_type == "Source_Capabilities":
                         negotiation_id += 1
-                        last_source_capabilities = msg
 
                     record["negotiation_id"] = negotiation_id
 
@@ -213,20 +207,14 @@ def export_complete_pd_analysis() -> None:
 
                     # RDO data (Request messages)
                     elif msg.request_objects:
+                        offered = decoder.source_capabilities
                         for rdo in msg.request_objects:
                             rdo_record = record.copy()
                             rdo_record.update(extract_rdo_details(rdo))
 
                             # Add requested PDO details if available
-                            if (
-                                last_source_capabilities
-                                and 1
-                                <= rdo.object_position
-                                <= len(last_source_capabilities.data_objects)
-                            ):
-                                requested_pdo = last_source_capabilities.data_objects[
-                                    rdo.object_position - 1
-                                ]
+                            if 1 <= rdo.object_position <= len(offered):
+                                requested_pdo = offered[rdo.object_position - 1]
                                 rdo_record.update(
                                     {
                                         "requested_pdo_type": requested_pdo.pdo_type,

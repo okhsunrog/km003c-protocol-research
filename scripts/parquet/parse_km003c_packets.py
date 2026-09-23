@@ -52,7 +52,10 @@ def main() -> None:
         & (pl.col("urb_type") == "C")
         & pl.col("payload_hex").is_not_null()
         & (pl.col("payload_hex") != "")
-    ).select(["source_file", "timestamp", "payload_hex"])  # compact
+    ).select(["source_file", "frame_number", "timestamp", "payload_hex"])  # compact
+    # Chunked messages only reassemble in capture order.
+    resp = resp.sort(["source_file", "frame_number"], maintain_order=True)
+    decoders: dict[str, usbpdpy.PdDecoder] = {}
 
     stats = {
         "adc_only_ok": 0,
@@ -99,10 +102,12 @@ def main() -> None:
             if pdev is not None:
                 wires = _extract_pd_messages_from_stream(pdev)
                 stats["pd_events_total"] += len(wires)
+                decoder = decoders.setdefault(row["source_file"], usbpdpy.PdDecoder())
                 ok = 0
                 for w in wires:
                     try:
-                        _ = usbpdpy.parse_pd_message(w)
+                        # None is a chunk the decoder buffered; it still parsed.
+                        _ = decoder.decode(w)
                         ok += 1
                     except Exception:
                         pass

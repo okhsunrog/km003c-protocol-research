@@ -142,13 +142,15 @@ instead of indexing `event.data` directly:
 import usbpdpy
 from km003c_analysis.helpers import iter_pd_messages, pd_event_kind
 
+decoder = usbpdpy.PdDecoder()  # one per connection, fed in capture order
 for message in iter_pd_messages(pkt):  # a parsed packet or a PdEventStream
-    decoded = usbpdpy.parse_pd_message(message.wire)
-    print(message.timestamp_ms, message.sop, decoded.header.message_type)
+    decoded = decoder.decode(message.wire)
+    if decoded is not None:  # None: a chunk of an unfinished message
+        print(message.timestamp_ms, message.sop, decoded.header.message_type)
 
 for event in pdev.events:
-    if pd_event_kind(event) == "Disconnect":
-        ...
+    if pd_event_kind(event) in ("Connect", "Disconnect"):
+        decoder.reset()
 ```
 
 Important: Avoid manual bit/byte parsing for KM003C headers in Python. Agents and scripts should use the Rust parser to prevent off-by-one mistakes in attribute masks and misinterpretation of `reserved_flag`.

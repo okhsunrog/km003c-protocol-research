@@ -20,7 +20,7 @@ except ImportError:
 
 from km003c import PdEventStream, parse_packet
 
-from km003c_analysis.helpers import pd_message_wire
+from km003c_analysis.helpers import iter_pd_messages, pd_message_wire
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
@@ -124,7 +124,7 @@ class TestPdMessageParsing:
 
     def test_request_parsing_with_state(self, pd_capture_data):
         """Test parsing Request messages with PDO state for proper RDO decoding."""
-        source_caps = None
+        decoder = usbpdpy.PdDecoder()
         request_found = False
         rdo_current_decoded = False
 
@@ -151,17 +151,11 @@ class TestPdMessageParsing:
                     continue
 
                 try:
-                    # Parse with or without state
-                    if source_caps:
-                        msg = usbpdpy.parse_pd_message_with_state(wire, source_caps)
-                    else:
-                        msg = usbpdpy.parse_pd_message(wire)
+                    msg = decoder.decode(wire)
+                    if msg is None:
+                        continue
 
                     msg_type = msg.header.message_type
-
-                    # Track Source_Capabilities
-                    if msg.is_source_capabilities():
-                        source_caps = list(msg.data_objects)
 
                     # Check Request messages
                     if msg_type == "Request" and msg.request_objects:
@@ -213,7 +207,7 @@ class TestPdMessageParsing:
 
     def test_pd_negotiation_sequence(self, pd_capture_data):
         """Test that we can follow a complete PD negotiation sequence."""
-        source_caps = None
+        decoder = usbpdpy.PdDecoder()
         seen_types = set()
         seen_events = set()
 
@@ -252,17 +246,9 @@ class TestPdMessageParsing:
                 seen_events.add(event_key)
 
                 try:
-                    if source_caps:
-                        msg = usbpdpy.parse_pd_message_with_state(wire, source_caps)
-                    else:
-                        msg = usbpdpy.parse_pd_message(wire)
-
-                    msg_type = msg.header.message_type
-                    seen_types.add(msg_type)
-
-                    if msg.is_source_capabilities():
-                        source_caps = list(msg.data_objects)
-
+                    msg = decoder.decode(wire)
+                    if msg is not None:
+                        seen_types.add(msg.header.message_type)
                 except Exception:
                     continue
 
@@ -367,3 +353,41 @@ class TestPdoDecoding:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+@pytest.mark.skipif(not USBPDPY_AVAILABLE, reason="usbpdpy not installed")
+def test_epr_source_capabilities_reassemble_from_the_capture():
+    """pd_epr0.9 sends its 32-byte EPR_Source_Capabilities in two chunks.
+
+    Single-message parsing rejects both chunks; PdDecoder, fed in capture order,
+    returns the assembled message with the 28 V EPR PDO at position 8.
+    """
+    if not DATASET.exists():
+        pytest.skip("Dataset not available")
+
+    capture = (
+        pl.read_parquet(DATASET)
+        .filter(
+            (pl.col("source_file") == "pd_epr0.9")
+            & (pl.col("endpoint_address") == "0x81")
+            & (pl.col("urb_type") == "C")
+        )
+        .sort("frame_number")
+    )
+
+    decoder = usbpdpy.PdDecoder()
+    epr_caps = []
+    for payload_hex in capture["payload_hex"]:
+        if not payload_hex:
+            continue
+        for message in iter_pd_messages(parse_packet(bytes.fromhex(payload_hex))):
+            msg = decoder.decode(message.wire)
+            if msg is not None and msg.header.message_type == "EPR_Source_Capabilities":
+                epr_caps.append(msg)
+
+    assert len(epr_caps) == 1
+    pdos = epr_caps[0].data_objects
+    assert len(pdos) == 8
+    assert pdos[7].pdo_type == "FixedSupply"
+    assert pdos[7].voltage_v == pytest.approx(28.0)
+    assert pdos[7].max_current_a == pytest.approx(5.0)

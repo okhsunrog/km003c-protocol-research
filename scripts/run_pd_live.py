@@ -126,21 +126,22 @@ class KM003CDevice:
                 break
 
 
-def decode_pd_wire(wire_data: bytes, source_caps=None) -> dict | None:
+def decode_pd_wire(decoder: usbpdpy.PdDecoder, wire_data: bytes) -> dict | None:
     """Decode PD wire bytes using usbpdpy.
 
     Args:
+        decoder: The connection's decoder, which resolves Requests against the
+            last Source_Capabilities and reassembles chunked messages
         wire_data: Raw PD wire bytes
-        source_caps: Optional list of PowerDataObj from previous Source_Capabilities
-    """
-    if len(wire_data) < 2:
-        return None
 
+    Returns:
+        The decoded fields, an ``error`` entry if decoding failed, or ``None``
+        for a chunk that does not complete its message yet.
+    """
     try:
-        if source_caps:
-            msg = usbpdpy.parse_pd_message_with_state(wire_data, source_caps)
-        else:
-            msg = usbpdpy.parse_pd_message(wire_data)
+        msg = decoder.decode(wire_data)
+        if msg is None:
+            return None
 
         result = {
             "type": msg.header.message_type,  # Already a string
@@ -149,7 +150,6 @@ def decode_pd_wire(wire_data: bytes, source_caps=None) -> dict | None:
             "power_role": msg.header.port_power_role,
             "data_role": msg.header.port_data_role,
             "spec_rev": msg.header.spec_revision,
-            "is_source_caps": msg.is_source_capabilities(),
         }
 
         # If Source Capabilities, include PDOs
@@ -188,8 +188,7 @@ def main():
     print("Capturing PD events (Ctrl+C to stop)...")
     print("=" * 80)
 
-    # Track Source Capabilities for Request decoding
-    source_caps = None
+    decoder = usbpdpy.PdDecoder()
 
     try:
         while True:
@@ -232,10 +231,11 @@ def main():
                     kind = pd_event_kind(event)
                     if kind == "Connect":
                         print(f"  [{ts:8d}ms] ** CONNECT **")
-                        source_caps = None  # Reset on new connection
+                        decoder.reset()
                         continue
                     if kind == "Disconnect":
                         print(f"  [{ts:8d}ms] ** DISCONNECT **")
+                        decoder.reset()
                         continue
 
                     sop = pd_message_sop(event)
@@ -244,15 +244,11 @@ def main():
                     # PD messages
                     if sop is not None:
                         if len(wire) >= 2:
-                            decoded = decode_pd_wire(wire, source_caps)
+                            decoded = decode_pd_wire(decoder, wire)
 
-                            if decoded and "type" in decoded:
-                                # Update source caps if this is Source_Capabilities
-                                if decoded.get("is_source_caps"):
-                                    # Re-parse to get the PowerDataObj list
-                                    msg = usbpdpy.parse_pd_message(wire)
-                                    source_caps = list(msg.data_objects)
-
+                            if decoded is None:
+                                print(f"  [{ts:8d}ms] SOP{sop}: chunk={wire.hex()}")
+                            elif "type" in decoded:
                                 role = f"{decoded['power_role']}/{decoded['data_role']}"
                                 obj_info = ""
                                 if decoded.get("data_objects"):

@@ -11,7 +11,7 @@ preserved but no typed semantic structure is exposed yet.
 | AdcQueue (`0x0002`) | Implemented | Implemented | Four rates, 1 kHz sequence timebase, rate-dependent auxiliary units |
 | PD 12-byte measurements | Implemented | Implemented | One layout/type for standalone, chained, and event preamble measurements |
 | PD event stream framing | Implemented | Implemented | Connect/disconnect and raw PD wire frames |
-| USB PD semantic decoding | Optional `usbpd` feature | Raw PD wire data | Shared typed decoder is used by km003c-egui and the CLI; Python receives SOP + wire bytes, read through `km003c_analysis.helpers.iter_pd_messages`, and decodes them with usbpdpy 0.3, which handles EPR_Request but not chunked extended messages |
+| USB PD semantic decoding | Optional `usbpd` feature | Raw PD wire data | Shared typed decoder is used by km003c-egui and the CLI; Python receives SOP + wire bytes, read through `km003c_analysis.helpers.iter_pd_messages`, and decodes them with `usbpdpy.PdDecoder` (0.4), which resolves Requests and reassembles chunked EPR_Source_Capabilities |
 | Settings (`0x0008`) | Implemented | Confirmed fields plus lossless raw data | Validates both CRCs; typed access is limited to firmware-confirmed fields and unknown bytes remain preserved |
 | LogMetadata (`0x0200`) | Implemented | Raw | Parses empty, single-entry, and multi-entry catalogs |
 | MemoryRead (`0x44`) | Implemented | Implemented | Rust validates confirmation and collects multi-transfer ciphertext; `km003c_analysis.device` re-exports the binding helpers |
