@@ -16,7 +16,12 @@ from km003c import parse_packet, parse_raw_packet
 
 from km003c_analysis.core import split_usb_transactions, tag_transactions
 from km003c_analysis.datasets import MASTER_DATASET
-from km003c_analysis.helpers import get_packet_type, get_pd_events, get_pd_status
+from km003c_analysis.helpers import (
+    get_packet_type,
+    get_pd_events,
+    get_pd_status,
+    pd_message_wire,
+)
 
 
 def explore_pd_capture_new9():
@@ -147,10 +152,9 @@ def explore_pd_capture_new9():
                     continue
                 events = getattr(pdev, "events", [])
                 for ev in events:
-                    wd = getattr(ev, "wire_data", None)
-                    if wd is None:
+                    wb = pd_message_wire(ev)
+                    if not wb:
                         continue
-                    wb = bytes(wd)
                     print(f"  PD wire ({len(wb)} bytes): {wb.hex()}")
                     try:
                         pd_msg = usbpdpy.parse_pd_message(wb)
@@ -197,10 +201,9 @@ def explore_pd_capture_new9():
                     if pdev is not None:
                         events = getattr(pdev, "events", [])
                         for ev in events:
-                            wd = getattr(ev, "wire_data", None)
-                            if wd is None:
+                            wb = pd_message_wire(ev)
+                            if not wb:
                                 continue
-                            wb = bytes(wd)
                             print(f"  PD wire ({len(wb)} bytes): {wb.hex()}")
                             try:
                                 pd_msg = usbpdpy.parse_pd_message(wb)

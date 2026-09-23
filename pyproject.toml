@@ -8,11 +8,11 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-    "km003c==0.3.0",
+    "km003c==0.4.0",
     "matplotlib>=3.5.0",
     "seaborn>=0.11.0",
     "numpy>=2.3.3",
-    "usbpdpy>=0.2.1",
+    "usbpdpy>=0.3.0",
     "polars",
     "streamlit>=1.49.1",
     "plotly>=6.3.0",
@@ -33,8 +33,6 @@ packages = ["km003c_analysis"]
 # importable from scripts, notebooks and tests without sys.path patching.
 package = true
 
-[tool.uv.sources]
-km003c = { git = "https://github.com/okhsunrog/km003c-rs", tag = "v0.3.0" }
 
 [dependency-groups]
 dev = [

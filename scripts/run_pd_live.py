@@ -23,6 +23,8 @@ from km003c import (
     parse_packet,
 )
 
+from km003c_analysis.helpers import pd_event_kind, pd_message_sop, pd_message_wire
+
 
 def get_packet_type(packet):
     """Extract packet type from dict-based Packet."""
@@ -223,49 +225,21 @@ def main():
                 )
 
                 for event in events_list:
-                    ts = event.timestamp
-                    data = getattr(event, "data", None)
-                    ev_repr = repr(event).lower()
+                    # The timestamp is a float in milliseconds; the columns
+                    # below format it as an integer.
+                    ts = int(event.timestamp)
 
-                    sop = None
-                    wire = b""
-                    # PdEventData::PdMessage comes through as dict with sop + wire_data
-                    if isinstance(data, dict):
-                        sop = data.get("sop")
-                        wire = bytes(data.get("wire_data", b"") or b"")
-                    # Fallback: direct tuple/variant payloads (Connect/Disconnect with transparent binding)
-                    elif isinstance(data, tuple) and len(data) == 0:
-                        # Connect/Disconnect come through as empty tuple () due to #[pyo3(transparent)]
-                        # Check repr to distinguish them
-                        if "type=connect" in ev_repr:
-                            print(f"  [{ts:8d}ms] ** CONNECT **")
-                            source_caps = None
-                            continue
-                        if "type=disconnect" in ev_repr:
-                            print(f"  [{ts:8d}ms] ** DISCONNECT **")
-                            continue
-                        # Unknown empty tuple variant
-                        sop = None
-                        wire = b""
-                    else:
-                        # Fallback: try to infer connect/disconnect from repr
-                        if "type=connect" in ev_repr:
-                            print(f"  [{ts:8d}ms] ** CONNECT **")
-                            source_caps = None
-                            continue
-                        if "type=disconnect" in ev_repr:
-                            print(f"  [{ts:8d}ms] ** DISCONNECT **")
-                            continue
-
-                    # Connection/status (0x21/0x22 with empty wire)
-                    # Note: 0x21 = 33 (connect), 0x22 = 34 (disconnect)
-                    if sop in (0x21, 0x22) and len(wire) == 0:
-                        if sop == 0x21:
-                            print(f"  [{ts:8d}ms] ** CONNECT **")
-                            source_caps = None  # Reset on new connection
-                        else:
-                            print(f"  [{ts:8d}ms] ** DISCONNECT **")
+                    kind = pd_event_kind(event)
+                    if kind == "Connect":
+                        print(f"  [{ts:8d}ms] ** CONNECT **")
+                        source_caps = None  # Reset on new connection
                         continue
+                    if kind == "Disconnect":
+                        print(f"  [{ts:8d}ms] ** DISCONNECT **")
+                        continue
+
+                    sop = pd_message_sop(event)
+                    wire = pd_message_wire(event) or b""
 
                     # PD messages
                     if sop is not None:

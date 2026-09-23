@@ -446,8 +446,16 @@ wheels = [
 
 [[package]]
 name = "km003c"
-version = "0.3.0"
-source = { git = "https://github.com/okhsunrog/km003c-rs?tag=v0.3.0#677a70e043367facbef86999f58a98d749164a4e" }
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/28/8b/42b50f115c2a54de4b301a01d9c3e268bd8cee837f2c1dd24c36efeed910/km003c-0.4.0.tar.gz", hash = "sha256:c1cec24d071016a862983d2e56deab6b8936ba1eb7ad97c70392a41a093c6faf", size = 128931, upload-time = "2026-09-22T15:19:41.967Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b2/2c/4bca2fb0c1370d0eaf7fa6cf06c1db51de970cb97d34bdbffa2def7451cb/km003c-0.4.0-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:f7eb0ab4483ea0ed4d7512e498f759544c400993aecd43408f4fb65d56684dff", size = 390128, upload-time = "2026-09-22T14:55:08.22Z" },
+    { url = "https://files.pythonhosted.org/packages/76/5c/acd770ddc043bbcda8c4cc233308454af9da234e3bd33e19bd4e73a96e4f/km003c-0.4.0-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:6fa0cd7db9a8581ce92bb93d4735966e5bd17ee6bddb7c69fe9b35ace3d9919d", size = 378163, upload-time = "2026-09-22T14:55:10.065Z" },
+    { url = "https://files.pythonhosted.org/packages/d6/7f/73c1f74afd91ed8f62d9e941dec5b44c9196f1efbd6351512430aa4fe7c6/km003c-0.4.0-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:d9cffd01461e0c61d5cc9bdff28be4dabe364c24a12f35663c574f9c219fb688", size = 436763, upload-time = "2026-09-22T14:55:11.849Z" },
+    { url = "https://files.pythonhosted.org/packages/bb/bc/e22b46c80da1f01f34c1780d8a65d02115556d5c1094f4cf4bde146c569d/km003c-0.4.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:cb1715715eb8639a7f97db7f1fdb74d8789c400a7d84d60577bf2bce321a9582", size = 457507, upload-time = "2026-09-22T14:55:13.549Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/26/7458bbbc80b1972b7052122b1c3ec1cfbe20c968dd0c2c44d2cb55ca7f66/km003c-0.4.0-cp38-abi3-win_amd64.whl", hash = "sha256:d73e883b088c9f9d74b5225619f97c8b0ac248a57acb035a9c4ac3c4083320e5", size = 281077, upload-time = "2026-09-22T14:55:14.948Z" },
+]
 
 [[package]]
 name = "km003c-protocol-research"
@@ -480,7 +488,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "km003c", git = "https://github.com/okhsunrog/km003c-rs?tag=v0.3.0" },
+    { name = "km003c", specifier = "==0.4.0" },
     { name = "matplotlib", specifier = ">=3.5.0" },
     { name = "numpy", specifier = ">=2.3.3" },
     { name = "plotly", specifier = ">=6.3.0" },
@@ -490,7 +498,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "seaborn", specifier = ">=0.11.0" },
     { name = "streamlit", specifier = ">=1.49.1" },
-    { name = "usbpdpy", specifier = ">=0.2.1" },
+    { name = "usbpdpy", specifier = ">=0.3.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -1471,11 +1479,15 @@ wheels = [
 
 [[package]]
 name = "usbpdpy"
-version = "0.2.1"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/df/08/e928505b4e0e2265cf4ef51cd785640ed6bb0d2e654f498199d93041c599/usbpdpy-0.2.1.tar.gz", hash = "sha256:d78b2ef3006543661e6c1cd2dfc622d9f51e8356479126e0003ee9bc331cb5b7", size = 32048, upload-time = "2025-12-07T06:18:35.978Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/93/07/fd5dc752f68327665817e3b363b71f66b8dfa27a19a731685d12e184270a/usbpdpy-0.3.0.tar.gz", hash = "sha256:9537e923bc5dacfd53a883fa63566ee8746edc021f78eca07df6828d7406de5d", size = 32436, upload-time = "2026-09-23T01:26:51.459Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4d/ff/75af73eed618397ace3877cbd90227d0463af1bb2fc846144891af4e773c/usbpdpy-0.2.1-cp312-cp312-manylinux_2_34_x86_64.whl", hash = "sha256:f542754e7a1231789276703589ce96ad62c5e6df17946ebe810e77a520baa9f4", size = 272222, upload-time = "2025-12-07T06:18:33.929Z" },
+    { url = "https://files.pythonhosted.org/packages/62/ef/381a8a99fdcf04599fa64ac0d84ec6d900269600dcab9b87d1e72a6dd4d1/usbpdpy-0.3.0-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:118f346a28470d4eeddb84f38ae4273daf87c7aae67b0e31356ee9d99b5de405", size = 294581, upload-time = "2026-09-23T01:26:40.752Z" },
+    { url = "https://files.pythonhosted.org/packages/28/d8/3bf894876351c77f1f7f6a4c99064ed8f70fd900f81b0963b07e0dac3436/usbpdpy-0.3.0-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:8b91ae09e0f29d5e5a6b802db2c36beb57c6f949a540b4f80e8e699da530a365", size = 295708, upload-time = "2026-09-23T01:26:43.691Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/94/944798fe7c6b362011d9cc0a853380a0f120409ae273e9bb0802227bf001/usbpdpy-0.3.0-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:f0bcd26c15e38a1c62053056a94a66d20a7caab306826d4f32bcd66ed2adb59c", size = 335994, upload-time = "2026-09-23T01:26:45.736Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/0c/350fbc3cd09b863b55ef291c8c3311fe09136ce70a8c07648b62433173fe/usbpdpy-0.3.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4e3e0cb60b0ab80fb01cd45aa39b6811d33eb369f712872e7e544db50e41ad34", size = 338375, upload-time = "2026-09-23T01:26:47.75Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/9f/21c744e663083cabfbdaae10e6b705b270614234b552183deee458478c87/usbpdpy-0.3.0-cp38-abi3-win_amd64.whl", hash = "sha256:0555484ce4168afaf6fc7c975e4d5a0faf58f8dee4583728235383920e7ad6d0", size = 186636, upload-time = "2026-09-23T01:26:49.621Z" },
 ]
 
 [[package]]

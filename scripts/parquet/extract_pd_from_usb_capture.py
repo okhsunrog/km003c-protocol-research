@@ -16,7 +16,12 @@ from km003c import parse_packet
 
 from km003c_analysis.core import split_usb_transactions, tag_transactions
 from km003c_analysis.datasets import MASTER_DATASET
-from km003c_analysis.helpers import get_packet_type, get_pd_events, get_pd_status
+from km003c_analysis.helpers import (
+    get_packet_type,
+    get_pd_events,
+    get_pd_status,
+    pd_message_wire,
+)
 
 
 def parse_wrapped_pd_events(payload_bytes, offset=0):
@@ -121,12 +126,8 @@ def extract_pd_messages_from_capture():
                 events = getattr(pdev, "events", [])
                 print(f"Parsed {len(events)} events from PdEventStream")
                 for e in events:
-                    wire_data = getattr(e, "wire_data", None)
-                    if wire_data is None:
-                        continue
-                    try:
-                        wire_bytes = bytes(wire_data)
-                    except Exception:
+                    wire_bytes = pd_message_wire(e)
+                    if not wire_bytes:
                         continue
                     try:
                         pd_msg = usbpdpy.parse_pd_message(wire_bytes)

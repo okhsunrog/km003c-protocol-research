@@ -1,7 +1,7 @@
 # km003c-lib Implementation Status
 
 This matrix compares the protocol documented in this repository with the Rust
-implementation in the pinned `km003c` 0.3.0 package. “Raw” means framing is
+implementation in the pinned `km003c` 0.4.0 package. “Raw” means framing is
 preserved but no typed semantic structure is exposed yet.
 
 | Protocol Area | Rust Library | Python Bindings | Notes |
@@ -11,14 +11,14 @@ preserved but no typed semantic structure is exposed yet.
 | AdcQueue (`0x0002`) | Implemented | Implemented | Four rates, 1 kHz sequence timebase, rate-dependent auxiliary units |
 | PD 12-byte measurements | Implemented | Implemented | One layout/type for standalone, chained, and event preamble measurements |
 | PD event stream framing | Implemented | Implemented | Connect/disconnect and raw PD wire frames |
-| USB PD semantic decoding | Optional `usbpd` feature | Raw PD wire data | Shared typed decoder is used by km003c-egui and the CLI; Python receives SOP + wire bytes |
+| USB PD semantic decoding | Optional `usbpd` feature | Raw PD wire data | Shared typed decoder is used by km003c-egui and the CLI; Python receives SOP + wire bytes, read through `km003c_analysis.helpers.iter_pd_messages`, and decodes them with usbpdpy 0.3, which handles EPR_Request but not chunked extended messages |
 | Settings (`0x0008`) | Implemented | Confirmed fields plus lossless raw data | Validates both CRCs; typed access is limited to firmware-confirmed fields and unknown bytes remain preserved |
 | LogMetadata (`0x0200`) | Implemented | Raw | Parses empty, single-entry, and multi-entry catalogs |
-| MemoryRead (`0x44`) | Implemented | `km003c_analysis.device` | Rust validates confirmation and collects multi-transfer ciphertext; the Python side has one implementation of the framing, which defers to the bindings once a release exposes them |
+| MemoryRead (`0x44`) | Implemented | Implemented | Rust validates confirmation and collects multi-transfer ciphertext; `km003c_analysis.device` re-exports the binding helpers |
 | Offline log workflow | Implemented | Research script | Typed `uom` samples, per-entry offsets, CSV/JSON CLI export |
-| StreamingAuth level 1 (`0x4C`) | Implemented | `km003c_analysis.device` | HardwareID-based AdcQueue authentication |
-| Authentication level 2 | Implemented | Crypto parsing helpers | Preferred/fallback credential selection, `0x0205` response, and post-auth AdcQueue were verified on V1.9.9 hardware |
-| Enable/Disable PD monitor | Implemented | Constants/parsing | Exact device-side effect remains unknown |
+| StreamingAuth level 1 (`0x4C`) | Implemented | Implemented | HardwareID-based AdcQueue authentication |
+| Authentication level 2 | Implemented | Packet building and response parsing | Preferred/fallback credential selection, `0x0205` response, and post-auth AdcQueue were verified on V1.9.9 hardware |
+| Enable/Disable PD monitor | Implemented | Implemented | Exact device-side effect remains unknown |
 | PD state trace (`0x0020`) | Implemented | Implemented | Typed V1.9.9 Type-C states and confirmed receive markers; unknown protocol-engine states remain lossless; empty, full, zero-count, connect/disconnect, and chained responses are capture-backed |
 | UFCS trace (`0x0040`) | Not implemented | Not implemented | Record layout and producers are firmware-derived, not confirmed in framed captures |
 | Flash write / command `0x4B` / settings writes `0x48` / `0x4D` | Not implemented | Not implemented | Nested settings layout is firmware-confirmed, but writes remain research-only until safe semantics and hardware behavior are confirmed |

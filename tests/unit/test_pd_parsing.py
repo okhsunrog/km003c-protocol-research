@@ -20,6 +20,8 @@ except ImportError:
 
 from km003c import PdEventStream, parse_packet
 
+from km003c_analysis.helpers import pd_message_wire
+
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
 
@@ -103,12 +105,9 @@ class TestPdMessageParsing:
                 continue
 
             for event in pd_events.events:
-                data = event.data
-
-                if not isinstance(data, dict) or "wire_data" not in data:
+                wire = pd_message_wire(event)
+                if wire is None:
                     continue
-
-                wire = bytes(data["wire_data"])
                 if len(wire) < 2:
                     continue
 
@@ -145,12 +144,9 @@ class TestPdMessageParsing:
                 continue
 
             for event in pd_events.events:
-                data = event.data
-
-                if not isinstance(data, dict) or "wire_data" not in data:
+                wire = pd_message_wire(event)
+                if wire is None:
                     continue
-
-                wire = bytes(data["wire_data"])
                 if len(wire) < 2:
                     continue
 
@@ -238,12 +234,9 @@ class TestPdMessageParsing:
 
             for event in pd_events.events:
                 ts = event.timestamp
-                data = event.data
-
-                if not isinstance(data, dict) or "wire_data" not in data:
+                wire = pd_message_wire(event)
+                if wire is None:
                     continue
-
-                wire = bytes(data["wire_data"])
 
                 # Skip connection events
                 if len(wire) == 0:
@@ -305,11 +298,9 @@ class TestPdoDecoding:
                 continue
 
             for event in pd_events.events:
-                data = event.data
-                if not isinstance(data, dict) or "wire_data" not in data:
+                wire = pd_message_wire(event)
+                if wire is None:
                     continue
-
-                wire = bytes(data["wire_data"])
                 if len(wire) < 2:
                     continue
 
@@ -349,11 +340,9 @@ class TestPdoDecoding:
                 continue
 
             for event in pd_events.events:
-                data = event.data
-                if not isinstance(data, dict) or "wire_data" not in data:
+                wire = pd_message_wire(event)
+                if wire is None:
                     continue
-
-                wire = bytes(data["wire_data"])
                 if len(wire) < 2:
                     continue
 

@@ -33,7 +33,12 @@ except ImportError:
     KM003C_LIB_AVAILABLE = False
 
 from km003c_analysis.datasets import MASTER_DATASET
-from km003c_analysis.helpers import get_packet_type, get_pd_events, get_pd_status
+from km003c_analysis.helpers import (
+    get_packet_type,
+    get_pd_events,
+    get_pd_status,
+    iter_pd_messages,
+)
 
 
 @dataclass
@@ -167,32 +172,7 @@ def analyze_km003c_protocol() -> None:
     print("\nExtracting PD messages via km003c_lib...")
 
     def _extract_pd_wires(pdev) -> list[bytes]:
-        wires: list[bytes] = []
-        try:
-            events = getattr(pdev, "events", None)
-            if not events:
-                return wires
-            for e in events:
-                # pyi style
-                event_type = getattr(e, "event_type", None)
-                wire_data = getattr(e, "wire_data", None)
-                if event_type == "pd_message" and wire_data is not None:
-                    try:
-                        wires.append(bytes(wire_data))
-                        continue
-                    except Exception:
-                        pass
-                # alt repr
-                if isinstance(e, dict):
-                    wd = e.get("wire_data")
-                    if wd is not None:
-                        try:
-                            wires.append(bytes(wd))
-                        except Exception:
-                            pass
-        except Exception:
-            return wires
-        return wires
+        return [message.wire for message in iter_pd_messages(pdev)]
 
     pd_candidates = []
     for payload in all_payloads:

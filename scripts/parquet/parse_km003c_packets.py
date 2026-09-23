@@ -30,45 +30,17 @@ from km003c_analysis.helpers import (
     get_packet_type,
     get_pd_events,
     get_pd_status,
+    iter_pd_messages,
 )
 
 
 def _extract_pd_messages_from_stream(pdev: Any) -> list[bytes]:
-    """Extract raw PD wire messages (bytes) from a PdEventStream object.
+    """Raw PD wire messages from a PdEventStream.
 
-    Falls back gracefully if the event objects don't expose wire_data.
+    This used to look for a `wire_data` attribute on the event objects, which
+    `PdEvent` has never had, so it returned no messages at all.
     """
-    messages: list[bytes] = []
-    try:
-        events = getattr(pdev, "events", None)
-        if not events:
-            return messages
-        for e in events:
-            # Prefer pyi-compatible fields if available
-            event_type = getattr(e, "event_type", None)
-            if event_type == "pd_message":
-                wire_data = getattr(e, "wire_data", None)
-                if wire_data is not None:
-                    try:
-                        messages.append(bytes(wire_data))
-                        continue
-                    except Exception:
-                        pass
-            # Fallback: try direct attributes (sop, wire_data) or dict-like
-            if isinstance(e, dict):
-                wd = e.get("wire_data")
-                if wd is not None:
-                    try:
-                        messages.append(bytes(wd))
-                    except Exception:
-                        pass
-            else:
-                wd = getattr(e, "wire_data", None)
-                if isinstance(wd, (bytes, bytearray)):
-                    messages.append(bytes(wd))
-    except Exception:
-        return messages
-    return messages
+    return [message.wire for message in iter_pd_messages(pdev)]
 
 
 def main() -> None:
