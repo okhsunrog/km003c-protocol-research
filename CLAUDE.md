@@ -67,6 +67,7 @@ pd_candidates = tx_tagged.filter(
 
 Recommended patterns:
 - High‑level: `parse_packet()` then use helpers: `get_packet_type`, `get_adc_data`, `get_pd_status`, `get_pd_events`.
+- PD events: `PdEvent.data` is a one-key variant dict (`Connect`, `Disconnect`, `PdMessage`). Use `iter_pd_messages`, `pd_event_kind`, `pd_message_sop` and `pd_message_wire` from `km003c_analysis.helpers`; never read `event.data` or a `wire_data` attribute directly. Decode the wire bytes with `usbpdpy`.
 - Low‑level: `parse_raw_packet()` to inspect `header` and `logical_packets` in the `"Data"` variant.
 
 Example:

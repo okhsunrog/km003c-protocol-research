@@ -56,8 +56,8 @@ sudo udevadm trigger
 uv sync
 ```
 
-`uv sync` installs the Rust-backed `km003c` Python package from the pinned
-`km003c-rs` release in `uv.lock`.
+`uv sync` installs the Rust-backed `km003c` Python package and the `usbpdpy` USB PD
+decoder from PyPI, at the versions pinned in `uv.lock`.
 
 ### PCAP Conversion
 
@@ -132,6 +132,23 @@ if isinstance(raw, dict) and "Data" in raw:
     hdr = raw["Data"]["header"]
     for lp in raw["Data"]["logical_packets"]:
         attr = lp.get("attribute")  # e.g. 1, 2, 8, 16
+```
+
+PD events are one-key variant dictionaries (`{"Connect": None}`,
+`{"PdMessage": {"sop": ..., "wire_data": [...]}}`). Read them through the helpers
+instead of indexing `event.data` directly:
+
+```python
+import usbpdpy
+from km003c_analysis.helpers import iter_pd_messages, pd_event_kind
+
+for message in iter_pd_messages(pkt):  # a parsed packet or a PdEventStream
+    decoded = usbpdpy.parse_pd_message(message.wire)
+    print(message.timestamp_ms, message.sop, decoded.header.message_type)
+
+for event in pdev.events:
+    if pd_event_kind(event) == "Disconnect":
+        ...
 ```
 
 Important: Avoid manual bit/byte parsing for KM003C headers in Python. Agents and scripts should use the Rust parser to prevent off-by-one mistakes in attribute masks and misinterpretation of `reserved_flag`.
