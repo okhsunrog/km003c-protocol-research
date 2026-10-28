@@ -225,8 +225,7 @@ native DFU on its 90-second deadline. Stock 1.9.9 was restored and verified by
 full 453828-byte readback; loader bytes `[0x4,0x4000)` still matched the original.
 
 [Source, hardware log and acceptance evidence](https://github.com/okhsunrog/km003c-firmware/tree/main/hardware/display-buttons)
-are maintained with the firmware. The two-second Exit return path is implemented
-but was not separately tested; the lightning button's CC electrical behavior
+are maintained with the firmware. The two-second Exit return path was subsequently verified on hardware; the lightning button's CC electrical behavior
 remains a separate investigation.
 
 ## INA229 acceptance against stock 2.0.7 (2026-10-28)
@@ -245,8 +244,9 @@ The 2.0.7 current helper at `0x6d78` normalizes CURRENT to a signed 24-bit resul
 in the narrow range, or four times that value in the wide range. The ADC task
 passes it as microamps to calibration at `0x17b1c`. With SHUNT_CAL `0x1062`,
 that gives 16/64 microamps per signed 20-bit count before factory correction.
-The Rust UI labels this current `I0`; it does not silently apply unit-specific
-factory coefficients. No physical shunt resistance is inferred from this alone.
+The initial Rust image labelled this current `I0`. The subsequent meter image
+loads validated factory coefficients from flash and labels corrected values CAL.
+No physical shunt resistance is inferred from the current scale alone.
 
 On this unit stock calibration RAM at `0x1fffb5a8` contains five voltage offsets
 of -6 microvolts, ten current gains of 1002221 ppm and current offset 94 microamps.
@@ -255,3 +255,31 @@ Stock protocol data was read through `km003c-rs`, including uncalibrated average
 The load changed over time, so sequential readings do not certify metrology
 accuracy. See the firmware repository's
 [hardware evidence](https://github.com/okhsunrog/km003c-firmware/tree/main/hardware/adc-207).
+
+## Explicit INA229 startup and factory settings
+
+The custom firmware now applies `0170/fdb0/1062/001e`, reads it back and waits
+for conversion-ready before publishing measurements. A sensor-only reset test
+observed defaults `0000/fb68/1000/0000` and then collected 360 samples with the
+native profile. This is not whole-board cold-start acceptance.
+
+Stock 2.0.7 startup `0x48520` calls settings reader `0x21818` with offset `0x100`;
+that reader adds `0x3ff000`. The persistent 96-byte settings-A block therefore
+lives at external flash `0x3ff100`, with CRC-32 over its first 92 bytes. The QSPI
+reader `0xce24` accesses mapped flash; `0xcd88` exits QPI. Our read-only path uses
+`FF/90/03` before panel initialization. Legacy flash ID `0x8515` is measured;
+the exact flash model remains unknown. The persistent block CRC is `0x52677441`.
+
+The live RAM copy at `0x1fffb5a8` has a mutable word at `+0x10` while its CRC
+remains unchanged. Thus the strict Settings protocol decoder rejects that live
+copy even though persistent calibration is valid. Do not relax persistent CRC
+checks or infer calibration corruption from this protocol failure alone.
+
+Native correction entry `0x17b1c` was executed in Unicorn with a synthetic
+calibration profile, stopping at `0x4d244` after instantaneous outputs were
+stored at `0x1fffacf0/f4`. All 324 voltage/current boundary and sign vectors match
+the Rust implementation. The new meter UI shows large V/A/W and temperature,
+with CAL only for validated coefficients; button diagnostics stay in retention.
+A normal ten-minute run collected 2400 samples with valid factory correction;
+USB echo passed all nine sizes. Physical cold-start/visual acceptance is pending.
+See [startup/calibration evidence](https://github.com/okhsunrog/km003c-firmware/tree/main/hardware/cold-adc).
