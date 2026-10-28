@@ -283,3 +283,39 @@ with CAL only for validated coefficients; button diagnostics stay in retention.
 A normal ten-minute run collected 2400 samples with valid factory correction;
 USB echo passed all nine sizes. Physical cold-start/visual acceptance is pending.
 See [startup/calibration evidence](https://github.com/okhsunrog/km003c-firmware/tree/main/hardware/cold-adc).
+
+## Passive PD reception and CDC telemetry (2026-10-28)
+
+The existing `km003c-rs` CLI captured stock 2.0.7 with
+`km003c --reset pd capture --duration 20 --raw`. Pixel 8 Pro, confirmed by the
+owner to be charging over PPS, produced two Request/GoodCRC/Accept/GoodCRC/
+PS_RDY/GoodCRC cycles 9.207 seconds apart. The command ended normally. No initial
+Source_Capabilities were captured in this already-connected session.
+
+The Rust image now sends measurements and command-driven passive PD bursts over
+USB CDC as NDJSON. With a 15-second acquisition deadline, PA0/CMP1_INP1 yielded
+three CRC-valid SOP Requests in a 40-second run. All raw chunks were complete;
+there were zero decode errors, 160 contiguous calibrated measurement records,
+and zero reported CDC drops. This identifies a live PD receive input for this
+cable orientation; it does not label physical CC1/CC2 or the opposite orientation.
+
+Hardware comparison exposed two incorrect register interpretations in the first
+capture adapter. TimerA overflow control/status is BCSTRH at byte offset `+0x81`,
+not halfword `+0x82`. DMA live remaining count comes from MONDTCTL2
+(`0x400530e8`), not programmed DTCTL2 (`0x400530c8`), consistent with the official
+DDL `DMA_GetTransCount`. Both are fixed in the firmware repository.
+
+Measured intervals cluster at 15/19/23 and 35/39/43 ticks. Half-bit 20 with
+five-tick tolerance decodes captured RDO `0x63039a26` with valid CRC. The first
+captured edge starts the timer and has no previous interval; it remains in raw
+records but is excluded from decoding. This measured burst is a regression test.
+
+VCOUT/TX/termination outputs remained disabled. Acquisition is still single-burst:
+processing and USB raw output leave blind intervals that can miss fast replies.
+A separate acquisition/processing buffer is required before claiming complete
+negotiation capture. Stock 2.0.7 was restored by full 456896-byte readback after
+the test; loader preservation is checked separately.
+
+[Reference traffic, raw intervals and acceptance](https://github.com/okhsunrog/km003c-firmware/tree/main/hardware/pd-cdc)
+and [CDC command protocol](https://github.com/okhsunrog/km003c-firmware/blob/main/docs/cdc-telemetry.md)
+are maintained with the custom firmware.
