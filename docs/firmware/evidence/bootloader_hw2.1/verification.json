@@ -1,0 +1,83 @@
+{
+  "checked_on": "2026-10-28",
+  "hardware_operations_in_this_pass": false,
+  "disassembler": "Capstone 5.0.9",
+  "bootloader_length": 16380,
+  "bootloader_sha256": "17d51eeff9fb6abe1a7024a108006248e0aaebdaae52de69a3e26c000565d4bf",
+  "exported_instructions_decodable_from_copied_binary": 3692,
+  "direct_branch_targets_cross_checked": 362,
+  "startup_records": [
+    [
+      "0x2ab0",
+      "0x1fff8000",
+      "0x90",
+      "0x28c8"
+    ],
+    [
+      "0x2b40",
+      "0x1fff8090",
+      "0xb0",
+      "0x28c8"
+    ],
+    [
+      "0x2bf0",
+      "0x1fff8140",
+      "0x37c8",
+      "0x28d6"
+    ]
+  ],
+  "previous_hardware_cycle_artifacts_rechecked": {
+    "final_application_matches_original": true,
+    "application_bytes": 453828,
+    "application_sha256": "1917eb2f05fb848c4f98323d17cbd6eacc3252dfc0f16bb479f8564e0311417a",
+    "application_readback_trailing_bytes_excluded": 12,
+    "final_bootloader_matches_copied_dump": true,
+    "bootloader_readback_trailing_bytes_excluded": 4
+  },
+  "historical_capture_control_frames_verified_against_master_dataset": [
+    {
+      "capture": "updating_firmware.7",
+      "frame": 1994
+    },
+    {
+      "capture": "updating_firmware.8",
+      "frame": 3859
+    },
+    {
+      "capture": "updating_firmware.8",
+      "frame": 5563
+    },
+    {
+      "capture": "updating_firmware.8",
+      "frame": 5565
+    },
+    {
+      "capture": "updating_firmware.8",
+      "frame": 5567
+    },
+    {
+      "capture": "updating_firmware.8",
+      "frame": 5665
+    },
+    {
+      "capture": "updating_firmware.8",
+      "frame": 5679
+    },
+    {
+      "capture": "updating_firmware.8",
+      "frame": 6221
+    },
+    {
+      "capture": "updating_firmware.8",
+      "frame": 6223
+    },
+    {
+      "capture": "updating_firmware.8",
+      "frame": 6285
+    },
+    {
+      "capture": "updating_firmware.9",
+      "frame": 7686
+    }
+  ]
+}

@@ -2,6 +2,12 @@
 
 Reverse engineering notes for the decrypted KM003C firmware (v1.9.9).
 
+Code and string locations below retain the original image-offset labels unless
+explicitly identified as runtime addresses. The application is loaded at
+`0x00004000`; add `0x4000` to an image offset to obtain its flash address.
+Register addresses and raw vector-table values are already runtime addresses.
+See [HC32F460 Register Analysis](hc32f460_analysis.md) for the verified mapping.
+
 ---
 
 ## Firmware Properties
@@ -23,9 +29,11 @@ Reverse engineering notes for the decrypted KM003C firmware (v1.9.9).
 
 | Region | Start | End | Size | Description |
 |--------|-------|-----|------|-------------|
-| ROM | 0x00000000 | 0x0006ebef | 453,616 | Firmware code/data |
-| SRAM | 0x20000000+ | - | ~26KB | Stack, heap, variables |
-| External | 0x03000xxx | - | 4MB | External flash |
+| Application image | 0x00004000 | 0x00072bef | 453,616 bytes | File mapped into internal flash |
+| Main SRAM | 0x1fff8000 | 0x20026fff | 188 KiB | Includes RAM-resident code and application data |
+| Retention SRAM | 0x200f0000 | 0x200f0fff | 4 KiB | Separate retained RAM bank |
+| OTP/calibration | 0x03000c00 | 0x03000ffb | 1,020 bytes | Internal OTP region in the vendor device pack |
+| QSPI registers | 0x9c000000 | - | - | Controller registers, not the external flash contents |
 | Peripherals | 0x40000000+ | - | - | MCU peripherals |
 
 ---
@@ -120,76 +128,107 @@ switch(*param_3) {
 
 ## MCU Identification
 
-**Derived:** The image targets a Cortex-M4F MCU with a Kinetis-like peripheral
-map. A K66-family part is a plausible candidate, but the exact ordering code
-has not been confirmed from chip markings or a readable device-ID register.
+**Teardown evidence:** The author identifies the MCU in the photographed KM003C
+as a Huada/HDSC **HC32F460**. The article does not specify its ordering suffix.
+The component photograph resolves the marking as `F460JETA`, consistent with
+**HC32F460JETA** in LQFP48 (12 exposed leads on each side).
+See tomoca2's
+[January 6, 2024 teardown and repair article](https://tomoca2.hatenablog.com/entry/2024/01/06/091942)
+and its [component-side photograph](https://cdn-ak.f.st-hatena.com/images/fotolife/t/tomoca2/20240105/20240105220534.jpg).
 
-### Evidence
+The article reports these MCU specifications:
 
-| Feature | Address/Value | Notes |
-|---------|---------------|-------|
-| SIM-related write | 0xa5a50000 @ 0x40048010 | Consistent with the inferred family |
-| DMA-related write | 0xa500 @ 0x40053bfc | Consistent with the inferred family |
-| eDMA | 0x40053xxx | Matches Kinetis |
-| DMAMUX | 0x40054xxx | Matches Kinetis |
-| USB FS | 0x40040xxx | Matches Kinetis |
-| I2C | 0x4004e8xx | Matches Kinetis |
-| Watchdog | 0x40049xxx | Matches Kinetis |
-| Bootloader ROM | 0x1fff8xxx | Matches Kinetis |
-| Bit-band alias | 0x42xxxxxx | Matches Kinetis |
+| Property | Reported value |
+|----------|----------------|
+| Core | ARM Cortex-M4 with floating-point support |
+| Clock capability | 200 MHz |
+| Internal flash | 512 KB |
+| SRAM | 192 KB, including 32 KB high-speed RAM |
+| Retention RAM | 4 KB RRAM |
+
+The article identifies the examined PCB as manufactured on September 12, 2022.
+It also shows a KAMCAP 3.0 V, 0.35 F supercapacitor. These observations apply to
+the photographed hardware; they do not establish the part fitted to every
+KM003C revision. The V1.9.9 application and the separately captured HW 2.1
+bootloader independently match the HC32F460 register map in the
+[official HDSC device pack](https://www.keil.arm.com/packs/hc32f460-hdsc/versions/).
 
 ### Clock Configuration
 
-- Base oscillator: 16 MHz
-- UI/firmware-derived core frequency: 192 MHz (requires hardware confirmation)
+- Firmware clock calculation uses a 16 MHz input.
+- Initialization programs MPLLN=11, MPLLP=0 and selects MPLL. With MPLLM=0,
+  this gives 192 MHz; the routine also stores `192000000` in RAM. This is
+  firmware evidence, not a measurement of the physical clock. The teardown's
+  200 MHz describes MCU capability, not the configured KM003C clock.
 - NVIC registers seen at `0xe000e100` (ISER), `0xe000e280` (ICPR), `0xe000e400` (IPR).
-- Architecture: ARM Cortex-M4F (confirmed by vector table analysis)
+- Architecture: ARM Cortex-M4F, supported by the chip identification and vendor pack.
 
 ---
 
-## Peripheral Map (Derived)
+## Peripheral Map (HC32F460)
+
+Names below are matched against the vendor SVD/header and firmware accesses.
+Detailed instruction locations and the evidence limits are recorded in
+[HC32F460 Register Analysis](hc32f460_analysis.md).
 
 | Address | Peripheral | Notes |
 |---------|------------|-------|
-| 0x40008010 | Hardware AES input | Crypto engine |
-| 0x40008020 | Hardware AES key | Key register |
-| 0x40015400 | Timer/TPM 0 | FlexTimer |
-| 0x40016400 | Timer/TPM 1 | FlexTimer |
-| 0x4001dxxx | LPUART/FlexIO | UFCS single-wire |
-| 0x40024xxx | CMP/DAC | UFCS support |
-| 0x40040000 | USB FS Controller | Device/host |
-| 0x40048xxx | SIM SCGC | Clock gating |
-| 0x40049xxx | Watchdog | 0x800100b3 config |
-| 0x4004a0xx | CMP 0/1 | Analog comparators |
-| 0x4004e8xx | I2C | External ADC/sensors |
-| 0x40053xxx | eDMA | DMA controller |
-| 0x40054xxx | DMAMUX | DMA multiplexer |
-| 0x9c000000 | External Memory | LCD controller or QSPI |
-| 0x1fff8xxx | Bootloader ROM | Thunk observed at 0x1fff8184 |
-| 0x42xxxxxx | Bit-band alias | Atomic bit operations |
+| 0x40008010 | AES.DR0 | First of four data words |
+| 0x40008020 | AES.KR0 | First of four key words |
+| 0x40010450 | EFM.UQID0 | First of three unique-ID words |
+| 0x40015400 | TMRA2 | TimerA instance 2 |
+| 0x40016400 | TMRA6 | TimerA instance 6 |
+| 0x4001d000 / 0x4001d400 | USART1 / USART2 | Serial peripherals used in UFCS code |
+| 0x40024000 | TMR01 | Timer0 instance 1 |
+| 0x40040000 | ADC1 | Internal ADC registers |
+| 0x40048000 | PWC.FCG0 | Peripheral clock gating |
+| 0x40048010 | PWC.FCG0PC | Clock-gating write protection |
+| 0x40049000 | WDT | Watchdog |
+| 0x4004a000 / 0x4004a010 / 0x4004a020 | CMP1 / CMP2 / CMP3 | Analog comparators |
+| 0x4004e800 | I2C3 | I2C controller |
+| 0x40053000 / 0x40053400 | DMA1 / DMA2 | DMA controllers |
+| 0x40053800 | GPIO | GPIO and pin configuration |
+| 0x40053bfc | GPIO.PWPR | Pin write protection |
+| 0x40054000 | CMU | Clock management |
+| 0x400c0000 | USBFS | USB full-speed controller |
+| 0x9c000000 | QSPI | External-flash controller registers |
+| 0x1fff8000+ | Main SRAM | Includes functions called through RAM thunks |
+| 0x42000000–0x43ffffff | Peripheral bit-band aliases | ARM mechanism; not a chip-family identifier |
 
 ---
 
-## I2C Devices
+## External Components and I2C Devices
+
+The same [component photograph](https://cdn-ak.f.st-hatena.com/images/fotolife/t/tomoca2/20240105/20240105220534.jpg)
+provides additional component evidence:
+
+| Component | Evidence | Limits |
+|-----------|----------|--------|
+| AWINIC AW9523B | Visible marking; the application and bootloader register sequences match its GPIO/LED register map | Individual PCB signal assignments remain to be recovered |
+| TI INA228 | Visible `228I` marking and 10-pin package match TI's [package marking addendum](https://www.ti.com/ods/sysadd/oa/symlink/ina228_oa.pdf); TI documents a [20-bit I2C power monitor](https://www.ti.com/product/INA228) | Address, initialization and board routing have not yet been traced in the firmware |
 
 | Address | Device | Notes |
 |---------|--------|-------|
-| 0x5B (91) | Hynetek-family PD PHY (hypothesis) | CC/BMC-related register traffic |
-| 0x19 (25) | Unknown sensor | Status read at reg 0x31 |
+| 0x5B (91) | AW9523B GPIO/LED controller | Reset, ID, direction, GPIO/LED mode and dimming registers match the vendor map in both binaries |
+| 0x19 (25) | Unidentified sensor, associated with orientation handling | Read of reg 0x31 and configuration of regs 0x20, 0x21, 0x23, 0x30 and 0x32 |
 
-Traffic at `0x5B` is consistent with an external PD PHY, but the exact Hynetek
-model is not confirmed. `HUSB238` remains a hypothesis until chip markings or
-a matching public register map are available. The higher-level PD stack is in
-firmware.
+The [AW9523B product documentation](https://www.awinic.com/en/productDetail/AW9523BTQR)
+describes 16 GPIO/LED outputs. The matching firmware evidence is detailed in
+[HC32F460 Register Analysis](hc32f460_analysis.md#aw9523b-at-i2c-address-0x5b).
+Address `0x5B` must not be used as evidence of an external PD PHY. The external
+PD/CC circuitry remains to be reconstructed independently.
 
-The `0x9c000000` region is heavily accessed with bit operations and may be an
-LCD controller or memory-mapped external storage; its role is not yet proven.
+TI specifies INA228 addresses in the range `0x40–0x4F`; neither address listed
+above is an INA228 address. Do not assign the photographed INA228 to the
+sensor at `0x19`.
 
 ---
 
 ## USB Stack Initialization
 
-- Init entry: `FUN_000507e8` at base `0x400c0000`.
+- USBFS register base: `0x400c0000`. The earlier `FUN_000507e8` label points
+  to USB task setup (image offset `0x507e8`, runtime `0x547e8`); it should not
+  be treated as the entry of a single low-level hardware initialization routine.
 - Steps: clear pending state → configure FIFO sizes/addresses → set up EP0 (control) → configure bulk endpoints → enable USB interrupts.
 - Registers observed: control/status (+0x008..0x018), FIFO (+0x024/+0x028), DFIFO (+0x038), endpoint config (+0x104..0x110), OTG control/status (+0x800+).
 
@@ -215,6 +254,12 @@ The firmware uses **LVGL v7.x**:
 - Resolution: 240x240 pixels
 - Type: IPS LCD 1.5"
 - Interface: Likely SPI
+
+A [September 2025 replacement report](https://www.reddit.com/r/UsbCHardware/comments/1njcblc)
+describes a working 1.54-inch, 240x240 SPI replacement advertised with an ST7789
+driver. This is owner-reported compatibility evidence, not identification of
+the original display controller. The firmware UI string rounds the display
+size to 1.5 inches.
 
 ---
 

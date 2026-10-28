@@ -29,23 +29,26 @@ settings operation `0x28` appends records to that same catalog. The field at
 
 ## Bootloader and Firmware Update
 
-The `updating_firmware.*` captures contain a separate update flow. The following
-named operations are supported by host/firmware evidence, but the complete state
-machine and payload framing are not documented:
+The successful update flow, 64-byte descriptor, synchronous erase, raw AES
+blocks, independent reply IDs, CRC check and final metadata patch are documented
+in [Bootloader Logic](../firmware/bootloader.md). The partial loader dump and
+selected decompiler exports are now preserved in this repository. The
+[updater implementation snapshot](../firmware/updater_implementation.md) also
+records a completed HW 2.1 cycle from original 1.9.9 to 2.0.7 and back, with
+full installed-image readback and an unchanged acquired bootloader extent.
 
-| Hex | Name | Current Evidence |
-|-----|------|------------------|
-| `0x01` | Sync | Repeated in update traffic |
-| `0x04` | Reset | Named dispatcher operation |
-| `0x07` | Finished | Named completion operation |
-| `0x08` | JumpAprom | Named application jump |
-| `0x09` | JumpDfu | Named DFU jump |
-| `0x0B` | Error | Named error response |
-| `0x0D` | GetFile | Named file-transfer operation |
+Remaining work:
 
-Arbitrary bytes inside firmware payloads are not command evidence. Add an
-operation here only when it has a framed request/response pair, a matching
-dispatcher case, or both.
+- Acquire the missing initial vector word `[0,4)` through a validated read path.
+- Test recovery from interruption during erase, data writes and metadata commit.
+- Test deliberate ACK loss on hardware; scripted host tests do not establish
+  device-side duplicate/recovery behavior.
+- Confirm behavior on other hardware/loader revisions and compatibility of older releases.
+- Map the startup PB7 input to the physical control/net.
+
+JumpDfu `0x09` is an application-side entry operation. It and GetFile `0x0d`
+are not implemented cases in the acquired loader's dispatcher. Command names
+in a host enum or arbitrary ciphertext bytes are not loader-command evidence.
 
 ## Offline Logs
 
@@ -57,8 +60,12 @@ dispatcher case, or both.
 
 ## Hardware and Firmware
 
-- Confirm external ADC identity at I2C address `0x19`.
-- Confirm the PD PHY identity from chip markings or a matching register map.
+- Identify the orientation-related sensor at I2C address `0x19`; do not label it
+  as the INA228 power monitor, whose allowed addresses are `0x40–0x4f`.
+- Trace the photographed INA228's bus, address, and initialization sequence.
+- Map the AW9523B GPIO/LED controller at `0x5b` to PCB signals. See the
+  [register-sequence evidence](../firmware/hc32f460_analysis.md#aw9523b-at-i2c-address-0x5b).
+- Reconstruct the PD/CC circuitry independently of the AW9523B identification.
 - Document the external flash layout.
 - Document the display-controller command set.
 

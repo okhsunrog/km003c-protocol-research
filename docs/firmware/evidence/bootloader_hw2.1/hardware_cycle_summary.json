@@ -1,0 +1,71 @@
+{
+  "hardware": "2.1",
+  "cycle": [
+    "1.9.9 (2025.9.22)",
+    "2.0.7 (2026.9.29)",
+    "1.9.9 (2025.9.22)"
+  ],
+  "upgrade_exit": 0,
+  "downgrade_exit": 0,
+  "both_cli_full_readbacks_match": true,
+  "independent_final_application_equals_original": true,
+  "application_bytes_verified": 453828,
+  "application_sha256": "1917eb2f05fb848c4f98323d17cbd6eacc3252dfc0f16bb479f8564e0311417a",
+  "bootloader_bytes_verified": 16380,
+  "bootloader_sha256": "17d51eeff9fb6abe1a7024a108006248e0aaebdaae52de69a3e26c000565d4bf",
+  "bootloader_unchanged": true,
+  "final_device_info_equals_original": true,
+  "adc_read_success_on_both_versions": true,
+  "firmware_packages": {
+    "upgrade": "../km003c-firmware-network-2026-10-28/cli-KM003C_V2.0.7.mencrypt",
+    "downgrade": "original-1.9.9-exact.mencrypt"
+  },
+  "server_1_9_9_catalog_mismatch": "Catalog describes September build, server object is October build; rejected before flash.",
+  "capture_summary": {
+    "upgrade": {
+      "setup_frame": 1532,
+      "accept_frame": 1537,
+      "finished_frame": 16099,
+      "application_jump_frame": 16100,
+      "sync_count": 112,
+      "finished_count": 1,
+      "error_count": 0,
+      "erase_to_accept_seconds": 1.000469,
+      "setup_to_finished_seconds": 3.499521,
+      "device_accept_id": 3,
+      "host_setup_id": 4
+    },
+    "downgrade": {
+      "setup_frame": 1540,
+      "accept_frame": 1545,
+      "finished_frame": 16011,
+      "application_jump_frame": 16012,
+      "sync_count": 112,
+      "finished_count": 1,
+      "error_count": 0,
+      "erase_to_accept_seconds": 1.000243,
+      "setup_to_finished_seconds": 3.49094,
+      "device_accept_id": 3,
+      "host_setup_id": 4
+    }
+  },
+  "post_test_source_checks": [
+    {
+      "check": "format",
+      "exit_code": 0
+    },
+    {
+      "check": "cli-tests",
+      "exit_code": 0
+    },
+    {
+      "check": "clippy",
+      "exit_code": 0
+    },
+    {
+      "check": "build",
+      "exit_code": 0
+    }
+  ],
+  "known_adc_followup": "2.0.7 first ADC sample: CC2 average 61.441 V, instantaneous 0.030 V; layout/startup behavior not determined."
+}

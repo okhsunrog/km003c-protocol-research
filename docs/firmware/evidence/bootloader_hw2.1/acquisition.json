@@ -1,0 +1,29 @@
+{
+  "device": "KM003C",
+  "hardware": "2.1",
+  "firmware": "1.9.9",
+  "base_address": 4,
+  "end_exclusive": 16384,
+  "length": 16380,
+  "complete": false,
+  "missing_range": [
+    0,
+    4
+  ],
+  "reset_vector": "0x0000005d",
+  "sha256": "17d51eeff9fb6abe1a7024a108006248e0aaebdaae52de69a3e26c000565d4bf",
+  "verification": {
+    "two_full_reads_identical": true,
+    "separate_0004_probe_matches": true,
+    "separate_0040_probe_matches": true,
+    "application_boundary_matches": true,
+    "application_initial_sp": "0x200067b0",
+    "application_reset_vector": "0x4295",
+    "device_responds_after_dump": true
+  },
+  "unreliable_zero_address_reads": {
+    "equal": false,
+    "note": "Do not treat reads starting at address zero as bootloader bytes. Their contents vary and include confirmation-like bytes on the wire. Root cause is not yet confirmed."
+  },
+  "flash_writes": false
+}

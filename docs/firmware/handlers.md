@@ -6,6 +6,10 @@ KM003C V1.9.9, decrypted image `KM003C_V1.9.9_key0_ecb.bin` (SHA-256
 `9ce6125da454585fde1b5744018f94edc697a23941292cbf55d2a411d4df7517`).
 Other firmware versions may differ.
 
+Function addresses and `FUN_...` labels below are the original image offsets;
+add `0x4000` to obtain runtime flash addresses. Peripheral and RAM addresses
+are already runtime values. See the [address and register audit](hc32f460_analysis.md).
+
 For Mtools.exe (Windows app) analysis, see [Mtools Analysis](mtools_analysis.md).
 
 ---
@@ -208,7 +212,7 @@ if ((param_3 == -1) &&           // Magic: 0xFFFFFFFF
 | Address | Result | Notes |
 |---------|--------|-------|
 | 0xE000ED00 | REJECT | ARM CPUID > 0x983d0901 |
-| 0x40048024 | NOT_READABLE | SIM_SDID protected |
+| 0x40048024 | NOT_READABLE | No named register at this address in the HC32F460 PWC SVD; cause of the failed read is unconfirmed |
 | 0x00000420 | DATA (0x1A) | Device info readable |
 | 0x40010450 | DATA (0x75) | Hardware ID readable |
 

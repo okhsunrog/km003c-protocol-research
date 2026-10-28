@@ -1,0 +1,146 @@
+{
+  "source": "/home/okhsunrog/code/km003c-protocol-research/data/processed/usb_master_dataset.parquet",
+  "capture_frames": {
+    "updating_firmware.7": 263,
+    "updating_firmware.8": 578,
+    "updating_firmware.9": 518
+  },
+  "sequence": [
+    {
+      "frame": 1994,
+      "capture": "updating_firmware.7",
+      "usb_device_address": 7,
+      "timestamp_seconds": 19.146086,
+      "bytes": "09360000"
+    },
+    {
+      "frame": 3859,
+      "capture": "updating_firmware.8",
+      "usb_device_address": 8,
+      "timestamp_seconds": 40.650977,
+      "bytes": "02390000"
+    },
+    {
+      "frame": 5563,
+      "capture": "updating_firmware.8",
+      "usb_device_address": 8,
+      "timestamp_seconds": 59.947776,
+      "bytes": "403d000100000000000000000000000000000000"
+    },
+    {
+      "frame": 5565,
+      "capture": "updating_firmware.8",
+      "usb_device_address": 8,
+      "timestamp_seconds": 59.948452,
+      "bytes": "c00301010000000000000000ffffffff00000000"
+    },
+    {
+      "frame": 5567,
+      "capture": "updating_firmware.8",
+      "usb_device_address": 8,
+      "timestamp_seconds": 59.948748,
+      "bytes": "423e000400400000c42c0700c4ec06004eb5807c4b4d30303343000000000000312e392e3900000000000000323032352e392e3232000000290000000000000000000000"
+    },
+    {
+      "frame": 5665,
+      "capture": "updating_firmware.8",
+      "usb_device_address": 8,
+      "timestamp_seconds": 60.949166,
+      "bytes": "05040000"
+    },
+    {
+      "frame": 5679,
+      "capture": "updating_firmware.8",
+      "usb_device_address": 8,
+      "timestamp_seconds": 60.979747,
+      "bytes": "01050000"
+    },
+    {
+      "frame": 6221,
+      "capture": "updating_firmware.8",
+      "usb_device_address": 8,
+      "timestamp_seconds": 64.241596,
+      "bytes": "01740000"
+    },
+    {
+      "frame": 6223,
+      "capture": "updating_firmware.8",
+      "usb_device_address": 8,
+      "timestamp_seconds": 64.252513,
+      "bytes": "07750000"
+    },
+    {
+      "frame": 6285,
+      "capture": "updating_firmware.8",
+      "usb_device_address": 8,
+      "timestamp_seconds": 67.276506,
+      "bytes": "083f0000"
+    },
+    {
+      "frame": 7686,
+      "capture": "updating_firmware.9",
+      "usb_device_address": 9,
+      "timestamp_seconds": 75.928456,
+      "bytes": "02400000"
+    }
+  ],
+  "write_descriptor": {
+    "frame": 5567,
+    "packet_type": "0x42",
+    "payload_bytes": 64,
+    "start_address": "0x4000",
+    "end_exclusive": "0x72cc4",
+    "image_length": 453828,
+    "crc32": "7C80B54E",
+    "model": "KM003C",
+    "version": "1.9.9",
+    "date": "2025.9.22",
+    "opaque_tail_hex": "290000000000000000000000"
+  },
+  "upload": {
+    "blocks": 112,
+    "block_size_histogram": {
+      "4080": 111,
+      "960": 1
+    },
+    "ciphertext_length": 453840,
+    "padding_bytes": 12,
+    "padding_byte": "FF",
+    "crc32_verified": true,
+    "cipher": "AES-128-ECB, shared MEMORY_READ_KEY",
+    "sha256_unpadded": "d48be86f22e996eff20aa124e5707bd6dc2b40294dd3e1db9546612087922b15",
+    "sha256_padded": "9f9a978ced29209ce6c1bdc8e1f88ebcfb5686a8151be4f1abf9df51fba36057",
+    "first_data_frame": 5669,
+    "last_data_frame": 6217,
+    "all_112_stop_and_wait_acks_verified": true,
+    "first_ack_id": 5,
+    "last_ack_id": 116,
+    "finished_id": 117,
+    "transfer_time_seconds": 3.2838860000000025,
+    "header_accept_delay_seconds": 1.0004179999999963
+  },
+  "firmware_before": {
+    "version": "1.9.7",
+    "length": 452460
+  },
+  "firmware_after": {
+    "version": "1.9.9",
+    "length": 453828,
+    "crc32": "7C80B54E"
+  },
+  "different_local_1_9_9_image": {
+    "padded_length": 453616,
+    "unpadded_length_from_container_metadata": 453612,
+    "crc32_unpadded": "E7A75D5B",
+    "sha256_padded": "9ce6125da454585fde1b5744018f94edc697a23941292cbf55d2a411d4df7517"
+  },
+  "not_confirmed": [
+    "Semantic name of command 0x40 with its zeroed 16-byte request body",
+    "Meaning of descriptor tail 0x29 and two zero words",
+    "Whether the ~1-second preparation includes erase, and its exact range",
+    "Retry, timeout, abort, CRC-failure and power-loss behavior",
+    "Bootloader authentication, signature checks, and hardware compatibility rules",
+    "Whether reported bootloader IDs are universally an independent sequence",
+    "Original raw pcap files are absent; evidence was rechecked in the processed master dataset"
+  ]
+}

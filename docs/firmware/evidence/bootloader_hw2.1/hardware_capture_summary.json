@@ -1,0 +1,28 @@
+{
+  "upgrade": {
+    "setup_frame": 1532,
+    "accept_frame": 1537,
+    "finished_frame": 16099,
+    "application_jump_frame": 16100,
+    "sync_count": 112,
+    "finished_count": 1,
+    "error_count": 0,
+    "erase_to_accept_seconds": 1.000469,
+    "setup_to_finished_seconds": 3.499521,
+    "device_accept_id": 3,
+    "host_setup_id": 4
+  },
+  "downgrade": {
+    "setup_frame": 1540,
+    "accept_frame": 1545,
+    "finished_frame": 16011,
+    "application_jump_frame": 16012,
+    "sync_count": 112,
+    "finished_count": 1,
+    "error_count": 0,
+    "erase_to_accept_seconds": 1.000243,
+    "setup_to_finished_seconds": 3.49094,
+    "device_accept_id": 3,
+    "host_setup_id": 4
+  }
+}

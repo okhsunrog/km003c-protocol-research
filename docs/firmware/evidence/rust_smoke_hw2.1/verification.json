@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-28",
+  "device": {
+    "model": "KM003C",
+    "hardware": "2.1",
+    "original_firmware": "1.9.9"
+  },
+  "hal_revision": "08a2603185d5acd05fda156e9cef468d47526be1",
+  "host_library_revision": "48b737f0dad01102b1204e9abb3040c199ab008b",
+  "application_base": "0x4000",
+  "initial_sp": "0x2001fff0",
+  "smoke_image_bytes": 1672,
+  "smoke_image_sha256": "3c804f131f67f99c5b499a0d23df88cb1ec566c74f0767b19b95ed61ee2f6644",
+  "backup_sha256": "1917eb2f05fb848c4f98323d17cbd6eacc3252dfc0f16bb479f8564e0311417a",
+  "bootloader_from4_sha256": "17d51eeff9fb6abe1a7024a108006248e0aaebdaae52de69a3e26c000565d4bf",
+  "marker_address": "0x200f0fc0",
+  "marker_before": [
+    "0xa24872a",
+    "0x859dfd71",
+    "0x20790b02",
+    "0xfd36ecf7"
+  ],
+  "marker_after": [
+    "0x52555354",
+    "0x1",
+    "0x4000",
+    "0x600d0001"
+  ],
+  "checks": {
+    "exit_power_on_dfu": true,
+    "jump_aprom_returns_to_stock": true,
+    "two_matching_original_backups": true,
+    "backup_matches_exact_rollback_package": true,
+    "smoke_full_readback_matches_installed_image": true,
+    "bootloader_unchanged_before_and_after_smoke": true,
+    "rust_returned_to_native_dfu": true,
+    "original_453828_bytes_restored_and_verified": true,
+    "bootloader_unchanged_after_restore": true
+  },
+  "usb_driver_in_custom_application": false,
+  "final_state": "Stock application 1.9.9 running; not left on the experimental image"
+}

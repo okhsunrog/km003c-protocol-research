@@ -1,0 +1,86 @@
+{
+  "checked_on": "2026-10-28",
+  "live_device": {
+    "model": "KM003C",
+    "hardware": "2.1",
+    "firmware": "1.9.9",
+    "firmware_date": "2025.9.22"
+  },
+  "method": "User held each named button; existing km003c CLI read GPIO.PIDRB through --no-reset debug memory read. No firmware writes or deliberate reset.",
+  "gpio_register": "0x40053810",
+  "button_mask": "0x0b80",
+  "samples": [
+    {
+      "label": "baseline",
+      "gpio_pidrb": "0xcf86",
+      "button_masked": "0x0b80",
+      "pressed_gpio": [],
+      "sha256": "a9aa67eccb7b36f9972a79ef9d9d0465d42e483904756b122f531a4837e5c85e"
+    },
+    {
+      "label": "exit",
+      "gpio_pidrb": "0xef06",
+      "button_masked": "0x0b00",
+      "pressed_gpio": [
+        7
+      ],
+      "sha256": "0a0c6fb961d03e1e58279909ff09c0d2c8433d12a1fceee29b6aa595890d984a"
+    },
+    {
+      "label": "ok",
+      "gpio_pidrb": "0xc78e",
+      "button_masked": "0x0380",
+      "pressed_gpio": [
+        11
+      ],
+      "sha256": "f2dd720be99e5eb5fde17e0ba31e596634d6d590ba5754dd8503c0d59f963ad9"
+    },
+    {
+      "label": "left",
+      "gpio_pidrb": "0xce86",
+      "button_masked": "0x0a80",
+      "pressed_gpio": [
+        8
+      ],
+      "sha256": "77ad3a6f9b84aff43a9bccebfe0ff39333e94f9334a127588da35bedbaa9a4c7"
+    },
+    {
+      "label": "right",
+      "gpio_pidrb": "0xcd86",
+      "button_masked": "0x0980",
+      "pressed_gpio": [
+        9
+      ],
+      "sha256": "fb0eaf5df9a6627fcf8def7af806886034714245cbdd495d1c67660f7ac080d5"
+    },
+    {
+      "label": "released",
+      "gpio_pidrb": "0xcf86",
+      "button_masked": "0x0b80",
+      "pressed_gpio": [],
+      "sha256": "a9aa67eccb7b36f9972a79ef9d9d0465d42e483904756b122f531a4837e5c85e"
+    }
+  ],
+  "usb": {
+    "GSNPSID": "0x4f54330a",
+    "GHWCFG1": "0x00000000",
+    "GHWCFG2": "0x228ed530",
+    "GHWCFG3": "0x013400e8"
+  },
+  "usb_derived": {
+    "revision": "3.30a",
+    "device_endpoints_including_ep0": 6,
+    "fifo_words": 308,
+    "dedicated_fs_phy": true
+  },
+  "clock": {
+    "pllcfgr": "0x01300b00",
+    "mpllm": 0,
+    "mplln": 11,
+    "mpllp": 0,
+    "mpllq": 1,
+    "mpllr": 3
+  },
+  "right_button_startup_observation": "User reports holding Right during power connection enables CC pull-down. Static app path reads PB9 then calls 0xa5a8 and 0x43610, controlling PB6 and AW9523B P0_3. Electrical Rd wiring not verified.",
+  "qspi_live_register_read": "0x9c000000 rejected by existing MemoryRead address ceiling; no QSPI snapshot acquired."
+}

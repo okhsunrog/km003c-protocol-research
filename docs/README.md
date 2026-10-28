@@ -39,6 +39,8 @@ Capture-backed reverse engineering documentation for the **ChargerLAB POWER-Z KM
 |----------|-------------|
 | [Firmware Index](firmware/README.md) | Overview of firmware documentation |
 | [Firmware Overview](firmware/overview.md) | MCU identification, RTOS, charging protocols |
+| [Bootloader Logic](firmware/bootloader.md) | Startup, DFU state machine, flash programming, CRC, metadata and evidence |
+| [Updater Implementation](firmware/updater_implementation.md) | Imported km003c-rs implementation and hardware validation snapshot |
 | [Firmware Format](firmware/format.md) | .mencrypt file decryption |
 | [Device Handlers](firmware/handlers.md) | Ghidra analysis of device firmware command handlers |
 | [Mtools.exe Analysis](firmware/mtools_analysis.md) | Ghidra analysis of official Windows application |

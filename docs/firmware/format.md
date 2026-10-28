@@ -109,8 +109,13 @@ All addresses are odd (Thumb mode bit set).
 
 | Region | Address | Size |
 |--------|---------|------|
-| Flash/ROM | 0x00000000 | ~450KB |
-| SRAM | 0x20000000+ | ~26KB |
+| Application in internal flash | 0x00004000 | 453,616 bytes |
+| Main SRAM | 0x1fff8000 | 188 KiB |
+| Retention SRAM | 0x200f0000 | 4 KiB |
+
+The file starts at runtime address `0x4000`: its reset vector `0x4295`
+points to the instruction at file offset `0x294`. SRAM capacity and the flash
+mapping are detailed in [HC32F460 Register Analysis](hc32f460_analysis.md).
 
 ---
 

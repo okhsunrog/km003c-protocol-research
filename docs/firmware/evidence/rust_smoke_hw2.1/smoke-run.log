@@ -1,0 +1,11 @@
+Two matching backup reads saved; exact rollback package verified
+FirmwareUpdateProgress { stage: Connecting, bytes_written: 0, total_bytes: 1680 }
+FirmwareUpdateProgress { stage: CheckingStatus, bytes_written: 0, total_bytes: 1680 }
+FirmwareUpdateProgress { stage: Erasing, bytes_written: 0, total_bytes: 1680 }
+FirmwareUpdateProgress { stage: Writing, bytes_written: 0, total_bytes: 1680 }
+FirmwareUpdateProgress { stage: Writing, bytes_written: 1680, total_bytes: 1680 }
+FirmwareUpdateProgress { stage: Verifying, bytes_written: 1680, total_bytes: 1680 }
+FirmwareUpdateProgress { stage: Complete, bytes_written: 1680, total_bytes: 1680 }
+Custom image readback and unchanged bootloader verified; starting Rust
+Rust result: [52555354, 00000001, 00004000, 600d0001]
+PASS: Rust main completed and reset into the original bootloader

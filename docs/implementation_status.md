@@ -29,5 +29,12 @@ The protocol reference is intentionally broader than the library. A documented
 firmware capability is not considered implemented until the public API can
 construct or parse it and a capture-backed or hardware test covers the path.
 
+The bootloader row describes this repository's pinned package, not the current
+`km003c-rs` source tree. A later source snapshot includes experimental firmware
+APIs and a hardware-verified update/rollback cycle; see the imported
+[updater documentation](firmware/updater_implementation.md) and
+[device-side bootloader analysis](firmware/bootloader.md). This research update
+does not change the pinned dependency.
+
 See [Protocol Gaps](research/protocol_gaps.md) for the unresolved research
 items and [Protocol Reference](protocol_reference.md) for the wire format.

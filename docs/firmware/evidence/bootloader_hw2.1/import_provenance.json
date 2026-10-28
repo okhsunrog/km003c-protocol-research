@@ -1,0 +1,9 @@
+{
+  "source_repository": "https://github.com/okhsunrog/km003c-rs",
+  "source_revision": "afdf7cdb3a0ab4f283f07aa8e2fb9304aa88f5d9",
+  "source_file": "FIRMWARE.md",
+  "source_file_sha256": "ab38209afee3c60d543bfd9fd4e1d12d3a3a8ae4d5bdba346c39baed5f4a24df",
+  "imported_on": "2026-10-28",
+  "decompiler": "Ghidra 12.1.4",
+  "hardware_tests_repeated_in_this_pass": false
+}

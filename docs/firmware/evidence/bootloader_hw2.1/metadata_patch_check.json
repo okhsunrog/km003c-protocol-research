@@ -1,0 +1,21 @@
+{
+  "source": "captured-firmware-1.9.9.bin",
+  "size": 453828,
+  "upload_crc": "0x7c80b54e",
+  "metadata_before": "ffffffffffffffff4b4d303033430000",
+  "metadata_after_predicted": "c4ec06004eb5807c4b4d303033430000",
+  "raw_flash_crc_after_patch_predicted": "0xa41f2451",
+  "verification": "offline prediction from bootloader instructions, not acquired flash readback",
+  "live_metadata_readback": {
+    "address": "0x4420",
+    "size": 64,
+    "sha256": "c2ee47180acf52bced34a097e7553f07a102954603ba56992c6b5641c01b5098",
+    "image_base": "0x4000",
+    "image_size": 453828,
+    "image_crc": "0x7c80b54e",
+    "model": "KM003C",
+    "version": "1.9.9",
+    "date": "2025.9.22",
+    "patched_16_bytes_match_static_prediction": true
+  }
+}

@@ -6,6 +6,12 @@ Unless a page says otherwise, device-firmware addresses and behavior refer to
 the decrypted KM003C V1.9.9 image `KM003C_V1.9.9_key0_ecb.bin` (SHA-256
 `9ce6125da454585fde1b5744018f94edc697a23941292cbf55d2a411d4df7517`).
 
+Existing device-function `FUN_...` labels and code/string locations use image
+offsets unless explicitly marked as runtime addresses. The image loads at
+`0x4000`; add `0x4000` for runtime flash addresses. Raw vector, peripheral,
+and RAM addresses are already runtime values. See the
+[address audit](hc32f460_analysis.md#application-load-address-and-existing-labels).
+
 ---
 
 ## Documents
@@ -13,6 +19,10 @@ the decrypted KM003C V1.9.9 image `KM003C_V1.9.9_key0_ecb.bin` (SHA-256
 | Document | Description |
 |----------|-------------|
 | [Overview](overview.md) | MCU identification, RTOS, charging protocols, memory layout |
+| [HC32F460 Analysis](hc32f460_analysis.md) | Vendor register map, instruction evidence, load address, SRAM, OTP, clocks |
+| [Board Bring-up](board_bringup.md) | Verified buttons, Exit recovery, 48-pad inventory, live USB/clock configuration and SDK comparison |
+| [Bootloader Logic](bootloader.md) | Startup gates, DFU dispatcher, erase/program/CRC/commit flow and binary evidence |
+| [Updater Implementation](updater_implementation.md) | Imported km003c-rs package/catalog/update documentation and completed hardware tests |
 | [Format](format.md) | .mencrypt firmware file decryption |
 | [Handlers](handlers.md) | Device firmware command handlers (Ghidra analysis) |
 | [Mtools Analysis](mtools_analysis.md) | Official Windows app reverse engineering |

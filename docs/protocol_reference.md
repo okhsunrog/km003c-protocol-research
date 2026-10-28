@@ -11,6 +11,8 @@ that image unless explicitly noted.
 
 For USB transport details (descriptors, endpoints), see [USB Transport](usb_transport.md).
 For library coverage, see [Implementation Status](implementation_status.md).
+For the separate DFU/update flow and its different reply-ID semantics, see
+[Bootloader Logic](firmware/bootloader.md).
 
 ---
 

@@ -1,0 +1,1 @@
+Verified installed firmware 1.9.9 by full readback (453828 bytes, including committed size and CRC).
