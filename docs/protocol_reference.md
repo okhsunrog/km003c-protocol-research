@@ -12,7 +12,9 @@ that image unless explicitly noted.
 For USB transport details (descriptors, endpoints), see [USB Transport](usb_transport.md).
 For library coverage, see [Implementation Status](implementation_status.md).
 For the separate DFU/update flow and its different reply-ID semantics, see
-[Bootloader Logic](firmware/bootloader.md).
+the [updater protocol snapshot](firmware/updater_implementation.md). Detailed
+loader implementation and recovery analysis are maintained in
+[km003c-firmware](https://github.com/okhsunrog/km003c-firmware).
 
 ---
 

@@ -115,7 +115,8 @@ All addresses are odd (Thumb mode bit set).
 
 The file starts at runtime address `0x4000`: its reset vector `0x4295`
 points to the instruction at file offset `0x294`. SRAM capacity and the flash
-mapping are detailed in [HC32F460 Register Analysis](hc32f460_analysis.md).
+mapping are detailed in the
+[km003c-firmware repository](https://github.com/okhsunrog/km003c-firmware).
 
 ---
 

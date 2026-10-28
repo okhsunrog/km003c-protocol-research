@@ -1,83 +1,26 @@
-# Firmware Documentation
+# Hardware and custom firmware
 
-Reverse engineering documentation for the KM003C device firmware and official Windows application.
+The connected KM003C HW2.1 uses the following hardware. Older photographed
+revisions may contain different components.
 
-Unless a page says otherwise, device-firmware addresses and behavior refer to
-the decrypted KM003C V1.9.9 image `KM003C_V1.9.9_key0_ecb.bin` (SHA-256
-`9ce6125da454585fde1b5744018f94edc697a23941292cbf55d2a411d4df7517`).
+| Component | Identified hardware |
+| --- | --- |
+| MCU | HC32F460, Cortex-M4F at 192 MHz; HC32F460JETA/LQFP48 identification supported by teardown markings and the register map |
+| MCU memory | 512 KiB internal flash, 188 KiB main SRAM and 4 KiB retention SRAM |
+| Measurement | TI INA229 on SPI2, confirmed by hardware IDs and stock initialization |
+| Display | 240×240 ST7789-compatible IPS panel on the shared QSPI bus |
+| GPIO and backlight | AW9523B at I²C `0x5b` |
+| Orientation | SC7A20-family accelerometer at I²C `0x19`, WHO_AM_I `0x11` |
+| Storage | 4 MiB external NOR; legacy ID `0x8515`, exact part unresolved |
+| USB | Full Speed, Synopsys/DWC2-compatible OTG block with internal PHY |
+| Power Delivery | CC comparator, timer and DMA with external analog circuitry; no dedicated PD peripheral identified |
+| Buttons | Exit PB7, OK PB11, Left PB8, Right/lightning PB9; active low |
 
-Existing device-function `FUN_...` labels and code/string locations use image
-offsets unless explicitly marked as runtime addresses. The image loads at
-`0x4000`; add `0x4000` for runtime flash addresses. Raw vector, peripheral,
-and RAM addresses are already runtime values. See the
-[address audit](hc32f460_analysis.md#application-load-address-and-existing-labels).
+Board bring-up and development of custom Rust firmware using Embassy are in
+progress. USB CDC, display/buttons, automatic rotation, INA229 measurement,
+D+/D−/CC voltages and passive PD reception in both cable orientations have been
+tested on this unit. Active PD transmission remains under development.
 
----
-
-## Documents
-
-| Document | Description |
-|----------|-------------|
-| [Overview](overview.md) | MCU identification, RTOS, charging protocols, memory layout |
-| [HC32F460 Analysis](hc32f460_analysis.md) | Vendor register map, instruction evidence, load address, SRAM, OTP, clocks |
-| [Board Bring-up](board_bringup.md) | Verified buttons, Exit recovery, 48-pad inventory, live USB/clock configuration and SDK comparison |
-| [Bootloader Logic](bootloader.md) | Startup gates, DFU dispatcher, erase/program/CRC/commit flow and binary evidence |
-| [Updater Implementation](updater_implementation.md) | Imported km003c-rs package/catalog/update documentation and completed hardware tests |
-| [Format](format.md) | .mencrypt firmware file decryption |
-| [Handlers](handlers.md) | Device firmware command handlers (Ghidra analysis) |
-| [Mtools Analysis](mtools_analysis.md) | Official Windows app reverse engineering |
-
----
-
-## Ghidra Projects
-
-Two binaries have been analyzed:
-
-### Device Firmware
-
-- **File:** `KM003C_V1.9.9_key0_ecb.bin` (decrypted)
-- **Size:** 453,616 bytes
-- **Architecture:** ARM Cortex-M (Thumb mode)
-- **Functions:** 1,580
-- **Strings:** 475
-
-### Mtools.exe
-
-- **File:** `Mtools.exe` (official Windows application)
-- **Framework:** Qt5 (x64)
-- **Focus:** Protocol implementation, cryptography
-
----
-
-## Quick Reference
-
-### Key Firmware Addresses
-
-| Address | Purpose |
-|---------|---------|
-| `dispatch_usb_command` (0x0004eaf0) | Main USB command dispatcher |
-| `handle_memory_read` (0x00042cac) | Memory read handler |
-| `handle_settings_batch` (0x00042df4) | Shared command 0x48/0x4D handler |
-| `aes128_ecb_decrypt` (0x00000fb0) | AES decrypt of incoming protocol data |
-| `aes128_ecb_encrypt` (0x00001090) | AES encrypt of outgoing memory data |
-| `g_auth_level` (0x20004041) | Authentication level (0/1/2) |
-
-### Key Mtools.exe Addresses
-
-| Address | Purpose |
-|---------|---------|
-| 0x14006e9e0 | send_auth_packet_and_verify |
-| 0x14006d1b0 | handle_response_packet |
-| 0x14006ef10 | manage_data_stream |
-| 0x1400735e0 | get_crypto_key |
-| 0x140184b60 | AES key strings |
-
-### AES Keys
-
-| Key | Usage |
-|-----|-------|
-| `Lh2yfB7n6X7d9a5Z` | Memory download, firmware, logs |
-| `Fa0b4tA25f4R038a` | Streaming auth (encrypt) |
-| `FX0b4tA25f4R038a` | Streaming auth (decrypt) |
-
-See [Protocol Reference](../protocol_reference.md) for the canonical key list.
+Detailed pinouts, peripheral configuration, bootloader/recovery analysis,
+implementation and hardware evidence are maintained in
+[km003c-firmware](https://github.com/okhsunrog/km003c-firmware).

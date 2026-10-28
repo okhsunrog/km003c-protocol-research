@@ -2,7 +2,8 @@
 
 > Imported from `okhsunrog/km003c-rs`, revision `afdf7cdb3a0ab4f283f07aa8e2fb9304aa88f5d9`, on 2026-10-28.
 > This is a documentation snapshot of the updater and its previously recorded
-> hardware tests. New device-side analysis is in [Bootloader Logic](bootloader.md).
+> hardware tests. Device-side bootloader analysis and bring-up evidence are maintained in
+> [km003c-firmware](https://github.com/okhsunrog/km003c-firmware).
 
 Firmware installation is experimental. The implementation combines the package
 work contributed in [PR #60](https://github.com/okhsunrog/km003c-rs/pull/60/changes/561733c8a18244fbfc8afd7a1f7539587e1eff8c),

@@ -8,7 +8,8 @@ Other firmware versions may differ.
 
 Function addresses and `FUN_...` labels below are the original image offsets;
 add `0x4000` to obtain runtime flash addresses. Peripheral and RAM addresses
-are already runtime values. See the [address and register audit](hc32f460_analysis.md).
+are already runtime values. Detailed MCU/register analysis is maintained in
+[km003c-firmware](https://github.com/okhsunrog/km003c-firmware).
 
 For Mtools.exe (Windows app) analysis, see [Mtools Analysis](mtools_analysis.md).
 

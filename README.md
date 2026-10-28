@@ -9,6 +9,12 @@ Reverse engineering the ChargerLAB POWER-Z KM003C USB-C power analyzer protocol.
 - [`docs/protocol_reference.md`](docs/protocol_reference.md) - Capture-backed reference for the verified KM003C protocol.
 - [`docs/features/pd_analysis.md`](docs/features/pd_analysis.md) - USB PD capture and official SQLite export format.
 
+## Hardware and custom firmware
+
+Hardware bring-up and custom Rust firmware development continue in
+[km003c-firmware](https://github.com/okhsunrog/km003c-firmware).
+A [short hardware description](docs/firmware/README.md) is retained here.
+
 ## Architecture
 
 ### Data Pipeline

@@ -33,17 +33,15 @@ Capture-backed reverse engineering documentation for the **ChargerLAB POWER-Z KM
 | [Offline Logs](features/offline_logs.md) | Downloading device-stored measurement logs |
 | [PD Analysis](features/pd_analysis.md) | USB Power Delivery capture and SQLite export |
 
-### Firmware Reverse Engineering
+### Hardware and Firmware
 
 | Document | Description |
-|----------|-------------|
-| [Firmware Index](firmware/README.md) | Overview of firmware documentation |
-| [Firmware Overview](firmware/overview.md) | MCU identification, RTOS, charging protocols |
-| [Bootloader Logic](firmware/bootloader.md) | Startup, DFU state machine, flash programming, CRC, metadata and evidence |
-| [Updater Implementation](firmware/updater_implementation.md) | Imported km003c-rs implementation and hardware validation snapshot |
-| [Firmware Format](firmware/format.md) | .mencrypt file decryption |
-| [Device Handlers](firmware/handlers.md) | Ghidra analysis of device firmware command handlers |
-| [Mtools.exe Analysis](firmware/mtools_analysis.md) | Ghidra analysis of official Windows application |
+| --- | --- |
+| [Hardware summary](firmware/README.md) | Identified components and the custom Rust firmware project |
+| [Updater Implementation](firmware/updater_implementation.md) | Host-side maintenance API and update protocol snapshot |
+| [Firmware Format](firmware/format.md) | .mencrypt firmware file decryption |
+| [Device Handlers](firmware/handlers.md) | Stock USB command-handler analysis |
+| [Mtools.exe Analysis](firmware/mtools_analysis.md) | Official Windows application protocol analysis |
 
 ### Work in Progress
 

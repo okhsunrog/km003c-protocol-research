@@ -33,7 +33,8 @@ The bootloader row describes this repository's pinned package, not the current
 `km003c-rs` source tree. A later source snapshot includes experimental firmware
 APIs and a hardware-verified update/rollback cycle; see the imported
 [updater documentation](firmware/updater_implementation.md) and
-[device-side bootloader analysis](firmware/bootloader.md). This research update
+[km003c-firmware](https://github.com/okhsunrog/km003c-firmware) for device-side
+bootloader analysis. This research update
 does not change the pinned dependency.
 
 See [Protocol Gaps](research/protocol_gaps.md) for the unresolved research
