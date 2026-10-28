@@ -222,7 +222,10 @@ At `0x47f98–0x47fbe`, firmware reads register `0x31`, masks its low nibble,
 and maps values 1–8 through a small lookup table. Initialization at `0x47fea`
 writes `0x20=0x1f`, then `0x20=0x27`, `0x21=0xc0`, `0x23=0x10`,
 `0x30=0xff`, and `0x32=0x0f`. This is consistent with the orientation-sensor
-role; the exact part number has not been established.
+role. Subsequent HW2.1 reads returned WHO_AM_I `0x11`; XYZ and 6D operation
+identify the SC7A20 family. The exact suffix/revision remains unconfirmed. The
+custom driver and four-way display rotation are now hardware-accepted; see
+[board bring-up](board_bringup.md#accelerometer-and-automatic-display-rotation-2026-10-28).
 
 This is distinct from the photographed INA228: TI's
 [address table](https://www.ti.com/document-viewer/INA228/datasheet/GUID-E4E4E716-7FF4-403D-AA16-CF0C7187D9F5)
@@ -235,7 +238,7 @@ from the sensor at `0x19`. See [hardware acceptance](board_bringup.md#ina229-acc
 
 ## Remaining Hardware Questions
 
-- Validate current calibration across ranges and identify the sensor at `0x19`.
+- Validate current calibration across ranges and resolve the exact SC7A20 suffix/revision at `0x19`.
 - Map AW9523B ports to PCB signals, including any display or PD-control lines.
 - Recover the external-flash part number, capacity, and complete storage layout.
 - Trace display commands and pin routing independently of the QSPI register block.

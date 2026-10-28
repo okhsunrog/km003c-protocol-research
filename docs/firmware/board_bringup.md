@@ -48,7 +48,8 @@ The raw register samples and selected decompilations are preserved under
 [evidence/hw2.1_bringup](evidence/hw2.1_bringup/README.md).
 
 - I2C3: PC13 AF48 SDA, PH2 AF49 SCL. AW9523B is at `0x5b`;
-  orientation-related sensor at `0x19` remains unidentified.
+  orientation sensor at `0x19` is now identified as SC7A20-family by live
+  WHO_AM_I `0x11`, XYZ and 6D operation (see acceptance below).
 - SPI2: PA8 AF47 SCK, PA10 AF44 MOSI, PB0 AF45 MISO; PA7 is a manual
   active-low chip select. The target is INA229 on the tested HW2.1 unit: live
   manufacturer/device IDs are `0x5449` / `0x2291` (2026-10-28).
@@ -319,3 +320,37 @@ the test; loader preservation is checked separately.
 [Reference traffic, raw intervals and acceptance](https://github.com/okhsunrog/km003c-firmware/tree/main/hardware/pd-cdc)
 and [CDC command protocol](https://github.com/okhsunrog/km003c-firmware/blob/main/docs/cdc-telemetry.md)
 are maintained with the custom firmware.
+
+## Accelerometer and automatic display rotation (2026-10-28)
+
+The physical device returned WHO_AM_I `0x11` from I2C `0x19`, consistent with
+Silan SC7A20-family. XYZ readings and 6D orientation events work. The shared ID
+and register map do not establish a particular H suffix or silicon revision.
+
+A read-only probe inherited stock 2.0.7 CTRL1/2/4=`27/c0/08`, INT1_CFG=`ff`;
+the earlier catalog 1.9.9 initializer wrote CTRL4=`10` instead. The custom driver
+explicitly configures 10 Hz, HR ±2 g and BDU (`CTRL4=88`) after identity checks,
+verifies readback, and polls STATUS/XYZ with auto-increment. No calibration/NVM,
+self-test or sensor interrupt output is enabled. I2C3 remains owned by the UI
+alongside AW9523; transactions are serialized by that single owner.
+
+The catalog direction table at `0x47fc0` maps source XL/XH/YL/YH to `0/2/1/3`.
+Three fresh consistent observations select a direction. The owner requested
+and confirmed a fixed 90-degree counterclockwise mounting correction; all four
+screen positions are now visually accepted. Flat/ambiguous positions retain
+the last orientation. The MCU transforms dirty tiles, preserving MADCTL and
+panel initialization. No extra full framebuffer or tearing synchronization is
+introduced.
+
+The manufacturer-authored SC7A20 datasheet was read using `mistral_ocr` on selected
+pages. [Driver details](https://github.com/okhsunrog/km003c-firmware/blob/main/docs/orientation.md)
+and [hardware evidence](https://github.com/okhsunrog/km003c-firmware/tree/main/hardware/orientation)
+are maintained with the custom firmware.
+
+The owner subsequently requested keeping a working custom image installed across
+hardware tests. Future runs must not automatically restore stock: use it only
+for a concrete reference comparison, recovery or an explicit request. Application
+updates target internal HC32 flash; custom external-NOR access currently issues
+read commands only. External legacy ID `85 15` is consistent with Puya (manufacturer
+`85`); exact model/capacity still require JEDEC/SFDP or package identification.
+See [external-flash access and limits](https://github.com/okhsunrog/km003c-firmware/blob/main/docs/external-flash.md).

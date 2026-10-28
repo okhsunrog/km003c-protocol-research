@@ -210,7 +210,7 @@ provides additional component evidence:
 | Address | Device | Notes |
 |---------|--------|-------|
 | 0x5B (91) | AW9523B GPIO/LED controller | Reset, ID, direction, GPIO/LED mode and dimming registers match the vendor map in both binaries |
-| 0x19 (25) | Unidentified sensor, associated with orientation handling | Read of reg 0x31 and configuration of regs 0x20, 0x21, 0x23, 0x30 and 0x32 |
+| 0x19 (25) | SC7A20-family accelerometer (tested HW2.1: WHO_AM_I `0x11`) | Read of reg 0x31 and configuration of regs 0x20, 0x21, 0x23, 0x30 and 0x32 |
 
 The [AW9523B product documentation](https://www.awinic.com/en/productDetail/AW9523BTQR)
 describes 16 GPIO/LED outputs. The matching firmware evidence is detailed in
