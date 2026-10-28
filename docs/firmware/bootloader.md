@@ -418,9 +418,10 @@ The captured 453,828-byte image is **different** from this repository's older
 453,616-byte padded `fw/KM003C_V1.9.9_key0_ecb.bin` despite sharing the version
 string. Do not use offsets, plaintext lengths or image hashes interchangeably.
 
-Still open: the missing initial SP word, interrupted-update recovery, deliberate
-ACK-loss behavior on hardware, other board/loader
-revisions, and release-by-release compatibility.
+Still open: the missing initial SP word, systematic power-loss/interrupted-update
+coverage, deliberate ACK-loss behavior on hardware, other board/loader revisions,
+and release-by-release compatibility. One real transfer-timeout recovery is
+recorded below.
 
 ## Fault and disconnect limits
 
@@ -444,3 +445,25 @@ Selected additional decompilations are preserved in
 [Rust smoke test](evidence/rust_smoke_hw2.1/README.md) verifies normal application
 replacement and explicit return-to-loader, not power-loss safety or ACK-loss
 recovery during an interrupted flash operation.
+
+## Observed transfer-timeout recovery
+
+During the Rust USB bring-up on 2026-10-28, a maintenance upload timed out after
+reporting 24,480 ciphertext bytes completed. The next block's completion was
+unknown; data blocks were not retried. The native USB control
+channel then failed descriptor-language reads, and a software bus reset did not
+recover it. The owner disconnected all power, waited for shutdown, and connected
+the HID port while holding Exit. Native DFU returned, its HW2.1 identity was
+checked, and a fresh Setup installed the exact original 1.9.9 package.
+
+All 453,828 application bytes passed final readback. Loader bytes `[4, 0x4000)`
+matched SHA-256 `17d51eeff9fb6abe1a7024a108006248e0aaebdaae52de69a3e26c000565d4bf`.
+This verifies recovery from that observed timeout, including the physical Exit
+path. It does not establish automatic rollback, exhaustive power-loss safety,
+or successful recovery from writes outside the normal application bounds.
+
+The timeout's cause is not established. A concurrent observer queried native
+USB strings during that run; subsequent observer discovery was changed to reject
+the native iProduct=4 before any string request. Keep maintenance and application
+probing separate. The [firmware hardware record](https://github.com/okhsunrog/km003c-firmware/tree/main/hardware/usb-cdc)
+preserves the successful USB echo run and the later recovery result.

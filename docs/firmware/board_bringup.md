@@ -76,6 +76,7 @@ Live reads at `0x400c0040` returned:
 | GHWCFG1 | `0x00000000` | Endpoint direction configuration |
 | GHWCFG2 | `0x228ed530` | 5 device endpoints plus EP0; dedicated FS PHY |
 | GHWCFG3 | `0x013400e8` | FIFO depth 308 words / 1232 bytes |
+| GHWCFG4 | `0x17f08030` | Dedicated TX FIFOs; 5 IN endpoints plus EP0 |
 
 [Embassy's Synopsys driver](https://docs.embassy.dev/embassy-usb-synopsys-otg/git/default/index.html)
 is the intended core driver. It requires chip-specific initialization. Use
@@ -87,10 +88,32 @@ It configures NVIC IRQ0 priority `0xf0`. A Rust handler must forward IRQ0 to
 
 The [HC32 HAL](https://github.com/okhsunrog/hc32f460-embassy-rs) at
 `08a2603185d5acd05fda156e9cef468d47526be1` supplies the PAC, routing, GPIO and
-clock support, but currently no USB wrapper. The smoke image uses its PAC and
-runtime vectors. The first image deliberately returns to the stock USB loader
-instead of implementing USB itself. Embassy USB enumeration on HC32 is still
-unverified; matching the register layout and revision is only a starting point.
+clock support. The KM003C USB adapter and application now live in the separate
+[custom firmware repository](https://github.com/okhsunrog/km003c-firmware).
+
+**Embassy CDC enumeration and echo were verified on HW2.1 on 2026-10-28.**
+The unmodified Synopsys driver from Embassy revision
+`c2413d5994bbd8b7e6d5975fd49e6427cb903a02` worked after correcting the port's
+RX FIFO reserve. Two 64-byte OUT payload allocations contribute 32 words;
+`extra_rx_fifo_words=32` brings the RX FIFO to the native loader's 64 words.
+Leaving the reserve at zero stalled EP0 status handling. Trial EP0 patches and
+an alternate USB stack were removed from the final image.
+
+The firmware configures its own HRC/MPLL and SRAM timing: nominal HCLK 192 MHz
+and USB PLLR 48 MHz. The loader jumps to the application before executing its
+DFU clock/USB initialization; that configuration cannot be inherited at normal
+application entry. Separate RX/TX futures with an eight-packet queue passed
+byte-for-byte CDC echo for 1, 23, 64, 7, 64, 17, 128, 256 and 512 bytes.
+
+A SysTick deadline returned the experimental image to native DFU after about
+20 seconds. It is a software deadline, not an independently running watchdog;
+a permanently masked-interrupt or stuck-critical-section failure may prevent it.
+Trace logs, panic locations and register snapshots use retention RAM and are
+read through the native loader after reset. Full power-loss retention is not
+claimed. The exact original 1.9.9 was restored with complete application
+readback and unchanged loader bytes. See the
+[archived hardware acceptance](https://github.com/okhsunrog/km003c-firmware/tree/main/hardware/usb-cdc)
+for hashes, test results and recovery limits.
 
 ## Official SDK comparison
 
