@@ -204,3 +204,25 @@ Unknown nets remain explicitly unresolved. PCR/PFSR are live snapshots.
 | 46 | PB9 | `0x0140` / `0x0000` | Right/lightning button; active-low; sampled at application startup |
 | 47 | VSS | - | Ground |
 | 48 | VCC | - | MCU supply |
+
+## Rust display and button acceptance (2026-10-28)
+
+The owner confirmed a visible `embedded-graphics` UI on the ST7789-compatible
+240×240 panel and correct responses from all four buttons. The standalone Rust
+firmware also passed concurrent USB echo for nine payload sizes up to 512 bytes.
+
+The QSPI LCD transport uses PB14 SCK, PB13 MOSI, PB10 D/C (WPOL) and PB15 CS.
+PB1 flash CS is temporarily switched to a pulled-up GPIO and checked high
+before panel transactions, then restored to AF7. No loader functions are called.
+AW9523B at `0x5b` returned ID `0x23`; P1_1 controls reset and dimming registers
+`0x22` / `0x23` drive the backlight. Other GPIO bits are preserved.
+
+The active-low Exit PB7 / OK PB11 / Left PB8 / Right PB9 inputs produced retained
+press counts 5 / 6 / 6 / 8, then a released mask of zero. The image returned to
+native DFU on its 90-second deadline. Stock 1.9.9 was restored and verified by
+full 453828-byte readback; loader bytes `[0x4,0x4000)` still matched the original.
+
+[Source, hardware log and acceptance evidence](https://github.com/okhsunrog/km003c-firmware/tree/main/hardware/display-buttons)
+are maintained with the firmware. The two-second Exit return path is implemented
+but was not separately tested; the lightning button's CC electrical behavior
+remains a separate investigation.
