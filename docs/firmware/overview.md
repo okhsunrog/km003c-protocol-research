@@ -40,7 +40,16 @@ See [HC32F460 Register Analysis](hc32f460_analysis.md) for the verified mapping.
 
 ## RTOS Tasks
 
-The firmware uses a custom RTOS (not FreeRTOS/ThreadX):
+The native firmware uses **TencentOS tiny / derivative**. The exact release or
+commit has not been established. The task and primitive mappings below remain
+reverse-engineered binary observations, not symbols from a version-matched source
+build.
+
+This identification is useful for matching task creation, synchronization objects,
+timeouts and scheduler behavior against TencentOS tiny. Structure layouts, tick
+rate and configuration-dependent behavior still need verification against the
+particular firmware; do not infer them from an arbitrary upstream release.
+The custom Rust firmware uses Embassy and does not depend on this native kernel.
 
 | Task Name | Address | Priority | Stack | Purpose |
 |-----------|---------|----------|-------|---------|
