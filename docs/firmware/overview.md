@@ -230,7 +230,22 @@ sensor at `0x19`.
   to USB task setup (image offset `0x507e8`, runtime `0x547e8`); it should not
   be treated as the entry of a single low-level hardware initialization routine.
 - Steps: clear pending state → configure FIFO sizes/addresses → set up EP0 (control) → configure bulk endpoints → enable USB interrupts.
-- Registers observed: control/status (+0x008..0x018), FIFO (+0x024/+0x028), DFIFO (+0x038), endpoint config (+0x104..0x110), OTG control/status (+0x800+).
+- Global control/status registers occupy `+0x008..+0x018`.
+- `+0x024` is GRXFSIZ (RX FIFO depth); `+0x028` is the non-periodic TX /
+  device EP0 TX FIFO size/start register, not a FIFO data port.
+- `+0x038` is the generic Synopsys GGPIO location, not DFIFO. The HC32 vendor
+  header leaves this slot reserved; STM32-specific GCCFG bit meanings must not
+  be assumed to apply to HC32.
+- `+0x104..+0x114` are DIEPTXF1..5 (TX FIFO size/start registers).
+- Device control/status starts at `+0x800`; IN endpoint registers start at
+  `+0x900`, OUT endpoint registers at `+0xb00`, each with stride `0x20`.
+- FIFO data windows start at `+0x1000`, with stride `0x1000` per FIFO.
+
+These offsets are relative to `0x400c0000`, cross-checked against the vendor
+CMSIS header and the
+[Synopsys register definitions in Linux DWC2](https://github.com/torvalds/linux/blob/master/drivers/usb/dwc2/hw.h).
+They describe the register map; they do not establish that every listed register
+is accessed by a particular firmware routine.
 
 ## Graphics Library
 
