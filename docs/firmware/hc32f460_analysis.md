@@ -226,13 +226,16 @@ role; the exact part number has not been established.
 
 This is distinct from the photographed INA228: TI's
 [address table](https://www.ti.com/document-viewer/INA228/datasheet/GUID-E4E4E716-7FF4-403D-AA16-CF0C7187D9F5)
-permits addresses `0x40–0x4f`. The INA228's firmware driver, bus and selected
-address remain untraced. The photo's `228I` marking matches TI's
+permits addresses `0x40–0x4f`. The photo's `228I` marking matches TI's
 [official marking information](https://www.ti.com/ods/sysadd/oa/symlink/ina228_oa.pdf).
+
+On the tested HW2.1 device, the measurement target is now confirmed as INA229:
+SPI2 manufacturer/device reads returned `0x5449` / `0x2291`. It is separate
+from the sensor at `0x19`. See [hardware acceptance](board_bringup.md#ina229-acceptance-against-stock-207-2026-10-28).
 
 ## Remaining Hardware Questions
 
-- Trace the INA228 driver and identify the orientation sensor at `0x19`.
+- Validate current calibration across ranges and identify the sensor at `0x19`.
 - Map AW9523B ports to PCB signals, including any display or PD-control lines.
 - Recover the external-flash part number, capacity, and complete storage layout.
 - Trace display commands and pin routing independently of the QSPI register block.

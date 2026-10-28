@@ -50,14 +50,16 @@ The raw register samples and selected decompilations are preserved under
 - I2C3: PC13 AF48 SDA, PH2 AF49 SCL. AW9523B is at `0x5b`;
   orientation-related sensor at `0x19` remains unidentified.
 - SPI2: PA8 AF47 SCK, PA10 AF44 MOSI, PB0 AF45 MISO; PA7 is a manual
-  active-low chip select. Its external target has not been identified.
+  active-low chip select. The target is INA229 on the tested HW2.1 unit: live
+  manufacturer/device IDs are `0x5449` / `0x2291` (2026-10-28).
 - QSPI: PB1 CS0, PB2 IO3, PB10 IO2, PB12 IO1, PB13 IO0, PB14 SCK,
   all AF7. LCD transfers temporarily switch PB1 to GPIO to deselect flash,
   drive PB15 low, use the QSPI direct-command port, then restore flash selection.
   The display and external flash share this controller/bus.
 - USB: PA9 VBUS, PA11 DM, PA12 DP, all AF10. PA10 is used by SPI2.
-- The photo identification of INA228 does not establish which of these buses
-  carries its traffic. SPI2 activity alone is insufficient to relabel it INA229.
+- The teardown photo identifies a different specimen as INA228. On our unit,
+  INA229 identification now rests on SPI register protocol and actual ID reads;
+  it is independent of the photo interpretation.
 
 Live CMU SCFGR was `0x00212211`; PLLCFGR at `0x40054100` was
 `0x01300b00` and UPLLCFGR at `+4` was `0x11101300`. The MPLL source bit
@@ -172,7 +174,7 @@ Unknown nets remain explicitly unresolved. PCR/PFSR are live snapshots.
 | 14 | PA4 | `0x0000` / `0x0000` | Board net unresolved |
 | 15 | PA5 | `0x0000` / `0x0000` | Board net unresolved |
 | 16 | PA6 | `0x0000` / `0x0000` | Board net unresolved |
-| 17 | PA7 | `0x0103` / `0x0000` | SPI2 peripheral chip-select GPIO (active-low in helper 0x7118); external target unresolved |
+| 17 | PA7 | `0x0103` / `0x0000` | INA229 SPI2 chip-select GPIO (active-low in helper 0x7118) |
 | 18 | PB0 | `0x0000` / `0x002d` | SPI2_MISO (AF45) |
 | 19 | PB1 | `0x0140` / `0x0007` | QSPI_CS0 (AF7); temporarily switched to GPIO for display transfers |
 | 20 | PB2 | `0x0100` / `0x0007` | QSPI_IO3 (AF7) |
@@ -226,3 +228,30 @@ full 453828-byte readback; loader bytes `[0x4,0x4000)` still matched the origina
 are maintained with the firmware. The two-second Exit return path is implemented
 but was not separately tested; the lightning button's CC electrical behavior
 remains a separate investigation.
+
+## INA229 acceptance against stock 2.0.7 (2026-10-28)
+
+The Rust measurement feature read INA229 manufacturer ID `0x5449` and device
+ID `0x2291` over SPI2. The first 90-second run collected 360 samples without
+SPI errors, with VBUS 4.862695–4.883398 V. The owner confirmed visible voltage
+and current counts on the display; concurrent USB echo passed all nine sizes.
+The read-only driver preserved native configuration `0170/fdb0/1062/001e`.
+
+Stock 2.0.7 was backed up with two matching reads before writing, and its exact
+rollback package matched the installed image. Restoring it was checked by full
+456896-byte readback. Loader bytes `[0x4,0x4000)` matched the original dump.
+
+The 2.0.7 current helper at `0x6d78` normalizes CURRENT to a signed 24-bit result
+in the narrow range, or four times that value in the wide range. The ADC task
+passes it as microamps to calibration at `0x17b1c`. With SHUNT_CAL `0x1062`,
+that gives 16/64 microamps per signed 20-bit count before factory correction.
+The Rust UI labels this current `I0`; it does not silently apply unit-specific
+factory coefficients. No physical shunt resistance is inferred from this alone.
+
+On this unit stock calibration RAM at `0x1fffb5a8` contains five voltage offsets
+of -6 microvolts, ten current gains of 1002221 ppm and current offset 94 microamps.
+This RAM address belongs to stock 2.0.7, not to the Rust memory layout.
+Stock protocol data was read through `km003c-rs`, including uncalibrated averages.
+The load changed over time, so sequential readings do not certify metrology
+accuracy. See the firmware repository's
+[hardware evidence](https://github.com/okhsunrog/km003c-firmware/tree/main/hardware/adc-207).

@@ -205,7 +205,7 @@ provides additional component evidence:
 | Component | Evidence | Limits |
 |-----------|----------|--------|
 | AWINIC AW9523B | Visible marking; the application and bootloader register sequences match its GPIO/LED register map | Individual PCB signal assignments remain to be recovered |
-| TI INA228 | Visible `228I` marking and 10-pin package match TI's [package marking addendum](https://www.ti.com/ods/sysadd/oa/symlink/ina228_oa.pdf); TI documents a [20-bit I2C power monitor](https://www.ti.com/product/INA228) | Address, initialization and board routing have not yet been traced in the firmware |
+| TI INA228 (teardown specimen) | Visible `228I` marking and 10-pin package match TI's [package marking addendum](https://www.ti.com/ods/sysadd/oa/symlink/ina228_oa.pdf) | Our HW2.1 unit instead returned INA229 IDs over SPI2; see below |
 
 | Address | Device | Notes |
 |---------|--------|-------|
@@ -221,6 +221,11 @@ PD/CC circuitry remains to be reconstructed independently.
 TI specifies INA228 addresses in the range `0x40–0x4F`; neither address listed
 above is an INA228 address. Do not assign the photographed INA228 to the
 sensor at `0x19`.
+
+On the tested HW2.1 unit, SPI2 returned manufacturer/device IDs `0x5449` /
+`0x2291`, confirming **INA229**. The Rust driver collected 360 samples and
+passed concurrent USB echo. This runtime identification is separate from the
+teardown photo. See [board acceptance](board_bringup.md#ina229-acceptance-against-stock-207-2026-10-28).
 
 ---
 
