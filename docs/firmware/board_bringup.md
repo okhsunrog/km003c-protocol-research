@@ -354,3 +354,41 @@ updates target internal HC32 flash; custom external-NOR access currently issues
 read commands only. External legacy ID `85 15` is consistent with Puya (manufacturer
 `85`); exact model/capacity still require JEDEC/SFDP or package identification.
 See [external-flash access and limits](https://github.com/okhsunrog/km003c-firmware/blob/main/docs/external-flash.md).
+
+## Continuous double-buffer PD acceptance (2026-10-28)
+
+The custom firmware now rearms two 860-halfword DMA buffers in packet-gap IRQs,
+before waking a priority-7 Embassy interrupt executor. Completed intervals are
+staged and their DMA slot released before BMC/CRC decoding. Compact decoded
+records enter a bounded 32-record queue; JSON formatting and CDC output run on
+the thread executor. Slow USB readers do not suspend DMA or hold its buffers.
+Slot states prevent overwriting READY or READING memory, and overruns are counted.
+
+A 40-second Pixel PPS run delivered six complete ordered cycles, 36 CRC-valid
+packets: Request/GoodCRC/Accept/GoodCRC/PS_RDY/GoodCRC. There were no overruns,
+full buffers, DMA errors, DCU/count mismatches, quiescence faults, post-SOP decode
+errors or CDC drops. Separate pre-SOP synchronization rejections were counted.
+The measured handler/rearm portion was at most 725 cycles, about 3.78 µs at
+192 MHz; pre-entry IRQ latency is not included in that figure.
+
+During a 25-second host-backpressure test with no IN reads for its first
+10 seconds, DMA completed 24 bursts with zero overruns or reported post-SOP errors; only 12
+PD records reached the host and the output-drop counter increased by 96 records.
+These are different layers of loss. Finite buffers do not guarantee losslessness
+under arbitrary traffic or interrupt starvation.
+
+Earlier implementations lost packets while holding a DMA slot during processing,
+and retained trace formatting masked IRQs too long. The final design releases
+slots early and formats trace records with only short byte-store critical sections.
+Tests and failed intermediate evidence are preserved alongside accepted results.
+
+The current app uses nominal HCLK 192 MHz, PCLK1 96 MHz, USB 48 MHz and PD timer
+12 MHz. The owner's stock menu reports CPU 192 MHz and `ROM 4MB`; the latter is
+external NOR storage, distinct from the HC32's 512 KiB internal application flash.
+Exact external-flash suffix and independent JEDEC/SFDP identification remain open.
+
+The loader remained unchanged; the accepted custom image was restarted without
+writing flash. Stock was not restored. The test image still has a ten-minute
+DFU fallback. [Design](https://github.com/okhsunrog/km003c-firmware/blob/main/docs/pd-buffered.md)
+and [hardware evidence](https://github.com/okhsunrog/km003c-firmware/tree/main/hardware/pd-buffered)
+are maintained with the firmware.
